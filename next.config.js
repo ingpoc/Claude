@@ -4,9 +4,6 @@ const nextConfig = {
   images: {
     domains: ['placeholder.com'],
   },
-  experimental: {
-    serverActions: true,
-  },
   webpack: (config, { isServer }) => {
     // Fixes problem with database drivers that include native node addons, like KuzuDB:
     // Exclude kuzu's native module from Webpack bundling on the server.

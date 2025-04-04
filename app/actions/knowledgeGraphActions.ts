@@ -14,16 +14,62 @@ import {
     getAllRelationshipsForContext as getAllRelationshipsForContextDb,
     getRelatedEntities as getRelatedEntitiesDb,
     updateEntityDescription as updateEntityDescriptionDb,
+    type Entity,
+    type Relationship
 } from "@/lib/knowledgeGraph";
 
-// Re-export functions as server actions
-export const createEntity = createEntityDb;
-export const createRelationship = createRelationshipDb;
-export const addObservation = addObservationDb;
-export const deleteEntity = deleteEntityDb;
-export const deleteRelationship = deleteRelationshipDb;
-export const getEntity = getEntityDb;
-export const getAllEntities = getAllEntitiesDb;
-export const getAllRelationshipsForContext = getAllRelationshipsForContextDb;
-export const getRelatedEntities = getRelatedEntitiesDb;
-export const updateEntityDescription = updateEntityDescriptionDb; 
+// Wrap functions with proper type signatures instead of using rest params
+export async function createEntity(
+    name: string, 
+    type: string, 
+    description: string,
+    observationsText: string[] = [], 
+    parentId?: string
+): Promise<Entity | null> {
+    return await createEntityDb(name, type, description, observationsText, parentId);
+}
+
+export async function createRelationship(
+    fromEntityId: string, 
+    toEntityId: string, 
+    type: string, 
+    description: string = ""
+): Promise<Relationship | null> {
+    return await createRelationshipDb(fromEntityId, toEntityId, type, description);
+}
+
+export async function addObservation(entityId: string, observationText: string): Promise<{ observation_id: string } | null> {
+    return await addObservationDb(entityId, observationText);
+}
+
+export async function deleteEntity(entityId: string): Promise<boolean> {
+    return await deleteEntityDb(entityId);
+}
+
+export async function deleteRelationship(relationshipId: string): Promise<boolean> {
+    return await deleteRelationshipDb(relationshipId);
+}
+
+export async function getEntity(entityId: string): Promise<Entity | null> {
+    return await getEntityDb(entityId);
+}
+
+export async function getAllEntities(): Promise<Entity[]> {
+    return await getAllEntitiesDb();
+}
+
+export async function getAllRelationshipsForContext(): Promise<Relationship[]> {
+    return await getAllRelationshipsForContextDb();
+}
+
+export async function getRelatedEntities(
+    entityId: string,
+    relationshipType?: string,
+    direction: 'incoming' | 'outgoing' | 'both' = 'both'
+): Promise<Entity[]> {
+    return await getRelatedEntitiesDb(entityId, relationshipType, direction);
+}
+
+export async function updateEntityDescription(entityId: string, description: string): Promise<boolean> {
+    return await updateEntityDescriptionDb(entityId, description);
+} 
