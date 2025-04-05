@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "mcp": "node mcp-wrapper.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",

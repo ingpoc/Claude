@@ -36,13 +36,128 @@ interface RequestHandlerExtra {
   sessionId?: string;
 }
 
-// Extended transport type
-interface ExtendedTransport extends SSEServerTransport {
-  _handlingRequest?: boolean;
-  extra?: {
+// Define JSON-RPC message types
+interface JSONRPCMessage {
+  type: string;
+  id?: string;
+  [key: string]: any;
+}
+
+// Create a custom transport class that works with Next.js streams
+class NextJsSSETransport {
+  private writer: WritableStreamDefaultWriter<Uint8Array>;
+  private encoder: TextEncoder;
+  public _handlingRequest?: boolean;
+  public extra?: {
     sessionId: string;
     [key: string]: unknown;
   };
+  public sessionId: string;
+  private isStarted: boolean = false;
+
+  constructor(sessionId: string, writer: WritableStreamDefaultWriter<Uint8Array>) {
+    this.writer = writer;
+    this.encoder = new TextEncoder();
+    this.sessionId = sessionId;
+  }
+
+  // Start the SSE connection
+  async start(): Promise<void> {
+    this.isStarted = true;
+    return Promise.resolve();
+  }
+
+  // Send a message over SSE
+  async send(message: JSONRPCMessage): Promise<void> {
+    if (!this.isStarted) {
+      await this.start();
+    }
+
+    const data = JSON.stringify(message);
+    let sseMessage = `data: ${data}\n\n`;
+    
+    try {
+      await this.writer.write(this.encoder.encode(sseMessage));
+    } catch (error) {
+      console.error("Error writing to SSE stream:", error);
+    }
+  }
+
+  // Send a custom event
+  async sendEvent(event: string, data: string): Promise<void> {
+    if (!this.isStarted) {
+      await this.start();
+    }
+
+    let message = `event: ${event}\n`;
+    message += `data: ${data}\n\n`;
+    
+    try {
+      await this.writer.write(this.encoder.encode(message));
+    } catch (error) {
+      console.error("Error writing to SSE stream:", error);
+    }
+  }
+
+  // Close the SSE connection
+  async close(): Promise<void> {
+    try {
+      await this.writer.close();
+    } catch (error) {
+      console.error("Error closing SSE stream:", error);
+    }
+  }
+
+  // Handle incoming messages from the client
+  async handleMessage(message: JSONRPCMessage): Promise<void> {
+    // This would normally be handled by SSEServerTransport
+    // We need to implement our own handler that will send any responses
+    if (message && message.type === 'request' && message.tool) {
+      try {
+        // Call the appropriate tool handler
+        const toolName = message.tool;
+        const args = message.args || {};
+        const extra = this.extra || {};
+        
+        console.log(`Processing tool request: ${toolName} with args:`, args);
+        
+        // Find the registered tool handler
+        const toolHandler = (server as any)._tools?.[toolName];
+        if (!toolHandler) {
+          throw new Error(`Tool not found: ${toolName}`);
+        }
+        
+        // Call the handler
+        const result = await toolHandler.handler(args, extra);
+        
+        // Create and send response
+        const response = {
+          type: 'response',
+          id: message.id,
+          isError: result.isError || false,
+          content: result.content || []
+        };
+        
+        console.log(`Sending response for tool: ${toolName}`);
+        await this.send(response);
+      } catch (error) {
+        console.error("Error handling message:", error);
+        // Send error response
+        if (message.id) {
+          const errorResponse = {
+            type: 'response',
+            id: message.id,
+            isError: true,
+            content: [{
+              type: 'text',
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            }]
+          };
+          await this.send(errorResponse);
+        }
+      }
+    }
+  }
 }
 
 // --- Session management ---
@@ -54,7 +169,7 @@ interface SessionData {
 const sessionData: Record<string, SessionData> = {};
 
 // Keep track of active SSE transports
-const transports: { [sessionId: string]: ExtendedTransport } = {};
+const transports: { [sessionId: string]: NextJsSSETransport } = {};
 
 // Helper to get the current project ID for a session
 function getProjectIdForSession(sessionId?: string): string | null {
@@ -924,94 +1039,251 @@ server.tool("delete_observation", "Removes a specific observation from an entity
 
 // GET handler for establishing the SSE connection
 export async function GET(req: NextRequest) {
-    // Create a response stream
-    const responseStream = new TransformStream();
-    const writer = responseStream.writable.getWriter();
-    const encoder = new TextEncoder();
-
-    // Create SSE headers
-    const headers = new Headers();
-    headers.set('Content-Type', 'text/event-stream');
-    headers.set('Cache-Control', 'no-cache');
-    headers.set('Connection', 'keep-alive');
-
-    // Create the SSE transport
-    const transport = new SSEServerTransport(
-        req.nextUrl.pathname,
-        {
-            send: (data: string) => writer.write(encoder.encode(data)),
-            close: () => writer.close()
-        } as any
-    ) as ExtendedTransport;
-    
-    // Add session ID to transport extra
-    transport.extra = { sessionId: transport.sessionId };
-
-    // Store the transport
-    transports[transport.sessionId] = transport;
-
-    // Initialize session data
-    sessionData[transport.sessionId] = {};
-
-    // Check if a project ID was provided in the request
-    const projectId = req.nextUrl.searchParams.get('projectId');
-    if (projectId) {
-        // Try to set the project if it exists
-        const project = await getProject(projectId);
-        if (project) {
-            setProjectIdForSession(transport.sessionId, projectId);
-            console.log(`Set initial project to ${projectId} for session ${transport.sessionId}`);
-        }
-    }
-
-    // Handle connection closing
-    req.signal.addEventListener('abort', () => {
-        console.log(`SSE connection closed: ${transport.sessionId}`);
-        delete transports[transport.sessionId];
-        delete sessionData[transport.sessionId];
-    });
-
-    // Connect the server to the transport
-    server.connect(transport)
-        .then(() => {
-            console.log(`MCP Server connected for session: ${transport.sessionId}`);
-            // Store the sessionId in extra for subsequent requests
-            transports[transport.sessionId].extra = { sessionId: transport.sessionId };
-        })
-        .catch(err => console.error("Error connecting MCP server:", err));
-
-    // Return the streaming response
-    return new Response(responseStream.readable, { headers });
-}
-
-// POST handler for receiving messages from the client
-export async function POST(req: NextRequest) {
-    const sessionId = req.nextUrl.searchParams.get('sessionId');
-    if (!sessionId) {
-        return new Response('Missing sessionId query parameter', { status: 400 });
-    }
-
-    const transport = transports[sessionId];
-    if (!transport) {
-        return new Response(`No active transport found for sessionId: ${sessionId}`, { status: 404 });
-    }
+    // Get or generate session ID
+    const sessionId = req.nextUrl.searchParams.get('sessionId') || `session-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+    console.log(`SSE connection request received for session: ${sessionId}`);
 
     try {
-        let message = await req.json();
+        // Create a response stream
+        const responseStream = new TransformStream();
+        const writer = responseStream.writable.getWriter();
+        const encoder = new TextEncoder();
+
+        // Create SSE headers with CORS support
+        const headers = new Headers();
+        headers.set('Content-Type', 'text/event-stream');
+        headers.set('Cache-Control', 'no-cache');
+        headers.set('Connection', 'keep-alive');
+        headers.set('Access-Control-Allow-Origin', '*');
+        headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        headers.set('Access-Control-Allow-Headers', 'Content-Type');
+
+        console.log(`Setting up transport for session: ${sessionId}`);
+
+        // Create our custom NextJS-compatible SSE transport
+        const transport = new NextJsSSETransport(sessionId, writer);
         
-        // Add extra with sessionId to message if not already present
-        if (message && typeof message === 'object') {
-            if (!message.extra) {
-                message.extra = { sessionId };
-            } else if (typeof message.extra === 'object') {
-                message.extra.sessionId = sessionId;
+        // Add session ID to transport extra
+        transport.extra = { sessionId };
+
+        // Store the transport
+        transports[sessionId] = transport;
+
+        // Initialize session data
+        sessionData[sessionId] = {};
+
+        // Check if a project ID was provided in the request
+        const projectId = req.nextUrl.searchParams.get('projectId');
+        if (projectId) {
+            // Try to set the project if it exists
+            const project = await getProject(projectId);
+            if (project) {
+                setProjectIdForSession(sessionId, projectId);
+                console.log(`Set initial project to ${projectId} for session ${sessionId}`);
             }
         }
-        
-        await transport.handleMessage(message);
-        return new Response('Message received', { status: 200 });
+
+        // Handle connection closing
+        req.signal.addEventListener('abort', () => {
+            console.log(`SSE connection closed by client: ${sessionId}`);
+            delete transports[sessionId];
+            delete sessionData[sessionId];
+        });
+
+        // Send a keep-alive ping immediately to ensure connection is working
+        try {
+            console.log(`Sending immediate ping for session: ${sessionId}`);
+            await writer.write(encoder.encode(`: ping\n\n`));
+            
+            // Send the initial connected event
+            console.log(`Sending connected event for session: ${sessionId}`);
+            const connectedEvent = `event: connected\ndata: ${JSON.stringify({ session: sessionId })}\n\n`;
+            await writer.write(encoder.encode(connectedEvent));
+            
+            console.log(`SSE connection established for session: ${sessionId}`);
+        } catch (err) {
+            console.error(`Error sending initial events for session ${sessionId}:`, err);
+        }
+
+        // Return the streaming response
+        return new Response(responseStream.readable, { headers });
     } catch (error) {
-        console.error("Error processing client message:", error);
-        return new Response('Error processing message', { status: 500 });
+        console.error(`Error in GET handler for session ${sessionId}:`, error);
+        return new Response(`Internal server error: ${error instanceof Error ? error.message : String(error)}`, { 
+            status: 500,
+            headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            }
+        });
     }
+}
+
+// --- Handle MCP Protocol methods directly ---
+const handleMcpProtocolMethods = async (message: any) => {
+  // Handle initialization request
+  if (message.method === 'initialize') {
+    return {
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        protocolVersion: "2024-11-05",  // Use the standard MCP protocol version
+        capabilities: {
+          tools: {}
+        },
+        serverInfo: {
+          name: "knowledge-graph-mcp",
+          version: "0.1.0"
+        }
+      }
+    };
+  }
+  
+  // Handle tool listing request
+  if (message.method === 'tools/list') {
+    // Build tool descriptions from registered tools
+    const toolDescriptions = Object.entries((server as any)._tools || {}).map(([name, tool]) => {
+      const handler = tool as any;
+      
+      // Convert Zod schema to JSON Schema for the input schema
+      let inputSchema = {};
+      if (handler.parameterSchema) {
+        inputSchema = {
+          type: "object",
+          properties: {},
+          required: [],
+          additionalProperties: false,
+          $schema: "http://json-schema.org/draft-07/schema#"
+        };
+        
+        // Add properties from Zod schema
+        Object.entries(handler.parameterSchema.shape || {}).forEach(([paramName, paramSchema]: [string, any]) => {
+          // Get param description from Zod description
+          const description = paramSchema._def?.description || '';
+          
+          // Map Zod types to JSON Schema types
+          let type = "string";
+          if (paramSchema instanceof z.ZodNumber) type = "number";
+          if (paramSchema instanceof z.ZodBoolean) type = "boolean";
+          if (paramSchema instanceof z.ZodArray) type = "array";
+          if (paramSchema instanceof z.ZodObject) type = "object";
+          
+          // Add property to schema
+          (inputSchema as any).properties[paramName] = {
+            type,
+            description
+          };
+          
+          // Add to required list if not optional
+          if (!paramSchema.isOptional?.()) {
+            (inputSchema as any).required.push(paramName);
+          }
+        });
+      }
+      
+      return {
+        name,
+        description: handler.description || `Knowledge Graph MCP: ${name}`,
+        inputSchema
+      };
+    });
+    
+    return {
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        tools: toolDescriptions
+      }
+    };
+  }
+  
+  // Handle notifications/initialized notification
+  if (message.method === 'notifications/initialized') {
+    // Just acknowledge, no response needed
+    return null;
+  }
+  
+  // For other MCP protocol methods, return a method not found error
+  if (message.method && message.method.indexOf('/') !== -1) {
+    return {
+      jsonrpc: "2.0",
+      id: message.id,
+      error: {
+        code: -32601,
+        message: "Method not found"
+      }
+    };
+  }
+  
+  // Not a protocol method, continue with normal processing
+  return false;
+};
+
+// POST handler for receiving messages from the client
+export async function POST(request: NextRequest) {
+  try {
+    // Get JSON body
+    const body = await request.json();
+    const sessionId = request.nextUrl.searchParams.get('sessionId') || '';
+    
+    // Initialize state for this session if needed
+    if (!sessionData[sessionId]) {
+      sessionData[sessionId] = {};
+    }
+    
+    // Check if this is an MCP protocol method (initialize, tools/list, etc.)
+    const protocolResponse = await handleMcpProtocolMethods(body);
+    if (protocolResponse) {
+      // If we got a protocol response, return it
+      return new Response(
+        protocolResponse ? JSON.stringify(protocolResponse) : '',
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // If no transport exists for this session, create one
+    if (!transports[sessionId]) {
+      // This shouldn't normally happen with SSE, but just in case
+      console.error(`No transport found for session ${sessionId}, creating new one.`);
+      return new Response(JSON.stringify({
+        type: 'error',
+        content: [{ type: 'text', text: 'Session not found' }]
+      }), { headers: { 'Content-Type': 'application/json' } });
+    }
+    
+    // Mark this transport as handling a request
+    const transport = transports[sessionId];
+    transport._handlingRequest = true;
+    
+    // Process the message
+    await transport.handleMessage(body);
+    
+    // Reset handling flag
+    transport._handlingRequest = false;
+    
+    // For simplicity, we don't return a response here, as the transport will handle sending responses
+    return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+  } catch (error) {
+    console.error('Error processing POST request:', error);
+    return new Response(
+      JSON.stringify({ 
+        type: 'error', 
+        content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }]
+      }),
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+// OPTIONS handler for CORS preflight requests
+export async function OPTIONS(req: NextRequest) {
+    return new Response(null, {
+        status: 204,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type'
+        }
+    });
 } 
