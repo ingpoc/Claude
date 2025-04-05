@@ -16,11 +16,11 @@ export interface ProjectMetadata {
 
 // Store project metadata in a JSON file
 // Assume server is started from project root
-const PROJECT_ROOT = process.cwd(); 
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const PROJECTS_DIR = path.join(PROJECT_ROOT, '.kuzu-db');
 const PROJECTS_FILE = path.join(PROJECTS_DIR, 'projects.json');
 
-console.log(`[DEBUG] Using database directory: ${PROJECTS_DIR}`);
+// console.error(`[DEBUG] Using database directory: ${PROJECTS_DIR}`);
 
 // DB instances cache
 const dbConnections: Record<string, { 
@@ -36,17 +36,17 @@ const connectionCache: Record<string, { db: kuzu.Database, conn: kuzu.Connection
 // Initialize the projects directory and metadata file if they don't exist
 function ensureProjectInfrastructure() {
   try {
-    console.log(`[DEBUG] Ensuring project infrastructure at: ${PROJECTS_DIR}`);
+    // console.error(`[DEBUG] Ensuring project infrastructure at: ${PROJECTS_DIR}`);
     if (!fs.existsSync(PROJECTS_DIR)) {
-      console.log(`[DEBUG] Creating projects directory: ${PROJECTS_DIR}`);
+      // console.error(`[DEBUG] Creating projects directory: ${PROJECTS_DIR}`);
       fs.mkdirSync(PROJECTS_DIR, { recursive: true });
     }
     
     if (!fs.existsSync(PROJECTS_FILE)) {
-      console.log(`[DEBUG] Creating projects metadata file: ${PROJECTS_FILE}`);
+      // console.error(`[DEBUG] Creating projects metadata file: ${PROJECTS_FILE}`);
       fs.writeFileSync(PROJECTS_FILE, JSON.stringify({ projects: [] }), 'utf8');
     }
-    console.log(`[DEBUG] Project infrastructure check completed successfully`);
+    // console.error(`[DEBUG] Project infrastructure check completed successfully`);
   } catch (error) {
     console.error(`[ERROR] Failed to ensure project infrastructure:`, error);
     throw error; // Re-throw to make the error visible to the caller
@@ -197,7 +197,7 @@ export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.C
     
     // Remove stale connections
     for (const staleId of staleConnections) {
-        console.log(`[DEBUG] Removing stale connection for project: ${staleId}`);
+        // console.error(`[DEBUG] Removing stale connection for project: ${staleId}`);
         delete connectionCache[staleId];
     }
     
@@ -207,17 +207,17 @@ export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.C
         const projectDirPath = path.join(PROJECTS_DIR, projectId);
         const dbPath = path.join(projectDirPath, 'graph.db');
         
-        console.log(`[DEBUG] Ensuring project directory exists: ${projectDirPath}`);
+        // console.error(`[DEBUG] Ensuring project directory exists: ${projectDirPath}`);
         if (!fs.existsSync(projectDirPath)) {
             fs.mkdirSync(projectDirPath, { recursive: true });
-            console.log(`[DEBUG] Created project directory: ${projectDirPath}`);
+            // console.error(`[DEBUG] Created project directory: ${projectDirPath}`);
         }
         
-        console.log(`[DEBUG] Creating new database for project: ${projectId}`);
+        // console.error(`[DEBUG] Creating new database for project: ${projectId}`);
         // First create the database object
         const db = new kuzu.Database(dbPath);
         
-        console.log(`[DEBUG] Creating new connection for project: ${projectId}`);
+        // console.error(`[DEBUG] Creating new connection for project: ${projectId}`);
         // Then create a connection from the database
         const conn = new kuzu.Connection(db);
         
@@ -231,7 +231,7 @@ export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.C
         return { conn };
     } catch (error) {
         // Handle connection errors
-        console.error(`[DEBUG] Error connecting to KuzuDB for project ${projectId}:`, error);
+        console.error(`[ERROR] Error connecting to KuzuDB for project ${projectId}:`, error);
         throw error;
     }
 }

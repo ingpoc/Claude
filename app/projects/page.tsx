@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Navigation from '@/components/Navigation';
-import ProjectCard from '@/components/ProjectCard';
-import CreateProjectModal from '@/components/CreateProjectModal';
+import Navigation from '../../components/Navigation';
+import ProjectCard from '../../components/ProjectCard';
+import CreateProjectModal from '../../components/CreateProjectModal';
 import { PlusSquare } from 'lucide-react';
 
 interface Project {

@@ -71,16 +71,16 @@ async function runQuery<T = any>(
         
         if (params) {
             // Use prepared statements: prepare on connection, then execute on connection
-            console.log(`[DEBUG] Preparing statement: ${query.substring(0, 100)}...`);
+            // console.error(`[DEBUG] Preparing statement: ${query.substring(0, 100)}...`);
             try {
                 // @ts-ignore - Linter error might be due to outdated types, runtime expects prepare
                 const statement = await conn.prepare(query);
-                console.log(`[DEBUG] Executing prepared statement via conn.execute with params:`, params);
+                // console.error(`[DEBUG] Executing prepared statement via conn.execute with params:`, params);
                 // Pass prepared statement and params to conn.execute()
                 // Add undefined for the progressCallback argument
                 // @ts-ignore - Linter error might be due to outdated types, runtime expects execute
                 const result = await conn.execute(statement, params, undefined); 
-                console.log(`[DEBUG] Raw result from prepared statement execution:`, result);
+                // console.error(`[DEBUG] Raw result from prepared statement execution:`, result);
                 // Manually close statement if needed (check KuzuDB API)
                 // await statement.close(); 
                 return result;
@@ -89,11 +89,11 @@ async function runQuery<T = any>(
                 return null;
             }
         } else {
-            console.log(`[DEBUG] Running non-parameterized query: ${query}`);
+            // console.error(`[DEBUG] Running non-parameterized query: ${query}`);
             try {
                 // Add undefined for the progressCallback argument
                 const result = await conn.query(query, undefined);
-                console.log(`[DEBUG] Raw result from conn.query (non-parameterized):`, result);
+                // console.error(`[DEBUG] Raw result from conn.query (non-parameterized):`, result);
                 return result;
             } catch (queryError) {
                 console.error(`[ERROR] Failed to execute query: ${query.substring(0, 100)}...`, queryError);
@@ -115,7 +115,7 @@ export async function createEntity(
   observationsText: string[] = [], // Accept text initially
   parentId?: string
 ): Promise<Entity | null> {
-  console.log(`[DEBUG] Creating entity: ${name} (${type}) in project ${projectId}`);
+  // console.error(`[DEBUG] Creating entity: ${name} (${type}) in project ${projectId}`);
 
   try {
     // Get direct database connection
@@ -156,18 +156,18 @@ export async function createEntity(
       })
     `;
 
-    console.log(`[DEBUG] Executing combined entity creation query within explicit transaction`);
+    // console.error(`[DEBUG] Executing combined entity creation query within explicit transaction`);
     let transactionStarted = false;
     try {
       // 1. Begin Transaction
-      console.log(`[DEBUG] Beginning transaction...`);
+      // console.error(`[DEBUG] Beginning transaction...`);
       const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
       if (!beginResult) {
           console.error(`[ERROR] Failed to begin transaction for entity "${name}".`);
           return null;
       }
       transactionStarted = true;
-      console.log(`[DEBUG] Transaction begun.`);
+      // console.error(`[DEBUG] Transaction begun.`);
       
       // 2. Execute the single creation query with parameters using runQuery
       const createResult = await runQuery(projectId, createQuery, params);
@@ -177,32 +177,32 @@ export async function createEntity(
           console.error(`[ERROR] Entity creation query failed for name "${name}" within transaction.`);
           // Attempt rollback if transaction started
           if (transactionStarted) {
-              console.log(`[DEBUG] Rolling back transaction due to creation failure...`);
+              // console.error(`[DEBUG] Rolling back transaction due to creation failure...`);
               await runQuery(projectId, "ROLLBACK;");
           }
           return null;
       }
-      console.log(`[DEBUG] Entity creation query executed within transaction for ID: ${id}.`);
+      // console.error(`[DEBUG] Entity creation query executed within transaction for ID: ${id}.`);
 
       // 3. Commit Transaction
-      console.log(`[DEBUG] Committing transaction...`);
+      // console.error(`[DEBUG] Committing transaction...`);
       const commitResult = await runQuery(projectId, "COMMIT;");
       if (!commitResult) {
           console.error(`[ERROR] Failed to commit transaction for entity "${name}".`);
            // Attempt rollback - though commit failure might make this ineffective
-           console.log(`[DEBUG] Attempting rollback after commit failure...`);
+           // console.error(`[DEBUG] Attempting rollback after commit failure...`);
            await runQuery(projectId, "ROLLBACK;"); 
           return null; // Return null as commit failed
       }
-      console.log(`[DEBUG] Transaction committed successfully for ID: ${id}.`);
+      // console.error(`[DEBUG] Transaction committed successfully for ID: ${id}.`);
       transactionStarted = false; // Transaction ended
 
       // --- Force Checkpoint (Diagnostic Step) ---
-      console.log(`[DEBUG] Forcing CHECKPOINT after commit for ID: ${id}`);
+      // console.error(`[DEBUG] Forcing CHECKPOINT after commit for ID: ${id}`);
       try {
         const checkpointResult = await runQuery(projectId, "CHECKPOINT;");
         if (checkpointResult) {
-          console.log(`[DEBUG] CHECKPOINT executed successfully.`);
+          // console.error(`[DEBUG] CHECKPOINT executed successfully.`);
         } else {
           console.error(`[ERROR] CHECKPOINT command failed after commit.`);
         }
@@ -214,17 +214,17 @@ export async function createEntity(
       // --- Verification Step RE-ENABLED ---
       
       const verifyQuery = `MATCH (e:Entity {id: $id}) RETURN e.id`;
-      console.log(`[DEBUG] Verifying entity exists with query: MATCH (e:Entity {id: ${id}}) RETURN e.id`);
+      // console.error(`[DEBUG] Verifying entity exists with query: MATCH (e:Entity {id: ${id}}) RETURN e.id`);
 
       try {
         // Add more robust verification with retries
         let verificationPassed = false;
         for (let attempt = 0; attempt < 3; attempt++) {
-          console.log(`[DEBUG] Verification attempt ${attempt + 1} for entity ${id}`);
+          // console.error(`[DEBUG] Verification attempt ${attempt + 1} for entity ${id}`);
           
           // Add increasing delay between attempts
           if (attempt > 0) {
-            console.log(`[DEBUG] Waiting ${100 * attempt}ms before retry...`);
+            // console.error(`[DEBUG] Waiting ${100 * attempt}ms before retry...`);
             await new Promise(resolve => setTimeout(resolve, 100 * attempt));
           }
           
@@ -251,10 +251,10 @@ export async function createEntity(
           }
           // --- End Use getAll() ---
           
-          console.log(`[DEBUG] Verification rows (attempt ${attempt + 1}):`, JSON.stringify(verifyRows));
+          // console.error(`[DEBUG] Verification rows (attempt ${attempt + 1}):`, JSON.stringify(verifyRows));
 
           if (verifyRows && verifyRows.length > 0 && verifyRows[0]['e.id'] === id) { // Check specific ID in result
-            console.log(`[DEBUG] Entity verified in database on attempt ${attempt + 1}: ${id}`);
+            // console.error(`[DEBUG] Entity verified in database on attempt ${attempt + 1}: ${id}`);
             verificationPassed = true;
             break;
           }
@@ -264,18 +264,18 @@ export async function createEntity(
           // This case indicates a problem - the CREATE supposedly succeeded, but verification failed after retries.
           console.error(`[ERROR] Entity verification failed after ${3} attempts for ID: ${id}. The entity might not be queryable immediately.`);
           // Despite verification failure, we'll return the entity anyway as the transaction was committed
-          console.log(`[DEBUG] Returning entity despite verification failure as transaction was committed: ${id}`);
+          // console.error(`[DEBUG] Returning entity despite verification failure as transaction was committed: ${id}`);
         }
       } catch (verifyError) {
         console.error(`[ERROR] Error during entity verification for ID ${id}:`, verifyError);
         // Despite verification error, we'll return the entity anyway as the transaction was committed
-        console.log(`[DEBUG] Returning entity despite verification error as transaction was committed: ${id}`);
+        // console.error(`[DEBUG] Returning entity despite verification error as transaction was committed: ${id}`);
       }
       
       // --- END Verification Step RE-ENABLED ---
 
       // --- Add Direct Persistence Check ---
-      console.log(`[DEBUG] Performing direct persistence check immediately after commit for ID: ${id}`);
+      // console.error(`[DEBUG] Performing direct persistence check immediately after commit for ID: ${id}`);
       try {
           const directCheckQuery = `MATCH (e:Entity {id: $id}) RETURN e.id`;
           const directCheckResult = await runQuery(projectId, directCheckQuery, { id });
@@ -283,9 +283,9 @@ export async function createEntity(
           if (directCheckResult && typeof directCheckResult.getAll === 'function') {
               directCheckRows = await directCheckResult.getAll();
           }
-          console.log(`[DEBUG] Direct persistence check result rows:`, JSON.stringify(directCheckRows));
+          // console.error(`[DEBUG] Direct persistence check result rows:`, JSON.stringify(directCheckRows));
           if (directCheckRows && directCheckRows.length > 0 && directCheckRows[0]['e.id'] === id) {
-              console.log(`[SUCCESS] Direct persistence check PASSED for ${id}.`);
+              // console.error(`[SUCCESS] Direct persistence check PASSED for ${id}.`);
           } else {
               console.error(`[FAILED] Direct persistence check FAILED for ${id}. Entity not found immediately after commit.`);
           }
@@ -303,7 +303,7 @@ export async function createEntity(
         observations, // Return the object, not the JSON string
         parentId: parentId || undefined // Return undefined if not provided initially
       };
-      console.log(`[DEBUG] Returning entity: ${id}`);
+      // console.error(`[DEBUG] Returning entity: ${id}`);
       return entity;
 
     } catch (createError) {
@@ -444,11 +444,11 @@ export async function createRelationship(
             const verifyQuery = `MATCH (from:Entity {id: $fromId})-[r:Related {id: $relId}]->(to:Entity {id: $toId}) RETURN r.id`;
             
             for (let attempt = 0; attempt < 3; attempt++) {
-                console.log(`[DEBUG] Relationship verification attempt ${attempt + 1} for ${relId}`);
+                // console.error(`[DEBUG] Relationship verification attempt ${attempt + 1} for ${relId}`);
                 
                 // Add increasing delay between attempts
                 if (attempt > 0) {
-                    console.log(`[DEBUG] Waiting ${100 * attempt}ms before retry...`);
+                    // console.error(`[DEBUG] Waiting ${100 * attempt}ms before retry...`);
                     await new Promise(resolve => setTimeout(resolve, 100 * attempt));
                 }
                 
@@ -472,7 +472,7 @@ export async function createRelationship(
                     }
                     
                     if (verifyRows && verifyRows.length > 0) {
-                        console.log(`[DEBUG] Relationship verified in database on attempt ${attempt + 1}: ${relId}`);
+                        // console.error(`[DEBUG] Relationship verified in database on attempt ${attempt + 1}: ${relId}`);
                         verificationPassed = true;
                         break;
                     }
@@ -486,7 +486,7 @@ export async function createRelationship(
             }
             
             // Return the relationship data regardless of verification outcome
-            console.log(`Relationship created: (${fromEntityId})-[${type}, ${relId}]->(${toEntityId}) in project: ${projectId}`);
+            console.error(`Relationship created: (${fromEntityId})-[${type}, ${relId}]->(${toEntityId}) in project: ${projectId}`);
             return { id: relId, from: fromEntityId, to: toEntityId, type };
         }
     } catch (error) {
@@ -542,7 +542,7 @@ export async function addObservation(
         const writeResult = await runQuery(projectId, writeQuery, { id: entityId, newObsList });
         
         if (writeResult) {
-            console.log(`Observation ${newObservationId} added to entity: ${entityId} in project: ${projectId}`);
+            console.error(`Observation ${newObservationId} added to entity: ${entityId} in project: ${projectId}`);
             return { observation_id: newObservationId };
         }
         
@@ -604,7 +604,7 @@ export async function deleteObservation(
         const writeResult = await runQuery(projectId, writeQuery, { entityId, updatedObsList });
         
         if (writeResult) {
-            console.log(`Observation ${observationId} deleted from entity: ${entityId} in project: ${projectId}`);
+            console.error(`Observation ${observationId} deleted from entity: ${entityId} in project: ${projectId}`);
             return true;
         }
         
@@ -624,7 +624,7 @@ export async function deleteEntity(
     const query = `MATCH (e:Entity {id: $entityId}) DETACH DELETE e`;
     const result = await runQuery(projectId, query, { entityId });
     if (result) {
-        console.log(`Entity ${entityId} deleted with all relationships in project: ${projectId}`);
+        console.error(`Entity ${entityId} deleted with all relationships in project: ${projectId}`);
         return true;
     }
     return false;
@@ -638,7 +638,7 @@ export async function deleteRelationship(
     const query = `MATCH ()-[r:Related {id: $relationshipId}]->() DELETE r`;
     const result = await runQuery(projectId, query, { relationshipId });
     if (result) {
-        console.log(`Relationship ${relationshipId} deleted in project: ${projectId}`);
+        console.error(`Relationship ${relationshipId} deleted in project: ${projectId}`);
         return true;
     }
     return false;
@@ -699,7 +699,7 @@ export async function getEntity(
         }
         
         // No valid entity found
-        console.log(`[DEBUG] No entity found or data malformed for ID: ${entityId}. Rows:`, JSON.stringify(rows));
+        // console.error(`[DEBUG] No entity found or data malformed for ID: ${entityId}. Rows:`, JSON.stringify(rows));
         return null;
     } catch (error) {
         console.error(`[ERROR] Error processing entity query result for ID ${entityId}:`, error);
@@ -711,7 +711,7 @@ export async function getEntity(
 export async function getAllEntities(
   projectId: string
 ): Promise<Entity[]> {
-    console.log(`[DEBUG] getAllEntities called for project: ${projectId}`);
+    // console.error(`[DEBUG] getAllEntities called for project: ${projectId}`);
     
     // Get database connection directly
     const { conn } = await getDbConnection(projectId);
@@ -719,9 +719,9 @@ export async function getAllEntities(
     try {
         // Query to get all entity data directly
         const query = `MATCH (e:Entity) RETURN e.id AS id, e.name AS name, e.type AS type, e.description AS description, e.observations AS observations, e.parentId AS parentId`;
-        console.log(`[DEBUG] Executing query: ${query}`);
+        // console.error(`[DEBUG] Executing query: ${query}`);
         const result = await conn.query(query);
-        console.log(`[DEBUG] Raw result from getAllEntities query:`, result); // Log raw result
+        // console.error(`[DEBUG] Raw result from getAllEntities query:`, result); // Log raw result
 
         // --- Use getAll() for result processing ---
         let rows: any[] = [];
@@ -741,7 +741,7 @@ export async function getAllEntities(
                   rows = result;
               }
          }
-         console.log(`[DEBUG] Processed rows from getAllEntities: ${rows.length} rows found.`);
+         // console.error(`[DEBUG] Processed rows from getAllEntities: ${rows.length} rows found.`);
          // --- End Use getAll() ---
         
         const entities: Entity[] = [];
@@ -781,7 +781,7 @@ export async function getAllEntities(
             }
         }
         
-        console.log(`[DEBUG] getAllEntities returning ${entities.length} entities.`);
+        // console.error(`[DEBUG] getAllEntities returning ${entities.length} entities.`);
         return entities;
     } catch (error) {
         console.error('[ERROR] Error in getAllEntities:', error);
@@ -954,7 +954,7 @@ export async function updateEntityDescription(
     const query = `MATCH (e:Entity {id: $entityId}) SET e.description = $description`;
     const result = await runQuery(projectId, query, { entityId, description });
     if (result) {
-        console.log(`Entity ${entityId} description updated in project: ${projectId}`);
+        // console.error(`Entity ${entityId} description updated in project: ${projectId}`);
         return true;
     }
     return false;
