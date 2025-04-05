@@ -21,9 +21,65 @@ import {
     type Observation
 } from "@/lib/knowledgeGraph";
 
+// Import project manager
+import {
+    createProject,
+    getProject,
+    getProjects,
+    deleteProject,
+    type ProjectMetadata
+} from "@/lib/projectManager";
+
 // --- Define our own RequestHandlerExtra interface based on the SDK's expectations ---
 interface RequestHandlerExtra {
   [key: string]: unknown;
+  sessionId?: string;
+}
+
+// Extended transport type
+interface ExtendedTransport extends SSEServerTransport {
+  _handlingRequest?: boolean;
+  extra?: {
+    sessionId: string;
+    [key: string]: unknown;
+  };
+}
+
+// --- Session management ---
+interface SessionData {
+  projectId?: string;
+}
+
+// Track session data
+const sessionData: Record<string, SessionData> = {};
+
+// Keep track of active SSE transports
+const transports: { [sessionId: string]: ExtendedTransport } = {};
+
+// Helper to get the current project ID for a session
+function getProjectIdForSession(sessionId?: string): string | null {
+  if (!sessionId) return null;
+  return sessionData[sessionId]?.projectId || null;
+}
+
+// Helper to set the current project ID for a session
+function setProjectIdForSession(sessionId: string, projectId: string): void {
+  if (!sessionData[sessionId]) {
+    sessionData[sessionId] = {};
+  }
+  sessionData[sessionId].projectId = projectId;
+}
+
+// Helper to validate project ID in session
+function validateProjectId(sessionId?: string): { valid: boolean; error?: string; projectId?: string } {
+    const projectId = getProjectIdForSession(sessionId);
+    if (!projectId) {
+        return { 
+            valid: false, 
+            error: "No project selected. Use 'select_project' or 'create_project' first."
+        };
+    }
+    return { valid: true, projectId };
 }
 
 // --- MCP Server Setup ---
@@ -38,6 +94,195 @@ const server = new McpServer({
 // Helper type for handler arguments
 type ToolArgs<T extends ZodRawShape> = z.infer<z.ZodObject<T>>;
 
+// --- Project Management Tools ---
+
+// 1. create_project
+const createProjectSchemaDef = {
+    name: z.string().describe("A unique name for the project."),
+    description: z.string().optional().describe("Optional description of the project."),
+};
+const createProjectHandler = async (args: ToolArgs<typeof createProjectSchemaDef>, extra: RequestHandlerExtra) => {
+    try {
+        const project = await createProject(args.name, args.description);
+        if (!project) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: "Error: Failed to create project (name may already be in use).",
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        // Find the transport that's handling this request
+        // The transport's sessionId is used as the key
+        const transportSessionId = Object.keys(transports).find(sId => {
+            const transportObj = transports[sId];
+            return transportObj._handlingRequest === true;
+        });
+
+        // Set this as the current project for the session if we can identify it
+        if (transportSessionId) {
+            setProjectIdForSession(transportSessionId, project.id);
+        }
+
+        return {
+            content: [{
+                type: "text" as const,
+                text: JSON.stringify(project),
+                [Symbol.for("_")]: undefined
+            }]
+        };
+    } catch (error) {
+        console.error("Error in createProjectHandler:", error);
+        return {
+            content: [{
+                type: "text" as const,
+                text: `Error creating project: ${error instanceof Error ? error.message : String(error)}`,
+                [Symbol.for("_")]: undefined
+            }],
+            isError: true
+        };
+    }
+};
+server.tool("create_project", "Creates a new project with a separate knowledge graph.", createProjectSchemaDef, createProjectHandler);
+
+// 2. select_project
+const selectProjectSchemaDef = {
+    project_id: z.string().describe("The ID of the project to select as current."),
+};
+const selectProjectHandler = async (args: ToolArgs<typeof selectProjectSchemaDef>, extra: RequestHandlerExtra) => {
+    try {
+        // Verify the project exists
+        const project = await getProject(args.project_id);
+        if (!project) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: Project with ID ${args.project_id} not found.`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        // Set as current project for this session
+        if (extra.sessionId) {
+            setProjectIdForSession(extra.sessionId, args.project_id);
+            console.log(`Set current project to ${args.project_id} for session ${extra.sessionId}`);
+        } else {
+            console.warn("No sessionId in extra, cannot select project");
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: "Error: Could not set current project (session issue).",
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        return {
+            content: [{
+                type: "text" as const,
+                text: `Selected project: ${project.name} (${project.id})`,
+                [Symbol.for("_")]: undefined
+            }]
+        };
+    } catch (error) {
+        console.error("Error in selectProjectHandler:", error);
+        return {
+            content: [{
+                type: "text" as const,
+                text: `Error selecting project: ${error instanceof Error ? error.message : String(error)}`,
+                [Symbol.for("_")]: undefined
+            }],
+            isError: true
+        };
+    }
+};
+server.tool("select_project", "Selects a project to work with for the current session.", selectProjectSchemaDef, selectProjectHandler);
+
+// 3. list_projects
+const listProjectsSchemaDef = {};
+const listProjectsHandler = async (_args: ToolArgs<typeof listProjectsSchemaDef>, extra: RequestHandlerExtra) => {
+    try {
+        const projects = await getProjects();
+        const currentProjectId = getProjectIdForSession(extra.sessionId);
+        
+        return {
+            content: [{
+                type: "text" as const,
+                text: JSON.stringify({
+                    projects: projects.map(p => ({
+                        ...p,
+                        is_current: p.id === currentProjectId
+                    }))
+                }),
+                [Symbol.for("_")]: undefined
+            }]
+        };
+    } catch (error) {
+        console.error("Error in listProjectsHandler:", error);
+        return {
+            content: [{
+                type: "text" as const,
+                text: `Error listing projects: ${error instanceof Error ? error.message : String(error)}`,
+                [Symbol.for("_")]: undefined
+            }],
+            isError: true
+        };
+    }
+};
+server.tool("list_projects", "Lists all available projects.", listProjectsSchemaDef, listProjectsHandler);
+
+// 4. delete_project
+const deleteProjectSchemaDef = {
+    project_id: z.string().describe("The ID of the project to delete."),
+};
+const deleteProjectHandler = async (args: ToolArgs<typeof deleteProjectSchemaDef>, extra: RequestHandlerExtra) => {
+    try {
+        const success = await deleteProject(args.project_id);
+        if (!success) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: Project with ID ${args.project_id} not found or could not be deleted.`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        // If this was the current project for the session, unset it
+        if (extra.sessionId && sessionData[extra.sessionId]?.projectId === args.project_id) {
+            delete sessionData[extra.sessionId].projectId;
+        }
+
+        return {
+            content: [{
+                type: "text" as const,
+                text: "Project successfully deleted.",
+                [Symbol.for("_")]: undefined
+            }]
+        };
+    } catch (error) {
+        console.error("Error in deleteProjectHandler:", error);
+        return {
+            content: [{
+                type: "text" as const,
+                text: `Error deleting project: ${error instanceof Error ? error.message : String(error)}`,
+                [Symbol.for("_")]: undefined
+            }],
+            isError: true
+        };
+    }
+};
+server.tool("delete_project", "Deletes a project and its knowledge graph.", deleteProjectSchemaDef, deleteProjectHandler);
+
+// --- Knowledge Graph Tools ---
+
 // 1. create_entity
 const createEntitySchemaDef = {
     name: z.string().describe("The primary name or identifier of the entity (e.g., 'src/components/Button.tsx', 'calculateTotal', 'UserAuthenticationFeature')."),
@@ -48,7 +293,28 @@ const createEntitySchemaDef = {
 };
 const createEntityHandler = async (args: ToolArgs<typeof createEntitySchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        const entity = await createEntity(args.name, args.type, args.description, args.observations, args.parentId);
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        const entity = await createEntity(
+            projectValidation.projectId!, 
+            args.name, 
+            args.type, 
+            args.description, 
+            args.observations, 
+            args.parentId
+        );
+        
         if (!entity) {
             return {
                 content: [{
@@ -91,7 +357,27 @@ const createRelationshipSchemaDef = {
 };
 const createRelationshipHandler = async (args: ToolArgs<typeof createRelationshipSchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        const rel = await createRelationship(args.source_id, args.target_id, args.type, args.description);
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        const rel = await createRelationship(
+            projectValidation.projectId!,
+            args.source_id, 
+            args.target_id, 
+            args.type, 
+            args.description
+        );
+        
         if (!rel) {
             return {
                 content: [{
@@ -132,7 +418,25 @@ const addObservationSchemaDef = {
 };
 const addObservationHandler = async (args: ToolArgs<typeof addObservationSchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        const result = await addObservation(args.entity_id, args.observation);
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        const result = await addObservation(
+            projectValidation.projectId!,
+            args.entity_id, 
+            args.observation
+        );
+        
         if (!result) {
             return {
                 content: [{
@@ -172,7 +476,24 @@ const getEntitySchemaDef = {
 };
 const getEntityHandler = async (args: ToolArgs<typeof getEntitySchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        const entity = await getEntity(args.entity_id);
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        const entity = await getEntity(
+            projectValidation.projectId!,
+            args.entity_id
+        );
+        
         if (!entity) {
             return {
                 content: [{
@@ -210,12 +531,24 @@ server.tool("get_entity", "Retrieves detailed information about a specific entit
 const listEntitiesSchemaDef = {
     filter_type: z.string().optional().describe("Optional filter to return only entities of a specific type."),
     filter_name_contains: z.string().optional().describe("Optional filter to return entities whose name contains the given string (case-insensitive).")
-    // limit: z.number().optional().default(20).describe("Maximum number of entities to return (default 20).") // Add limit to schema
 };
 const listEntitiesHandler = async (args: ToolArgs<typeof listEntitiesSchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        // Fetch all entities first
-        let entities = await listEntitiesDb(); // Use the imported alias for getAllEntities
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        // Fetch all entities for this project
+        let entities = await listEntitiesDb(projectValidation.projectId!);
 
         // Apply server-side filtering
         if (args.filter_type) {
@@ -258,23 +591,34 @@ const getRelatedEntitiesSchemaDef = {
     entity_id: z.string().describe("The unique ID of the entity to find relatives for."),
     relationship_type: z.string().optional().describe("Optional filter to only consider relationships of a specific type."),
     direction: z.enum(['incoming', 'outgoing', 'both']).optional().default('both').describe("Direction of relationships to consider ('incoming', 'outgoing', or 'both'). Defaults to 'both'.")
-    // limit: z.number().optional().default(20).describe("Maximum number of related entities to return (default 20).") // Add limit to schema
 };
 const getRelatedEntitiesHandler = async (args: ToolArgs<typeof getRelatedEntitiesSchemaDef>, extra: RequestHandlerExtra) => {
     try {
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
         // Limit is specified in the plan (default 20)
         const limit = 20; // (args.limit not implemented yet)
-        // The DB function `getRelatedEntities` doesn't support limit directly, handle post-query or modify DB function
-        // For now, fetching all and limiting here. A DB-level limit would be more efficient.
-        const entities = await getRelatedEntities(args.entity_id, args.relationship_type, args.direction);
+        const entities = await getRelatedEntities(
+            projectValidation.projectId!,
+            args.entity_id, 
+            args.relationship_type, 
+            args.direction as ('incoming' | 'outgoing' | 'both')
+        );
 
         // Limit results
         const limitedEntities = entities.slice(0, limit);
 
-        // Plan asks for { related_entities: [{ id, name, type, relationship_type }] }
-        // Current DB function returns Entity[{ id, name, type, description, observations, parentId }]
-        // Adding relationship_type would require changing the Kuzu query in getRelatedEntities.
-        // For now, returning what's available matching the plan's entity structure.
         return {
             content: [{
                 type: "text" as const,
@@ -303,14 +647,32 @@ const getRelationshipsSchemaDef = {
     from_id: z.string().optional().describe("Optional: Filter relationships originating from this entity ID."),
     to_id: z.string().optional().describe("Optional: Filter relationships targeting this entity ID."),
     type: z.string().optional().describe("Optional: Filter relationships of this specific type.")
-    // limit: z.number().optional().default(20).describe("Maximum number of relationships to return (default 20).") // Add limit to schema
 };
 const getRelationshipsHandler = async (args: ToolArgs<typeof getRelationshipsSchemaDef>, extra: RequestHandlerExtra) => {
     try {
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
         // Limit is specified in the plan (default 20)
         const limit = 20; // (args.limit not implemented yet)
-        // The DB function `getRelationships` doesn't support limit directly. Apply post-query.
-        const relationships = await getRelationships({ fromId: args.from_id, toId: args.to_id, type: args.type });
+        const relationships = await getRelationships(
+            projectValidation.projectId!,
+            { 
+                fromId: args.from_id, 
+                toId: args.to_id, 
+                type: args.type 
+            }
+        );
 
         const limitedRelationships = relationships.slice(0, limit);
 
@@ -345,7 +707,25 @@ const updateEntityDescriptionSchemaDef = {
 };
 const updateEntityDescriptionHandler = async (args: ToolArgs<typeof updateEntityDescriptionSchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        const success = await updateEntityDescription(args.entity_id, args.description);
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        const success = await updateEntityDescription(
+            projectValidation.projectId!,
+            args.entity_id, 
+            args.description
+        );
+        
         if (!success) {
             return {
                 content: [{
@@ -385,14 +765,26 @@ const deleteEntitySchemaDef = {
 };
 const deleteEntityHandler = async (args: ToolArgs<typeof deleteEntitySchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        const success = await deleteEntity(args.entity_id);
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        const success = await deleteEntity(
+            projectValidation.projectId!,
+            args.entity_id
+        );
+        
         if (!success) {
-            // It might fail if the entity doesn't exist, but the desired state (gone) is achieved.
-            // Let's consider not finding it as a "success" for deletion idempotency.
-            // The DB function currently doesn't distinguish between "deleted" and "not found".
-            // If more specific errors are needed, the DB function should be updated.
             console.warn(`Attempted to delete entity ${args.entity_id}, but DB function returned false (may already be deleted or error occurred).`);
-            // Assuming success if no error thrown, even if DB function returns false
         }
 
         // Return simple text message as specified
@@ -419,16 +811,30 @@ server.tool("delete_entity", "Deletes an entity and all its associated relations
 
 // 10. delete_relationship
 const deleteRelationshipSchemaDef = {
-    // Plan uses 'id', let's use 'relationship_id' for clarity vs entity IDs
     relationship_id: z.string().describe("The unique ID of the relationship to delete.")
 };
 const deleteRelationshipHandler = async (args: ToolArgs<typeof deleteRelationshipSchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        const success = await deleteRelationship(args.relationship_id);
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        const success = await deleteRelationship(
+            projectValidation.projectId!,
+            args.relationship_id
+        );
+        
         if (!success) {
-            // Similar to deleteEntity, consider "not found" as success.
             console.warn(`Attempted to delete relationship ${args.relationship_id}, but DB function returned false (may already be deleted or error occurred).`);
-            // Assuming success if no error thrown
         }
 
         // Return simple text message as specified
@@ -457,15 +863,30 @@ server.tool("delete_relationship", "Removes a specific relationship between two 
 // 11. delete_observation
 const deleteObservationSchemaDef = {
     entity_id: z.string().describe("The unique ID of the entity from which to delete the observation."),
-    // Plan uses 'observation_index', but implementation uses 'observation_id'. ID is more robust.
     observation_id: z.string().describe("The unique ID of the observation to delete.")
 };
 const deleteObservationHandler = async (args: ToolArgs<typeof deleteObservationSchemaDef>, extra: RequestHandlerExtra) => {
     try {
-        const success = await deleteObservation(args.entity_id, args.observation_id);
+        // Validate project ID
+        const projectValidation = validateProjectId(extra.sessionId);
+        if (!projectValidation.valid) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: `Error: ${projectValidation.error}`,
+                    [Symbol.for("_")]: undefined
+                }],
+                isError: true
+            };
+        }
+
+        const success = await deleteObservation(
+            projectValidation.projectId!,
+            args.entity_id, 
+            args.observation_id
+        );
+        
         if (!success) {
-            // DB function returns false if entity not found, or true if obs not found (idempotent).
-            // Assume failure only means entity not found.
             return {
                 content: [{
                     type: "text" as const,
@@ -501,9 +922,6 @@ server.tool("delete_observation", "Removes a specific observation from an entity
 
 // --- Next.js Route Handlers for MCP over SSE ---
 
-// Keep track of active SSE transports
-const transports: { [sessionId: string]: SSEServerTransport } = {};
-
 // GET handler for establishing the SSE connection
 export async function GET(req: NextRequest) {
     // Create a response stream
@@ -524,20 +942,42 @@ export async function GET(req: NextRequest) {
             send: (data: string) => writer.write(encoder.encode(data)),
             close: () => writer.close()
         } as any
-    );
+    ) as ExtendedTransport;
+    
+    // Add session ID to transport extra
+    transport.extra = { sessionId: transport.sessionId };
 
     // Store the transport
     transports[transport.sessionId] = transport;
+
+    // Initialize session data
+    sessionData[transport.sessionId] = {};
+
+    // Check if a project ID was provided in the request
+    const projectId = req.nextUrl.searchParams.get('projectId');
+    if (projectId) {
+        // Try to set the project if it exists
+        const project = await getProject(projectId);
+        if (project) {
+            setProjectIdForSession(transport.sessionId, projectId);
+            console.log(`Set initial project to ${projectId} for session ${transport.sessionId}`);
+        }
+    }
 
     // Handle connection closing
     req.signal.addEventListener('abort', () => {
         console.log(`SSE connection closed: ${transport.sessionId}`);
         delete transports[transport.sessionId];
+        delete sessionData[transport.sessionId];
     });
 
     // Connect the server to the transport
     server.connect(transport)
-        .then(() => console.log(`MCP Server connected for session: ${transport.sessionId}`))
+        .then(() => {
+            console.log(`MCP Server connected for session: ${transport.sessionId}`);
+            // Store the sessionId in extra for subsequent requests
+            transports[transport.sessionId].extra = { sessionId: transport.sessionId };
+        })
         .catch(err => console.error("Error connecting MCP server:", err));
 
     // Return the streaming response
@@ -557,7 +997,17 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const message = await req.json();
+        let message = await req.json();
+        
+        // Add extra with sessionId to message if not already present
+        if (message && typeof message === 'object') {
+            if (!message.extra) {
+                message.extra = { sessionId };
+            } else if (typeof message.extra === 'object') {
+                message.extra.sessionId = sessionId;
+            }
+        }
+        
         await transport.handleMessage(message);
         return new Response('Message received', { status: 200 });
     } catch (error) {

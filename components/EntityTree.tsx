@@ -18,8 +18,26 @@ const EntityTree: React.FC<EntityTreeProps> = ({
   onSelectEntity,
   selectedEntityId
 }) => {
+  // Safely handle empty or undefined entities
+  const safeEntities = entities || [];
+  
+  // Display a message if there are no entities
+  if (safeEntities.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <div className="text-gray-500 text-sm">
+          No entities available.
+          <br />
+          <span className="text-xs mt-1 block">
+            Click "Add Entity" below to create your first entity.
+          </span>
+        </div>
+      </div>
+    );
+  }
+  
   // Group entities by type
-  const groupedEntities: GroupedEntities = entities.reduce((acc, entity) => {
+  const groupedEntities: GroupedEntities = safeEntities.reduce((acc, entity) => {
     const type = entity.type;
     if (!acc[type]) {
       acc[type] = [];
@@ -76,7 +94,7 @@ const EntityTree: React.FC<EntityTreeProps> = ({
       if (!selectedEntityId) return;
       
       // Find the current entity
-      const allEntitiesList = entities.flatMap(entity => entity);
+      const allEntitiesList = safeEntities.flatMap(entity => entity);
       const currentEntityIndex = allEntitiesList.findIndex(entity => entity.id === selectedEntityId);
       
       if (currentEntityIndex === -1) return;
@@ -102,7 +120,7 @@ const EntityTree: React.FC<EntityTreeProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [entities, selectedEntityId, onSelectEntity]);
+  }, [safeEntities, selectedEntityId, onSelectEntity]);
 
   // Count entities by type with domain grouping
   const getDomainEntityCounts = () => {
@@ -167,7 +185,7 @@ const EntityTree: React.FC<EntityTreeProps> = ({
               {expandedGroups[domain.id] && (
                 <div className="ml-6 pl-2 border-l border-gray-800">
                   {/* Find entities that have this domain as their parent */}
-                  {entities
+                  {safeEntities
                     .filter(entity => entity.parentId === domain.id)
                     .map(childEntity => (
                       <div 

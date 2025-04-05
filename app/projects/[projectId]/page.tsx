@@ -2,14 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { useParams } from 'next/navigation';
 
-export default function KnowledgeGraphPage() {
+export default function ProjectPage() {
   const router = useRouter();
+  const params = useParams();
+  const projectId = params.projectId as string;
   
   useEffect(() => {
     // Redirect to entities page
-    router.push('/projects/knowledge-graph/entities');
-  }, [router]);
+    router.push(`/projects/${projectId}/entities`);
+  }, [router, projectId]);
   
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
@@ -19,4 +22,4 @@ export default function KnowledgeGraphPage() {
       </div>
     </div>
   );
-}
+} 

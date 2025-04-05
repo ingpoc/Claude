@@ -1,34 +1,60 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import ProjectCard from '@/components/ProjectCard';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { PlusSquare } from 'lucide-react';
 
-// Sample project data
-const initialProjects = [
-  {
-    id: 'knowledge-graph',
-    name: 'Knowledge Graph',
-    description: 'A knowledge graph for code understanding',
-    lastUpdated: '3/31/2025'
-  }
-];
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  lastAccessed?: string;
+}
 
 export default function Projects() {
-  const [projects, setProjects] = useState(initialProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleCreateProject = (name: string, description: string) => {
-    const newProject = {
-      id: name.toLowerCase().replace(/\s+/g, '-'),
-      name,
-      description,
-      lastUpdated: new Date().toLocaleDateString()
-    };
+  useEffect(() => {
+    async function fetchProjects() {
+      try {
+        const response = await fetch('/api/projects');
+        if (response.ok) {
+          const data = await response.json();
+          setProjects(data);
+        }
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchProjects();
+  }, []);
+
+  const handleCreateProject = async (name: string, description: string) => {
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description }),
+      });
+
+      if (response.ok) {
+        const newProject = await response.json();
+        setProjects([...projects, newProject]);
+      }
+    } catch (error) {
+      console.error('Error creating project:', error);
+    }
     
-    setProjects([...projects, newProject]);
     setIsModalOpen(false);
   };
 
@@ -55,15 +81,21 @@ export default function Projects() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
-            <ProjectCard 
-              key={project.id}
-              id={project.id}
-              name={project.name}
-              description={project.description}
-              lastUpdated={project.lastUpdated}
-            />
-          ))}
+          {isLoading ? (
+            <div className="col-span-3 text-center py-8">Loading projects...</div>
+          ) : projects.length > 0 ? (
+            projects.map((project) => (
+              <ProjectCard 
+                key={project.id}
+                id={project.id}
+                name={project.name}
+                description={project.description || ""}
+                lastUpdated={new Date(project.lastAccessed || project.createdAt).toLocaleDateString()}
+              />
+            ))
+          ) : (
+            <div className="col-span-3 text-center py-8">No projects found. Create one to get started!</div>
+          )}
         </div>
       </div>
       

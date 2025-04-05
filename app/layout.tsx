@@ -1,7 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import { KnowledgeGraphProvider } from '@/context/KnowledgeGraphContext'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,9 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-gray-950 text-gray-100`}>
-        <KnowledgeGraphProvider>
-          {children}
-        </KnowledgeGraphProvider>
+        {children}
       </body>
     </html>
   )
