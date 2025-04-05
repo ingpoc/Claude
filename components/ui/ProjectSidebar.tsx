@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, FolderIcon, FileIcon, Code, GitBranch, Search, PlusSquare } from 'lucide-react';
 import Link from 'next/link';
-import type { Entity } from '@/lib/knowledgeGraph';
-import EntityTree from '@/components/EntityTree';
+import type { Entity } from '../../lib/knowledgeGraph';
+import EntityTree from '../../components/EntityTree';
 
 interface ProjectSidebarProps {
   projectName: string;

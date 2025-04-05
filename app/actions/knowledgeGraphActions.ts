@@ -15,8 +15,11 @@ import {
     getRelatedEntities as getRelatedEntitiesDb,
     updateEntityDescription as updateEntityDescriptionDb,
     type Entity,
-    type Relationship
-} from "@/lib/knowledgeGraph";
+    type Relationship,
+    deleteObservation as deleteObservationDb,
+} from "../../lib/knowledgeGraph";
+
+import { SessionManager } from "../../lib/mcp/SessionManager";
 
 // Default project ID to use when one is not provided
 const DEFAULT_PROJECT_ID = "current_project";

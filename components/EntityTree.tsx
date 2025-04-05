@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Box, File, Folder, Database, Settings, Layout, Code, FileCode, Globe, FileJson } from 'lucide-react';
 import { Entity } from '@/lib/knowledgeGraph';
 import { cn } from '@/lib/utils';
@@ -18,10 +18,49 @@ const EntityTree: React.FC<EntityTreeProps> = ({
   onSelectEntity,
   selectedEntityId
 }) => {
-  // Safely handle empty or undefined entities
-  const safeEntities = entities || [];
-  
-  // Display a message if there are no entities
+  // Move hooks to the top level
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    'DOMAIN': true // Default to expanding DOMAIN
+  });
+
+  // Safely handle empty or undefined entities using useMemo
+  const safeEntities = useMemo(() => entities || [], [entities]);
+
+  // Handle keyboard navigation (moved before early return)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedEntityId) return;
+      
+      // Find the current entity
+      const allEntitiesList = safeEntities.flatMap(entity => entity); // Use memoized safeEntities
+      const currentEntityIndex = allEntitiesList.findIndex(entity => entity.id === selectedEntityId);
+      
+      if (currentEntityIndex === -1) return;
+      
+      // Handle arrow key navigation
+      switch (e.key) {
+        case 'ArrowDown':
+          if (currentEntityIndex < allEntitiesList.length - 1) {
+            e.preventDefault();
+            onSelectEntity(allEntitiesList[currentEntityIndex + 1].id);
+          }
+          break;
+        case 'ArrowUp':
+          if (currentEntityIndex > 0) {
+            e.preventDefault();
+            onSelectEntity(allEntitiesList[currentEntityIndex - 1].id);
+          }
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [safeEntities, selectedEntityId, onSelectEntity]); // Use memoized safeEntities in dependency array
+
+  // Display a message if there are no entities (early return check is now after hooks)
   if (safeEntities.length === 0) {
     return (
       <div className="p-4 text-center">
@@ -29,7 +68,7 @@ const EntityTree: React.FC<EntityTreeProps> = ({
           No entities available.
           <br />
           <span className="text-xs mt-1 block">
-            Click "Add Entity" below to create your first entity.
+            Click &quot;Add Entity&quot; below to create your first entity. {/* Fixed quotes */}
           </span>
         </div>
       </div>
@@ -51,11 +90,8 @@ const EntityTree: React.FC<EntityTreeProps> = ({
     return acc;
   }, {} as GroupedEntities);
 
-  // Track expanded groups
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    // Default to having DOMAIN expanded since it's the top-level category
-    'DOMAIN': true
-  });
+  // Track expanded groups (Hook call already moved to top)
+  // const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ ... }); // Original position
   
   const toggleGroup = (groupName: string) => {
     setExpandedGroups(prev => ({
@@ -88,39 +124,8 @@ const EntityTree: React.FC<EntityTreeProps> = ({
     }
   };
   
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selectedEntityId) return;
-      
-      // Find the current entity
-      const allEntitiesList = safeEntities.flatMap(entity => entity);
-      const currentEntityIndex = allEntitiesList.findIndex(entity => entity.id === selectedEntityId);
-      
-      if (currentEntityIndex === -1) return;
-      
-      // Handle arrow key navigation
-      switch (e.key) {
-        case 'ArrowDown':
-          if (currentEntityIndex < allEntitiesList.length - 1) {
-            e.preventDefault();
-            onSelectEntity(allEntitiesList[currentEntityIndex + 1].id);
-          }
-          break;
-        case 'ArrowUp':
-          if (currentEntityIndex > 0) {
-            e.preventDefault();
-            onSelectEntity(allEntitiesList[currentEntityIndex - 1].id);
-          }
-          break;
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [safeEntities, selectedEntityId, onSelectEntity]);
+  // Handle keyboard navigation (Hook call already moved to top)
+  // useEffect(() => { ... }); // Original position
 
   // Count entities by type with domain grouping
   const getDomainEntityCounts = () => {

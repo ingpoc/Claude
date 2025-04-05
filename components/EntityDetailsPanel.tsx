@@ -206,7 +206,13 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
                   <h4 className="text-sm font-medium text-gray-400">Additional Details:</h4>
                   <ul className="list-disc pl-5 space-y-1">
                     {entity.observations.map((observation, index) => (
-                      <li key={index} className="text-gray-300 text-sm">{observation}</li>
+                      <li key={index} className="text-gray-300 text-sm">
+                        {typeof observation === 'string' 
+                          ? observation 
+                          : (observation && typeof observation === 'object' && 'text' in observation)
+                            ? observation.text
+                            : 'Observation data'}
+                      </li>
                     ))}
                   </ul>
                 </div>

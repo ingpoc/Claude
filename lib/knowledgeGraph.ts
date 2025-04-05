@@ -11,9 +11,9 @@
 import * as kuzu from 'kuzu';
 import { v4 as uuidv4 } from 'uuid'; // Import uuid
 // Import constants from the new shared file
-import { EntityTypes, RelationshipTypes } from '@/lib/constants';
+import { EntityTypes, RelationshipTypes } from './constants';
 // Import project manager
-import { getDbConnection } from '@/lib/projectManager';
+import { getDbConnection } from './projectManager';
 // import { Entity, Observation, Relationship } from './knowledgeGraphTypes'; // Remove this incorrect import
 
 // Define Observation structure
@@ -55,31 +55,53 @@ async function runQuery<T = any>(
   params?: Record<string, any>
 ): Promise<kuzu.QueryResult | any> {
     try {
-        const { conn } = await getDbConnection(projectId);
+        // Add robust error handling around database connection
+        let conn;
+        try {
+            const connResult = await getDbConnection(projectId);
+            conn = connResult.conn;
+            if (!conn) {
+                console.error(`[ERROR] Failed to get database connection for project ${projectId}`);
+                return null;
+            }
+        } catch (connError) {
+            console.error(`[ERROR] Exception while getting database connection for project ${projectId}:`, connError);
+            return null;
+        }
         
         if (params) {
             // Use prepared statements: prepare on connection, then execute on connection
             console.log(`[DEBUG] Preparing statement: ${query.substring(0, 100)}...`);
-            // @ts-ignore - Linter error might be due to outdated types, runtime expects prepare
-            const statement = await conn.prepare(query);
-            console.log(`[DEBUG] Executing prepared statement via conn.execute with params:`, params);
-            // Pass prepared statement and params to conn.execute()
-            // Add undefined for the progressCallback argument
-            // @ts-ignore - Linter error might be due to outdated types, runtime expects execute
-            const result = await conn.execute(statement, params, undefined); 
-            console.log(`[DEBUG] Raw result from prepared statement execution:`, result);
-            // Manually close statement if needed (check KuzuDB API)
-            // await statement.close(); 
-            return result;
+            try {
+                // @ts-ignore - Linter error might be due to outdated types, runtime expects prepare
+                const statement = await conn.prepare(query);
+                console.log(`[DEBUG] Executing prepared statement via conn.execute with params:`, params);
+                // Pass prepared statement and params to conn.execute()
+                // Add undefined for the progressCallback argument
+                // @ts-ignore - Linter error might be due to outdated types, runtime expects execute
+                const result = await conn.execute(statement, params, undefined); 
+                console.log(`[DEBUG] Raw result from prepared statement execution:`, result);
+                // Manually close statement if needed (check KuzuDB API)
+                // await statement.close(); 
+                return result;
+            } catch (prepareError) {
+                console.error(`[ERROR] Failed to prepare or execute statement: ${query.substring(0, 100)}...`, prepareError);
+                return null;
+            }
         } else {
             console.log(`[DEBUG] Running non-parameterized query: ${query}`);
-            // Add undefined for the progressCallback argument
-            const result = await conn.query(query, undefined);
-            console.log(`[DEBUG] Raw result from conn.query (non-parameterized):`, result);
-            return result;
+            try {
+                // Add undefined for the progressCallback argument
+                const result = await conn.query(query, undefined);
+                console.log(`[DEBUG] Raw result from conn.query (non-parameterized):`, result);
+                return result;
+            } catch (queryError) {
+                console.error(`[ERROR] Failed to execute query: ${query.substring(0, 100)}...`, queryError);
+                return null;
+            }
         }
     } catch (error) {
-        console.error(`Error running query: ${query}`, error);
+        console.error(`[ERROR] Unexpected error in runQuery: ${query.substring(0, 100)}...`, error);
         return null;
     }
 }
@@ -937,5 +959,3 @@ export async function updateEntityDescription(
     }
     return false;
 }
-
-console.log("Knowledge graph library refactored for server-side KuzuDB use.");

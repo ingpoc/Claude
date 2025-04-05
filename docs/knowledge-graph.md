@@ -2,14 +2,17 @@
 
 ## Overview
 
-The Knowledge Graph MCP is a tool that allows AI assistants to build, maintain, and query a structured knowledge representation of code, concepts, and their relationships. This enables assistants to develop a persistent understanding of complex codebases, track context across sessions, and reason about relationships between different software components.
+The Knowledge Graph MCP server is a tool that allows AI assistants (like the Claude app) to build, maintain, and query a structured knowledge representation of code, concepts, and their relationships. This enables assistants to develop a persistent understanding of complex codebases, track context across sessions, and reason about relationships between different software components.
+
+This project also includes a Next.js web application for visualizing and interacting with the knowledge graph data, but the Next.js application **does not** use the MCP server; it interacts directly with the backend database logic.
 
 ## Architecture
 
 This implementation uses:
-- **KuzuDB**: A graph database used for storing entities and relationships
-- **NextJS API Routes**: Server-side routes that expose the knowledge graph functionality
-- **Model Context Protocol (MCP)**: Framework for integrating tools with AI assistants
+- **KuzuDB**: A graph database used for storing entities and relationships.
+- **Backend Logic (`lib/`)**: TypeScript modules (`knowledgeGraph.ts`, `projectManager.ts`) containing the core logic for interacting with KuzuDB.
+- **Standalone MCP Server (`standalone-server.js`)**: A dedicated Node.js/Express server that exposes the backend logic to AI clients via the Model Context Protocol (MCP). Uses code from `lib/mcp/`.
+- **Next.js Application (`app/`, `components/`)**: A web-based frontend UI for visualizing and managing the knowledge graph. This application interacts directly with the Backend Logic (e.g., via Server Actions), **not** through the MCP Server.
 
 ## Core Concepts
 
@@ -33,7 +36,7 @@ Relationships express connections between entities. Each relationship has:
 - **To**: Target entity ID
 - **Type**: Nature of the relationship (e.g., "calls", "imports", "implements")
 
-## Available Tools
+## Available Tools (for MCP Server)
 
 ### Entity Management
 
@@ -55,7 +58,7 @@ Relationships express connections between entities. Each relationship has:
 - **add_observation**: Add a text observation to an entity
 - **delete_observation**: Remove a specific observation from an entity
 
-## Use Cases
+## Use Cases (for AI via MCP Server)
 
 ### Code Understanding
 
@@ -77,22 +80,27 @@ Relationships express connections between entities. Each relationship has:
 
 ## Implementation Details
 
-The knowledge graph is implemented as a server-side application with:
+The knowledge graph backend logic resides in `lib/knowledgeGraph.ts` and `lib/projectManager.ts`, interacting with a KuzuDB database.
 
-1. A KuzuDB graph database backend for storing entities and relationships
-2. Server-side NextJS API routes that provide access to the graph
-3. MCP compliant API endpoints for AI assistant integration
+This backend logic is exposed in two ways:
 
-## Getting Started
+1.  **Standalone MCP Server**: A separate Node.js process (`standalone-server.js`) provides MCP compliant API endpoints (e.g., `/events` for SSE, `/mcp-messages` for requests) for AI assistant integration.
+2.  **Next.js Frontend**: The web application (`app/`) uses Next.js features (like Server Actions) to call the backend logic in `lib/` directly for its UI features.
 
-To interact with the Knowledge Graph MCP through an AI assistant:
+## Getting Started (for AI Assistants)
 
-1. The assistant can use any of the provided tools to query or update the graph
-2. Entity and relationship information is returned as structured JSON
-3. Build the graph incrementally as you explore and understand code
-4. Use the graph to recall and reason about code structure and relationships
+To interact with the Knowledge Graph via the MCP server:
 
-## Example Workflow
+1.  Ensure the standalone server is running (e.g., `node dist/standalone-server.js`).
+2.  Connect your AI assistant client to the standalone server's endpoints (typically `http://localhost:3010`).
+3.  The assistant can use any of the provided tools (listed above) to query or update the graph via JSON-RPC messages sent to the `/mcp-messages` endpoint.
+4.  Entity and relationship information is returned as structured JSON.
+5.  Build the graph incrementally as you explore and understand code.
+6.  Use the graph to recall and reason about code structure and relationships.
+
+(Note: The Next.js web application is used separately for direct visualization and does not use these MCP tools.)
+
+## Example Workflow (for AI via MCP Server)
 
 1. Create entities for key files and functions
 2. Establish relationships between them (e.g., "imports", "calls")

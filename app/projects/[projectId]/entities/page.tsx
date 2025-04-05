@@ -4,12 +4,12 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { PlusSquare, Search, LayoutGrid, List, Folder, ArrowUp, ArrowDown } from 'lucide-react';
 import Link from 'next/link';
-import Navigation from '@/components/Navigation';
-import { ProjectSidebar } from '@/components/ui/ProjectSidebar';
-import EntityDetailsPanel from '@/components/EntityDetailsPanel';
-import AddEntityModal from '@/components/AddEntityModal';
-import TransitionWrapper from '@/components/TransitionWrapper';
-import { ProjectProvider, useProject } from '@/context/ProjectContext';
+import Navigation from '../../../../components/Navigation';
+import { ProjectSidebar } from '../../../../components/ui/ProjectSidebar';
+import EntityDetailsPanel from '../../../../components/EntityDetailsPanel';
+import AddEntityModal from '../../../../components/AddEntityModal';
+import TransitionWrapper from '../../../../components/TransitionWrapper';
+import { ProjectProvider, useProject } from '../../../../context/ProjectContext';
 
 function EntitiesPageContent() {
   const {
@@ -69,12 +69,10 @@ function EntitiesPageContent() {
         entity.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
         entity.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (Array.isArray(entity.observations) && entity.observations.some(obs => {
-          if (typeof obs === 'string') {
-            return obs.toLowerCase().includes(searchQuery.toLowerCase());
-          } else if (obs && typeof obs === 'object' && typeof obs.text === 'string') {
-            return obs.text.toLowerCase().includes(searchQuery.toLowerCase());
-          }
-          return false;
+          const obsString = typeof obs === 'string' ? obs : 
+                            (obs && typeof obs === 'object' && 'text' in obs && typeof obs.text === 'string') ? 
+                            obs.text : '';
+          return obsString.toLowerCase().includes(searchQuery.toLowerCase());
         }))
       )
       : entities,

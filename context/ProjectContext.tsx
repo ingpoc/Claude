@@ -2,7 +2,7 @@
 
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 // Explicitly import only types from lib
-import type { Entity, Relationship } from '@/lib/knowledgeGraph'; 
+import type { Entity, Relationship } from '../lib/knowledgeGraph'; 
 import {
     createEntity,
     createRelationship,
@@ -14,8 +14,8 @@ import {
     getAllRelationshipsForContext,
     updateEntityDescription,
     getRelatedEntities as fetchRelatedEntities
-} from "@/app/actions/knowledgeGraphActions"; // Import server actions
-import { getProject } from '@/lib/projectManager';
+} from "../app/actions/knowledgeGraphActions"; // Import server actions
+import { getProject } from '../lib/projectManager';
 
 // Interface for RelationshipInfo
 interface RelationshipInfo {

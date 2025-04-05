@@ -15,8 +15,12 @@ export interface ProjectMetadata {
 }
 
 // Store project metadata in a JSON file
-const PROJECTS_FILE = path.resolve(process.cwd(), '.kuzu-db', 'projects.json');
-const PROJECTS_DIR = path.resolve(process.cwd(), '.kuzu-db');
+// Assume server is started from project root
+const PROJECT_ROOT = process.cwd(); 
+const PROJECTS_DIR = path.join(PROJECT_ROOT, '.kuzu-db');
+const PROJECTS_FILE = path.join(PROJECTS_DIR, 'projects.json');
+
+console.log(`[DEBUG] Using database directory: ${PROJECTS_DIR}`);
 
 // DB instances cache
 const dbConnections: Record<string, { 
@@ -31,12 +35,21 @@ const connectionCache: Record<string, { db: kuzu.Database, conn: kuzu.Connection
 
 // Initialize the projects directory and metadata file if they don't exist
 function ensureProjectInfrastructure() {
-  if (!fs.existsSync(PROJECTS_DIR)) {
-    fs.mkdirSync(PROJECTS_DIR, { recursive: true });
-  }
-  
-  if (!fs.existsSync(PROJECTS_FILE)) {
-    fs.writeFileSync(PROJECTS_FILE, JSON.stringify({ projects: [] }), 'utf8');
+  try {
+    console.log(`[DEBUG] Ensuring project infrastructure at: ${PROJECTS_DIR}`);
+    if (!fs.existsSync(PROJECTS_DIR)) {
+      console.log(`[DEBUG] Creating projects directory: ${PROJECTS_DIR}`);
+      fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+    }
+    
+    if (!fs.existsSync(PROJECTS_FILE)) {
+      console.log(`[DEBUG] Creating projects metadata file: ${PROJECTS_FILE}`);
+      fs.writeFileSync(PROJECTS_FILE, JSON.stringify({ projects: [] }), 'utf8');
+    }
+    console.log(`[DEBUG] Project infrastructure check completed successfully`);
+  } catch (error) {
+    console.error(`[ERROR] Failed to ensure project infrastructure:`, error);
+    throw error; // Re-throw to make the error visible to the caller
   }
 }
 
@@ -127,7 +140,7 @@ async function updateProjectAccess(projectId: string): Promise<boolean> {
 // Initialize schema for a KuzuDB connection
 async function initializeSchema(conn: kuzu.Connection): Promise<void> {
     try {
-        console.log("[Schema] Initializing KuzuDB schema...");
+        console.error("[Schema] Initializing KuzuDB schema...");
         
         // Create entity node with properties
         const entityTableCheck = await conn.query(`
@@ -140,7 +153,7 @@ async function initializeSchema(conn: kuzu.Connection): Promise<void> {
                 parentId STRING
             )
         `);
-        console.log("[Schema] Entity table checked/created.");
+        console.error("[Schema] Entity table checked/created.");
         
         // Create relationship type
         const relTableCheck = await conn.query(`
@@ -150,14 +163,14 @@ async function initializeSchema(conn: kuzu.Connection): Promise<void> {
                 type STRING
             )
         `);
-        console.log("[Schema] Related table checked/created.");
+        console.error("[Schema] Related table checked/created.");
 
         // --- Removed Attempt to Add Index on Entity Type ---
         // KuzuDB automatically indexes PRIMARY KEY (id).
         // Explicit secondary index creation on 'type' via CREATE INDEX is not supported or documented clearly.
         // Queries filtering by type will rely on KuzuDB's scan performance.
         
-        console.log("[Schema] KuzuDB schema initialization complete.");
+        console.error("[Schema] KuzuDB schema initialization complete.");
     } catch (error) {
         console.error("[Schema] Error initializing KuzuDB schema:", error);
         throw error;
@@ -190,9 +203,15 @@ export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.C
     
     // Create a new connection
     try {
-        // Initialize database path and dir
-        const dbPath = path.join(PROJECTS_DIR, projectId, 'graph.db');
-        fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+        // Initialize database path and dir with better error handling
+        const projectDirPath = path.join(PROJECTS_DIR, projectId);
+        const dbPath = path.join(projectDirPath, 'graph.db');
+        
+        console.log(`[DEBUG] Ensuring project directory exists: ${projectDirPath}`);
+        if (!fs.existsSync(projectDirPath)) {
+            fs.mkdirSync(projectDirPath, { recursive: true });
+            console.log(`[DEBUG] Created project directory: ${projectDirPath}`);
+        }
         
         console.log(`[DEBUG] Creating new database for project: ${projectId}`);
         // First create the database object
@@ -208,7 +227,7 @@ export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.C
         // Cache the connection
         connectionCache[projectId] = { db, conn, lastAccessed: now };
         
-        console.log(`KuzuDB connection established for project: ${projectId}`);
+        console.error(`KuzuDB connection established for project: ${projectId}`);
         return { conn };
     } catch (error) {
         // Handle connection errors
