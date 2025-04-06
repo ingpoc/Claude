@@ -38,6 +38,29 @@ export interface Relationship {
   type: string;
 }
 
+// Helper function to safely parse observations string
+function parseObservations(obsData: string | Observation[] | null | undefined): Observation[] {
+    if (!obsData) {
+        return [];
+    }
+    if (Array.isArray(obsData)) {
+        // Already parsed or was never stringified (e.g., during creation/update before save)
+        return obsData;
+    }
+    if (typeof obsData === 'string') {
+        try {
+            const parsed = JSON.parse(obsData);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            console.error('[DEBUG] Failed to parse observations JSON string:', obsData, e);
+            return []; // Return empty array on parsing error
+        }
+    }
+    // Should not happen, but return empty array as fallback
+    console.warn('[WARN] Unexpected data type for observations:', typeof obsData);
+    return [];
+}
+
 // Helper function to safely stringify observations
 function stringifyObservations(observations: Observation[]): string {
   try {
@@ -317,184 +340,135 @@ export async function createEntity(
   }
 }
 
-// Create a new relationship with ID
-export async function createRelationship(
-  projectId: string,
-  fromEntityId: string, 
-  toEntityId: string, 
-  type: string, 
-  description: string = "" // Optional description for potential future use
-): Promise<Relationship | null> {
-    // First, check if both entities exist
+// Function to handle both relationship creation and deletion in a transaction
+// Returns the relationship ID on success, null on failure
+async function manageRelationship(
+    projectId: string,
+    action: 'CREATE' | 'DELETE',
+    sourceId: string, 
+    targetId: string, 
+    type: string,
+    description?: string, // Optional for create
+    relationshipId?: string // Required for delete by ID (if needed)
+): Promise<string | null> {
+    console.error(`[DEBUG] ${action} relationship: ${type} from ${sourceId} to ${targetId}`);
+    
+    let transactionStarted = false;
     try {
-        // Corrected Cypher query for existence check
-        const checkQuery = `MATCH (e:Entity {id: $id}) RETURN count(e) > 0`; 
+        // Begin Transaction
+        const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
+        if (!beginResult) throw new Error('Failed to begin transaction');
+        transactionStarted = true;
+        console.error(`[DEBUG] Transaction begun for ${action}.`);
         
-        // Check source entity
-        const fromExistsResult = await runQuery(projectId, checkQuery, { id: fromEntityId });
-        let fromExists = false;
-        
-        if (fromExistsResult) {
-            // TODO: Simplify this extraction based on the actual result structure 
-            //       returned by KuzuDB for `RETURN count(e) > 0`.
-            //       For now, keep the existing robust check.
-            if (typeof fromExistsResult === 'object' && fromExistsResult !== null) {
-                // Check for boolean result directly (assuming key might be implicit or standard)
-                const keys = Object.keys(fromExistsResult);
-                if (keys.length === 1 && typeof fromExistsResult[keys[0]] === 'boolean') {
-                   fromExists = fromExistsResult[keys[0]];
-                }
-                // Fallback to existing checks if direct boolean not found
-                else if ('exists' in fromExistsResult) { // Keep old check just in case alias works elsewhere
-                    fromExists = !!fromExistsResult.exists;
-                } 
-                else if (Array.isArray(fromExistsResult) && fromExistsResult.length > 0) {
-                     // Assuming the boolean might be in the first row, first column
-                    const firstRow = fromExistsResult[0];
-                    const firstColKey = Object.keys(firstRow)[0];
-                    if (firstColKey && typeof firstRow[firstColKey] === 'boolean') {
-                        fromExists = firstRow[firstColKey];
-                    } else if (firstRow.exists !== undefined) { // Check for 'exists' key specifically
-                        fromExists = !!firstRow.exists;
-                    }
-                }
-                else if (typeof (fromExistsResult as any).getRows === 'function') {
-                    const rows = (fromExistsResult as any).getRows();
-                    if (rows && rows.length > 0) {
-                         // Assuming the boolean might be in the first row, first column
-                        const firstRow = rows[0];
-                        const firstColKey = Object.keys(firstRow)[0];
-                         if (firstColKey && typeof firstRow[firstColKey] === 'boolean') {
-                            fromExists = firstRow[firstColKey];
-                         } else if (firstRow.exists !== undefined) { // Check for 'exists' key specifically
-                            fromExists = !!firstRow.exists;
-                        }
-                    }
-                }
-            } else if (typeof fromExistsResult === 'boolean') { // If the result itself is boolean
-                 fromExists = fromExistsResult;
+        let query = '';
+        let params: Record<string, any> = {};
+        let newRelationshipId: string | null = null;
+
+        if (action === 'CREATE') {
+             newRelationshipId = `rel_${uuidv4()}`;
+             query = `
+                MATCH (a:Entity {id: $sourceId}), (b:Entity {id: $targetId})
+                CREATE (a)-[r:Related {id: $relId, type: $type}]->(b)
+                RETURN r.id
+            `;
+            params = { sourceId, targetId, relId: newRelationshipId, type };
+        } else if (action === 'DELETE') {
+            if (relationshipId) {
+                // Delete by relationship ID (preferred if ID is known)
+                query = `MATCH ()-[r:Related {id: $relId}]->() DELETE r`;
+                params = { relId: relationshipId };
+            } else {
+                // Delete by source, target, and type (if ID is not known)
+                 query = `MATCH (a:Entity {id: $sourceId})-[r:Related {type: $type}]->(b:Entity {id: $targetId}) DELETE r`;
+                 params = { sourceId, targetId, type };
             }
         }
-        
-        // Check target entity with same approach
-        const toExistsResult = await runQuery(projectId, checkQuery, { id: toEntityId });
-        let toExists = false;
-        
-         if (toExistsResult) {
-            // TODO: Simplify this extraction based on the actual result structure 
-            //       returned by KuzuDB for `RETURN count(e) > 0`.
-            //       For now, keep the existing robust check.
-             if (typeof toExistsResult === 'object' && toExistsResult !== null) {
-                 // Check for boolean result directly (assuming key might be implicit or standard)
-                 const keys = Object.keys(toExistsResult);
-                 if (keys.length === 1 && typeof toExistsResult[keys[0]] === 'boolean') {
-                    toExists = toExistsResult[keys[0]];
-                 }
-                 // Fallback to existing checks if direct boolean not found
-                 else if ('exists' in toExistsResult) { // Keep old check just in case alias works elsewhere
-                     toExists = !!toExistsResult.exists;
-                 } 
-                 else if (Array.isArray(toExistsResult) && toExistsResult.length > 0) {
-                      // Assuming the boolean might be in the first row, first column
-                     const firstRow = toExistsResult[0];
-                     const firstColKey = Object.keys(firstRow)[0];
-                     if (firstColKey && typeof firstRow[firstColKey] === 'boolean') {
-                         toExists = firstRow[firstColKey];
-                     } else if (firstRow.exists !== undefined) { // Check for 'exists' key specifically
-                         toExists = !!firstRow.exists;
-                     }
-                 }
-                 else if (typeof (toExistsResult as any).getRows === 'function') {
-                     const rows = (toExistsResult as any).getRows();
-                     if (rows && rows.length > 0) {
-                          // Assuming the boolean might be in the first row, first column
-                         const firstRow = rows[0];
-                         const firstColKey = Object.keys(firstRow)[0];
-                          if (firstColKey && typeof firstRow[firstColKey] === 'boolean') {
-                             toExists = firstRow[firstColKey];
-                          } else if (firstRow.exists !== undefined) { // Check for 'exists' key specifically
-                             toExists = !!firstRow.exists;
-                         }
-                     }
-                 }
-             } else if (typeof toExistsResult === 'boolean') { // If the result itself is boolean
-                  toExists = toExistsResult;
-             }
-         }
 
-        if (!fromExists || !toExists) {
-            console.error(`Cannot create relationship: Entity ${!fromExists ? fromEntityId : toEntityId} not found in project: ${projectId}`);
-            return null;
+        const result = await runQuery(projectId, query, params);
+        if (!result) {
+            throw new Error(`${action} relationship query failed.`);
         }
+        console.error(`[DEBUG] ${action} query executed.`);
 
-        // Create the relationship if both entities exist
-        const relId = `rel_${uuidv4()}`; // Generate UUID for relationship
-        const query = `
-            MATCH (from:Entity {id: $fromId}), (to:Entity {id: $toId})
-            CREATE (from)-[r:Related {id: $relId, type: $type}]->(to)
-            RETURN $relId as id
-        `;
-        const params = { fromId: fromEntityId, toId: toEntityId, type, relId };
+        // Commit Transaction
+        const commitResult = await runQuery(projectId, "COMMIT;");
+        if (!commitResult) throw new Error('Failed to commit transaction');
+        transactionStarted = false;
+        console.error(`[DEBUG] Transaction committed for ${action}.`);
+        
+        // Force checkpoint after successful commit
+        await runQuery(projectId, "CHECKPOINT;");
+        
+        return action === 'CREATE' ? newRelationshipId : (relationshipId || 'deleted'); // Return ID for create, or identifier for delete
+
+    } catch (error) {
+        console.error(`[ERROR] Error during manageRelationship (${action}):`, error);
+        if (transactionStarted) {
+            console.error(`[DEBUG] Rolling back transaction due to error...`);
+            await runQuery(projectId, "ROLLBACK;");
+        }
+        return null;
+    }
+}
+
+// Update existing createRelationship to use the helper
+export async function createRelationship(
+    projectId: string,
+    fromEntityId: string,
+    toEntityId: string,
+    type: string,
+    description?: string // Still accepting description, though not stored currently
+): Promise<Relationship | null> {
+    const newId = await manageRelationship(projectId, 'CREATE', fromEntityId, toEntityId, type, description);
+    if (newId) {
+        return { id: newId, from: fromEntityId, to: toEntityId, type };
+    }
+    return null;
+}
+
+// Update existing deleteRelationship to use the helper (delete by ID)
+export async function deleteRelationship(
+    projectId: string, 
+    relationshipId: string
+): Promise<boolean> {
+    // Assuming manageRelationship handles delete by ID when relationshipId is provided
+    // Need source/target/type as placeholders if delete requires MATCH pattern
+    // This design is awkward. RETHINK: deleteRelationship should likely just take ID.
+    
+    // Let's simplify: Assume deleteRelationship only needs the ID
+    console.error(`[DEBUG] Deleting relationship by ID: ${relationshipId}`);
+    let transactionStarted = false;
+    try {
+        const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
+        if (!beginResult) throw new Error('Failed to begin transaction');
+        transactionStarted = true;
+
+        const query = `MATCH ()-[r:Related {id: $relId}]->() DELETE r`;
+        const params = { relId: relationshipId };
         const result = await runQuery(projectId, query, params);
         
-        // Check if the relationship was created
-        if (result) {
-            // Add verification with retry mechanism
-            let verificationPassed = false;
-            const verifyQuery = `MATCH (from:Entity {id: $fromId})-[r:Related {id: $relId}]->(to:Entity {id: $toId}) RETURN r.id`;
-            
-            for (let attempt = 0; attempt < 3; attempt++) {
-                // console.error(`[DEBUG] Relationship verification attempt ${attempt + 1} for ${relId}`);
-                
-                // Add increasing delay between attempts
-                if (attempt > 0) {
-                    // console.error(`[DEBUG] Waiting ${100 * attempt}ms before retry...`);
-                    await new Promise(resolve => setTimeout(resolve, 100 * attempt));
-                }
-                
-                try {
-                    const verifyResult = await runQuery(projectId, verifyQuery, { 
-                        fromId: fromEntityId, 
-                        toId: toEntityId,
-                        relId 
-                    });
-                    
-                    // Check for results similar to entity verification
-                    let verifyRows = [];
-                    if (verifyResult?.getRows) {
-                        verifyRows = verifyResult.getRows();
-                    } else if (Array.isArray(verifyResult)) {
-                        verifyRows = verifyResult.filter(row => row && row['r.id']);
-                    } else if (verifyResult && typeof verifyResult === 'object') {
-                        if (verifyResult['r.id'] === relId) {
-                            verifyRows = [verifyResult];
-                        }
-                    }
-                    
-                    if (verifyRows && verifyRows.length > 0) {
-                        // console.error(`[DEBUG] Relationship verified in database on attempt ${attempt + 1}: ${relId}`);
-                        verificationPassed = true;
-                        break;
-                    }
-                } catch (verifyError) {
-                    console.error(`[ERROR] Error during relationship verification for ID ${relId}:`, verifyError);
-                }
-            }
-            
-            if (!verificationPassed) {
-                console.error(`[ERROR] Relationship verification failed after ${3} attempts for ID: ${relId}. The relationship might not be queryable immediately.`);
-            }
-            
-            // Return the relationship data regardless of verification outcome
-            console.error(`Relationship created: (${fromEntityId})-[${type}, ${relId}]->(${toEntityId}) in project: ${projectId}`);
-            return { id: relId, from: fromEntityId, to: toEntityId, type };
+        // KuzuDB DELETE doesn't return rows. Check for errors during runQuery.
+        if (result === null) { // Check if runQuery indicated an error
+             throw new Error('Delete relationship query failed.');
         }
+        // We can't easily check if a row was *actually* deleted without another query.
+        // Assume success if no error occurred.
+
+        const commitResult = await runQuery(projectId, "COMMIT;");
+        if (!commitResult) throw new Error('Failed to commit transaction');
+        transactionStarted = false;
+
+        await runQuery(projectId, "CHECKPOINT;");
+        return true; // Assume success if commit worked
+
     } catch (error) {
-        console.error(`Error creating relationship in project ${projectId}:`, error);
+        console.error(`[ERROR] Error deleting relationship by ID ${relationshipId}:`, error);
+        if (transactionStarted) {
+            await runQuery(projectId, "ROLLBACK;");
+        }
+        return false;
     }
-    
-    console.error(`Failed to create relationship: (${fromEntityId})-[${type}]->(${toEntityId}) in project: ${projectId}`);
-    return null;
 }
 
 // Add observation, now returns the observation ID
@@ -503,148 +477,138 @@ export async function addObservation(
   entityId: string, 
   observationText: string
 ): Promise<{ observation_id: string } | null> {
+    console.log(`[DEBUG] Adding observation to entity ${entityId}: "${observationText}"`);
+    let transactionStarted = false;
     try {
-        // First, read the current observations
-        const readQuery = `MATCH (e:Entity {id: $id}) RETURN e.observations AS obs`;
-        const readResult = await runQuery(projectId, readQuery, { id: entityId });
-        
-        if (!readResult) {
-            console.error(`Cannot add observation: Entity ${entityId} not found in project: ${projectId}`);
+        // 1. Get current observations
+        const entity = await getEntity(projectId, entityId);
+        if (!entity) {
+            console.error(`[ERROR] Entity ${entityId} not found for adding observation.`);
             return null;
         }
-        
-        // Extract observations from result using different possible formats
-        let existingObs: Observation[] = [];
-        
-        // Try direct property access
-        if (readResult.obs) {
-            existingObs = readResult.obs;
-        }
-        // Try as array result
-        else if (Array.isArray(readResult) && readResult.length > 0) {
-            existingObs = readResult[0].obs || [];
-        }
-        // Try with getRows method
-        else if ((readResult as any).getRows) {
-            const rows = (readResult as any).getRows();
-            if (rows && rows.length > 0) {
-                existingObs = rows[0].obs || [];
+        // Ensure observations is an array (it might be string if fetched raw initially)
+        let currentObservations: Observation[] = [];
+        if (typeof entity.observations === 'string') {
+            try {
+                currentObservations = JSON.parse(entity.observations);
+            } catch (e) {
+                console.error(`[ERROR] Failed to parse existing observations for entity ${entityId}. Starting fresh.`);
+                currentObservations = [];
             }
+        } else if (Array.isArray(entity.observations)) {
+            currentObservations = entity.observations;
         }
-        
-        // Create and add the new observation
-        const newObservationId = `obs_${uuidv4()}`;
-        const newObservation: Observation = { id: newObservationId, text: observationText };
-        const newObsList = [...existingObs, newObservation];
 
-        // *** FIX: Convert the updated array to a JSON string before saving ***
-        const updatedObservationsJson = stringifyObservations(newObsList); // Use the helper
+        // 2. Create new observation and add to list
+        const newObservation: Observation = {
+            id: `obs_${uuidv4()}`,
+            text: observationText,
+        };
+        const updatedObservations = [...currentObservations, newObservation];
+        const observationsJson = stringifyObservations(updatedObservations);
 
-        // Update the entity with the new observations list as a JSON string
-        const writeQuery = `MATCH (e:Entity {id: $id}) SET e.observations = $updatedObservationsJson`;
-        const writeResult = await runQuery(projectId, writeQuery, { id: entityId, updatedObservationsJson }); // Pass the JSON string
+        // 3. Update entity within a transaction
+        const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
+        if (!beginResult) throw new Error('Failed to begin transaction for adding observation');
+        transactionStarted = true;
+
+        const updateQuery = `
+            MATCH (e:Entity {id: $entityId})
+            SET e.observations = $observationsJson
+        `;
+        const params = { entityId, observationsJson };
+
+        const updateResult = await runQuery(projectId, updateQuery, params);
+        if (!updateResult) throw new Error('Observation update query failed');
+
+        const commitResult = await runQuery(projectId, "COMMIT;");
+        if (!commitResult) throw new Error('Failed to commit transaction for adding observation');
+        transactionStarted = false;
+
+        await runQuery(projectId, "CHECKPOINT;");
+        console.log(`[DEBUG] Observation added successfully to entity ${entityId}. New Obs ID: ${newObservation.id}`);
         
-        if (writeResult) {
-            console.error(`Observation ${newObservationId} added to entity: ${entityId} in project: ${projectId}`);
-            return { observation_id: newObservationId };
-        }
-        
-        console.error(`Failed to add observation to entity: ${entityId} in project: ${projectId}`);
-        return null;
+        return { observation_id: newObservation.id };
+
     } catch (error) {
-        console.error(`Error adding observation to entity ${entityId} in project ${projectId}:`, error);
+        console.error(`[ERROR] Error adding observation to entity ${entityId}:`, error);
+        if (transactionStarted) {
+            console.error(`[DEBUG] Rolling back observation addition transaction...`);
+            await runQuery(projectId, "ROLLBACK;");
+        }
         return null;
     }
 }
 
-// Delete observation by its ID
+// Delete an observation from an entity
 export async function deleteObservation(
-  projectId: string,
-  entityId: string, 
-  observationId: string
+    projectId: string,
+    entityId: string,
+    observationId: string
 ): Promise<boolean> {
+    console.log(`[DEBUG] Deleting observation ${observationId} from entity ${entityId}`);
+    let transactionStarted = false;
     try {
-        // First, read the current observations
-        const readQuery = `MATCH (e:Entity {id: $entityId}) RETURN e.observations AS obs`;
-        const readResult = await runQuery(projectId, readQuery, { entityId });
-        
-        if (!readResult) {
-            console.error(`Cannot delete observation: Entity ${entityId} not found in project: ${projectId}`);
+        // 1. Get current observations
+        const entity = await getEntity(projectId, entityId);
+        if (!entity) {
+            console.error(`[ERROR] Entity ${entityId} not found for deleting observation.`);
             return false;
         }
-        
-        // Extract observations from result using different possible formats
-        let existingObs: Observation[] = [];
-        
-        // Try direct property access
-        if (readResult.obs) {
-            existingObs = readResult.obs;
-        }
-        // Try as array result
-        else if (Array.isArray(readResult) && readResult.length > 0) {
-            existingObs = readResult[0].obs || [];
-        }
-        // Try with getRows method
-        else if ((readResult as any).getRows) {
-            const rows = (readResult as any).getRows();
-            if (rows && rows.length > 0) {
-                existingObs = rows[0].obs || [];
+
+        let currentObservations: Observation[] = [];
+        if (typeof entity.observations === 'string') {
+            try {
+                currentObservations = JSON.parse(entity.observations);
+            } catch (e) {
+                console.error(`[ERROR] Failed to parse existing observations for entity ${entityId}. Cannot delete.`);
+                return false;
             }
-        }
-        
-        // Filter out the observation to delete
-        const updatedObsList = existingObs.filter(obs => obs.id !== observationId);
-
-        // If no change in length, the observation wasn't found
-        if (updatedObsList.length === existingObs.length) {
-            console.warn(`Observation ${observationId} not found on entity ${entityId} in project: ${projectId}`);
-            // Return true because the desired state (observation gone) is achieved
-            return true;
+        } else if (Array.isArray(entity.observations)) {
+            currentObservations = entity.observations;
         }
 
-        // Update the entity with the filtered observations list
-        const writeQuery = `MATCH (e:Entity {id: $entityId}) SET e.observations = $updatedObsList`;
-        const writeResult = await runQuery(projectId, writeQuery, { entityId, updatedObsList });
-        
-        if (writeResult) {
-            console.error(`Observation ${observationId} deleted from entity: ${entityId} in project: ${projectId}`);
-            return true;
+        // 2. Filter out the observation to delete
+        const updatedObservations = currentObservations.filter(obs => obs.id !== observationId);
+
+        // Check if the observation was actually found and removed
+        if (updatedObservations.length === currentObservations.length) {
+            console.warn(`[WARN] Observation ${observationId} not found on entity ${entityId}. No changes made.`);
+            return false; // Indicate observation not found or no change needed
         }
-        
-        console.error(`Failed to delete observation from entity: ${entityId} in project: ${projectId}`);
-        return false;
+
+        const observationsJson = stringifyObservations(updatedObservations);
+
+        // 3. Update entity within a transaction
+        const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
+        if (!beginResult) throw new Error('Failed to begin transaction for deleting observation');
+        transactionStarted = true;
+
+        const updateQuery = `
+            MATCH (e:Entity {id: $entityId})
+            SET e.observations = $observationsJson
+        `;
+        const params = { entityId, observationsJson };
+
+        const updateResult = await runQuery(projectId, updateQuery, params);
+        if (!updateResult) throw new Error('Observation deletion update query failed');
+
+        const commitResult = await runQuery(projectId, "COMMIT;");
+        if (!commitResult) throw new Error('Failed to commit transaction for deleting observation');
+        transactionStarted = false;
+
+        await runQuery(projectId, "CHECKPOINT;");
+        console.log(`[DEBUG] Observation ${observationId} deleted successfully from entity ${entityId}.`);
+        return true;
+
     } catch (error) {
-        console.error(`Error deleting observation from entity ${entityId} in project ${projectId}:`, error);
+        console.error(`[ERROR] Error deleting observation ${observationId} from entity ${entityId}:`, error);
+        if (transactionStarted) {
+            console.error(`[DEBUG] Rolling back observation deletion transaction...`);
+            await runQuery(projectId, "ROLLBACK;");
+        }
         return false;
     }
-}
-
-// Delete entity and all relationships
-export async function deleteEntity(
-  projectId: string,
-  entityId: string
-): Promise<boolean> {
-    const query = `MATCH (e:Entity {id: $entityId}) DETACH DELETE e`;
-    const result = await runQuery(projectId, query, { entityId });
-    if (result) {
-        console.error(`Entity ${entityId} deleted with all relationships in project: ${projectId}`);
-        return true;
-    }
-    return false;
-}
-
-// Delete relationship by ID
-export async function deleteRelationship(
-  projectId: string,
-  relationshipId: string
-): Promise<boolean> {
-    const query = `MATCH ()-[r:Related {id: $relationshipId}]->() DELETE r`;
-    const result = await runQuery(projectId, query, { relationshipId });
-    if (result) {
-        console.error(`Relationship ${relationshipId} deleted in project: ${projectId}`);
-        return true;
-    }
-    return false;
 }
 
 // Get entity by ID
@@ -880,77 +844,80 @@ export async function getAllRelationshipsForContext(projectId: string): Promise<
     return getRelationships(projectId);
 }
 
-// Get related entities
+// Get related entities based on relationship type and direction
+// *** Replacing previous getRelatedEntities implementation ***
 export async function getRelatedEntities(
-  projectId: string,
-  entityId: string,
-  relationshipType?: string,
-  direction: 'incoming' | 'outgoing' | 'both' = 'both'
+    projectId: string,
+    entityId: string,
+    relationshipType?: string,
+    direction: 'incoming' | 'outgoing' | 'both' = 'both'
 ): Promise<Entity[]> {
-    // We'll need different queries based on the direction
-    let query = '';
-    let queryParams: Record<string, any> = { entityId };
-    if (relationshipType) queryParams.relType = relationshipType;
-    
-    // Build query based on direction
-    if (direction === 'outgoing' || direction === 'both') {
-        const outQuery = `
-            MATCH (e:Entity {id: $entityId})-[r:Related${relationshipType ? " {type: $relType}" : ""}]->(related:Entity)
-            RETURN DISTINCT related AS entity
-        `;
-        query = outQuery;
-    }
-    
-    if (direction === 'incoming' || direction === 'both') {
-        const inQuery = `
-            MATCH (e:Entity {id: $entityId})<-[r:Related${relationshipType ? " {type: $relType}" : ""}]-(related:Entity)
-            RETURN DISTINCT related AS entity
-        `;
-        
-        // If we're doing both directions, combine queries with UNION
-        if (direction === 'both' && query) {
-            query += ` UNION ${inQuery}`;
-        } else {
-            query = inQuery;
-        }
-    }
-    
-    const result = await runQuery(projectId, query, queryParams);
-    if (!result) return [];
-    
-    const relatedEntities: Entity[] = [];
-    
-    // Process results based on available methods
+    console.log(`[DEBUG] Getting related entities for ${entityId}, type: ${relationshipType || 'any'}, direction: ${direction}`);
     try {
-        // Try to access result rows directly
-        if (typeof result === 'object' && result !== null) {
-            // If the result is array-like or can be converted to array
-            const rows = Array.isArray(result) ? result : 
-                         (result as any).getRows ? (result as any).getRows() : 
-                         [result];
-                         
-            for (const row of rows) {
-                // Try to extract the entity data
-                const entity = row.entity || row; 
-                
-                // Check if entity has expected fields
-                if (entity && entity.id) {
-                    relatedEntities.push({
-                        id: entity.id,
-                        name: entity.name || '',
-                        type: entity.type || '',
-                        description: entity.description || '',
-                        observations: entity.observations || [],
-                        parentId: entity.parentId
-                    });
-                }
-            }
+        let matchClause = '';
+        const params: Record<string, any> = { entityId };
+
+        // Build the MATCH clause based on direction and type
+        const typeFilter = relationshipType ? `{type: $relType}` : '';
+        if (relationshipType) params.relType = relationshipType;
+
+        if (direction === 'outgoing') {
+            matchClause = `MATCH (a:Entity {id: $entityId})-[r:Related ${typeFilter}]->(b:Entity)`;
+        } else if (direction === 'incoming') {
+            matchClause = `MATCH (a:Entity)<-[r:Related ${typeFilter}]-(b:Entity {id: $entityId})`;
+        } else { // both
+            // Exclude the starting node itself from the results when direction is 'both'
+             matchClause = `MATCH (a:Entity {id: $entityId})-[r:Related ${typeFilter}]-(b:Entity) WHERE b.id <> $entityId`;
         }
+
+        // Determine which node to return (the one that is NOT the starting entityId)
+        const finalReturnNode = (direction === 'incoming') ? 'a' : 'b';
+
+        const query = `
+            ${matchClause}
+            RETURN DISTINCT ${finalReturnNode}.id as id,
+                          ${finalReturnNode}.name as name,
+                          ${finalReturnNode}.type as type,
+                          ${finalReturnNode}.description as description,
+                          ${finalReturnNode}.observations as observations,
+                          ${finalReturnNode}.parentId as parentId
+        `;
+
+        console.log(`[DEBUG] GetRelated Query: ${query}`);
+        console.log(`[DEBUG] GetRelated Params:`, params);
+
+        const result = await runQuery(projectId, query, params);
+        if (!result) {
+            console.error(`[ERROR] Failed to execute getRelatedEntities query.`);
+            return [];
+        }
+
+        // Process results using getAll()
+        let rows: any[] = [];
+        if (result && typeof result.getAll === 'function') {
+             try {
+                 rows = await result.getAll();
+             } catch (getAllError) {
+                 console.error(`[ERROR] Failed to execute result.getAll() in getRelatedEntities:`, getAllError);
+                 rows = []; // Assume empty on error
+             }
+        } else {
+             console.warn(`[WARN] getRelatedEntities result does not have getAll method. Result:`, result);
+             rows = Array.isArray(result) ? result : []; // Fallback
+        }
+        
+        console.log(`[DEBUG] Found ${rows.length} related entities.`);
+        
+        // Parse observations for each entity
+        return rows.map(row => ({
+            ...row,
+            observations: parseObservations(row.observations) // Use parser helper
+        }));
+
     } catch (error) {
-        console.error("Error processing related entities query results:", error);
+        console.error(`[ERROR] Error getting related entities for ${entityId}:`, error);
+        return [];
     }
-    
-    return relatedEntities;
 }
 
 // Update entity description
@@ -966,4 +933,194 @@ export async function updateEntityDescription(
         return true;
     }
     return false;
+}
+
+// Update an existing entity's properties
+export async function updateEntity(
+    projectId: string,
+    entityId: string,
+    updates: Partial<Omit<Entity, 'id' | 'observations'> & { observations?: Observation[] }> // Allow updating specific fields, incl. observations array
+): Promise<Entity | null> {
+    console.log(`[DEBUG] Updating entity ${entityId} in project ${projectId} with updates:`, updates);
+    let transactionStarted = false;
+    try {
+        // 1. Fetch the current entity data
+        const currentEntity = await getEntity(projectId, entityId);
+        if (!currentEntity) {
+            console.error(`[ERROR] Entity ${entityId} not found for update.`);
+            return null;
+        }
+
+        // 2. Construct the SET clause and params
+        const setClauses: string[] = [];
+        const params: Record<string, any> = { entityId };
+
+        // Handle updatable fields (name, type, description, parentId)
+        if (updates.name !== undefined) {
+            setClauses.push('e.name = $name');
+            params.name = updates.name;
+        }
+        if (updates.type !== undefined) {
+            setClauses.push('e.type = $type');
+            params.type = updates.type;
+        }
+        if (updates.description !== undefined) {
+            setClauses.push('e.description = $description');
+            params.description = updates.description;
+        }
+         // Handle parentId explicitly - allow setting to null/empty if needed
+         if (updates.parentId !== undefined) {
+             setClauses.push('e.parentId = $parentId');
+             params.parentId = updates.parentId === null ? '' : updates.parentId; // Store empty string for null parent
+         }
+
+        // Handle observations update (replace the entire array)
+        if (updates.observations !== undefined) {
+            // Ensure observations have IDs if they don't already
+             const updatedObservations = updates.observations.map(obs => ({
+                 ...obs,
+                 id: obs.id || `obs_${uuidv4()}` // Assign ID if missing
+             }));
+            const observationsJson = stringifyObservations(updatedObservations);
+            setClauses.push('e.observations = $observationsJson');
+            params.observationsJson = observationsJson;
+        }
+
+        if (setClauses.length === 0) {
+            console.warn(`[WARN] No updatable fields provided for entity ${entityId}. Returning current entity.`);
+            return currentEntity; // No changes to apply
+        }
+
+        // 3. Execute Update within a Transaction
+        const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
+        if (!beginResult) throw new Error('Failed to begin transaction for update');
+        transactionStarted = true;
+
+        const updateQuery = `
+            MATCH (e:Entity {id: $entityId})
+            SET ${setClauses.join(', \n                ')}
+            RETURN e.id, e.name, e.type, e.description, e.observations, e.parentId
+        `;
+
+        console.log(`[DEBUG] Update Query: ${updateQuery}`);
+        console.log(`[DEBUG] Update Params:`, params);
+
+        const updateResult = await runQuery(projectId, updateQuery, params);
+        if (!updateResult) throw new Error('Entity update query failed');
+        
+        const commitResult = await runQuery(projectId, "COMMIT;");
+        if (!commitResult) throw new Error('Failed to commit transaction for update');
+        transactionStarted = false;
+
+        await runQuery(projectId, "CHECKPOINT;");
+        console.log(`[DEBUG] Update transaction committed for entity ${entityId}.`);
+
+        // 4. Fetch and return the updated entity
+        // The RETURN clause in the update query might not reflect the *committed* state immediately?
+        // Fetching again is safer.
+        return await getEntity(projectId, entityId);
+
+    } catch (error) {
+        console.error(`[ERROR] Error updating entity ${entityId}:`, error);
+        if (transactionStarted) {
+            console.error(`[DEBUG] Rolling back update transaction...`);
+            await runQuery(projectId, "ROLLBACK;");
+        }
+        return null;
+    }
+}
+
+// Get all nodes and edges for graph visualization
+export async function getGraphData(projectId: string): Promise<{ nodes: Entity[], links: Relationship[] }> {
+     console.log(`[DEBUG] Getting graph data for project ${projectId}`);
+    try {
+        // Fetch all nodes
+        const nodesQuery = `
+            MATCH (n:Entity)
+            RETURN n.id as id, n.name as name, n.type as type, n.description as description, n.observations as observations, n.parentId as parentId
+        `;
+        const nodesResult = await runQuery(projectId, nodesQuery);
+        let nodesRaw: any[] = [];
+        if (nodesResult && typeof nodesResult.getAll === 'function') {
+             try {
+                 nodesRaw = await nodesResult.getAll();
+             } catch (getAllError) {
+                 console.error(`[ERROR] Failed to execute nodesResult.getAll() in getGraphData:`, getAllError);
+                 nodesRaw = [];
+             }
+        } else {
+            console.warn(`[WARN] getGraphData (nodes) result does not have getAll method.`);
+             nodesRaw = Array.isArray(nodesResult) ? nodesResult : [];
+        }
+        const nodes = nodesRaw.map(node => ({
+            ...node,
+            observations: parseObservations(node.observations)
+        }));
+        console.log(`[DEBUG] Fetched ${nodes.length} nodes.`);
+
+        // Fetch all relationships
+        const linksQuery = `
+            MATCH (a:Entity)-[r:Related]->(b:Entity)
+            RETURN r.id as id, a.id as from, b.id as to, r.type as type
+        `;
+        const linksResult = await runQuery(projectId, linksQuery);
+         let linksRaw: any[] = [];
+        if (linksResult && typeof linksResult.getAll === 'function') {
+             try {
+                 linksRaw = await linksResult.getAll();
+             } catch (getAllError) {
+                 console.error(`[ERROR] Failed to execute linksResult.getAll() in getGraphData:`, getAllError);
+                 linksRaw = [];
+             }
+        } else {
+             console.warn(`[WARN] getGraphData (links) result does not have getAll method.`);
+             linksRaw = Array.isArray(linksResult) ? linksResult : [];
+        }
+        const links = linksRaw; // Assuming direct mapping works
+        console.log(`[DEBUG] Fetched ${links.length} links.`);
+        
+        return { nodes, links };
+
+    } catch (error) {
+        console.error(`[ERROR] Error getting graph data for project ${projectId}:`, error);
+        return { nodes: [], links: [] };
+    }
+}
+
+// Delete entity and all relationships
+export async function deleteEntity(
+  projectId: string,
+  entityId: string
+): Promise<boolean> {
+    console.error(`[DEBUG] Deleting entity ${entityId} in project ${projectId}`);
+    let transactionStarted = false;
+    try {
+        const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
+        if (!beginResult) throw new Error('Failed to begin transaction for delete entity');
+        transactionStarted = true;
+
+        // DETACH DELETE removes the node and its relationships
+        const query = `MATCH (e:Entity {id: $entityId}) DETACH DELETE e`;
+        const result = await runQuery(projectId, query, { entityId });
+
+        if (result === null) { // Check if runQuery indicated an error
+            throw new Error('Delete entity query failed.');
+        }
+        // Assume success if no error from runQuery
+
+        const commitResult = await runQuery(projectId, "COMMIT;");
+        if (!commitResult) throw new Error('Failed to commit transaction for delete entity');
+        transactionStarted = false;
+
+        await runQuery(projectId, "CHECKPOINT;");
+        console.log(`[DEBUG] Entity ${entityId} deleted successfully.`);
+        return true; // Assume success if commit worked
+
+    } catch (error) {
+        console.error(`[ERROR] Error deleting entity ${entityId}:`, error);
+        if (transactionStarted) {
+            await runQuery(projectId, "ROLLBACK;");
+        }
+        return false;
+    }
 }

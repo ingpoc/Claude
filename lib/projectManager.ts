@@ -38,10 +38,10 @@ const PROJECT_ROOT = getProjectRoot();
 const PROJECTS_DIR = path.join(PROJECT_ROOT, '.kuzu-db');
 const PROJECTS_FILE = path.join(PROJECTS_DIR, 'projects.json');
 
-// Keep logs for confirmation
-console.error(`[ProjectManager Init - Final Attempt] Using PROJECT_ROOT: ${PROJECT_ROOT}`);
-console.error(`[ProjectManager Init - Final Attempt] Using PROJECTS_DIR: ${PROJECTS_DIR}`);
-console.error(`[ProjectManager Init - Final Attempt] Using PROJECTS_FILE: ${PROJECTS_FILE}`);
+// Keep logs for confirmation - COMMENTED OUT FOR STDIO COMPATIBILITY
+// console.error(`[ProjectManager Init - Final Attempt] Using PROJECT_ROOT: ${PROJECT_ROOT}`);
+// console.error(`[ProjectManager Init - Final Attempt] Using PROJECTS_DIR: ${PROJECTS_DIR}`);
+// console.error(`[ProjectManager Init - Final Attempt] Using PROJECTS_FILE: ${PROJECTS_FILE}`);
 
 // Initialize the projects directory and metadata file if they don't exist
 function ensureProjectInfrastructure() {
