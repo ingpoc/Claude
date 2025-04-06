@@ -14,13 +14,28 @@ export interface ProjectMetadata {
   lastAccessed: string;
 }
 
-// Store project metadata in a JSON file
-// Assume server is started from project root
-const PROJECT_ROOT = path.resolve(__dirname, '../..');
+// Determine Project Root: Prioritize ENV variable, fallback for non-Next.js context
+const getProjectRoot = () => {
+  // Check if running in Next.js context AND the variable is set
+  if (process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR) {
+    console.log("[ProjectManager] Using NEXT_PUBLIC_PROJECT_ROOT_DIR env var:", process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR);
+    return process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR;
+  } else {
+    // Fallback for other contexts (like the standalone server run from dist)
+    const fallbackPath = path.resolve(__dirname, '..');
+    console.log(`[ProjectManager] NEXT_PUBLIC_PROJECT_ROOT_DIR not set or not in Next.js context. Falling back to path relative to __dirname (${__dirname}): ${fallbackPath}`);
+    return fallbackPath;
+  }
+};
+
+const PROJECT_ROOT = getProjectRoot();
 const PROJECTS_DIR = path.join(PROJECT_ROOT, '.kuzu-db');
 const PROJECTS_FILE = path.join(PROJECTS_DIR, 'projects.json');
 
-// console.error(`[DEBUG] Using database directory: ${PROJECTS_DIR}`);
+// Keep logs for confirmation
+console.error(`[ProjectManager Init - Final Attempt] Using PROJECT_ROOT: ${PROJECT_ROOT}`);
+console.error(`[ProjectManager Init - Final Attempt] Using PROJECTS_DIR: ${PROJECTS_DIR}`);
+console.error(`[ProjectManager Init - Final Attempt] Using PROJECTS_FILE: ${PROJECTS_FILE}`);
 
 // DB instances cache
 const dbConnections: Record<string, { 
@@ -35,21 +50,24 @@ const connectionCache: Record<string, { db: kuzu.Database, conn: kuzu.Connection
 
 // Initialize the projects directory and metadata file if they don't exist
 function ensureProjectInfrastructure() {
+  console.error(`[Project Infra Check] Target Dir: ${PROJECTS_DIR}, Target File: ${PROJECTS_FILE}`);
   try {
-    // console.error(`[DEBUG] Ensuring project infrastructure at: ${PROJECTS_DIR}`);
     if (!fs.existsSync(PROJECTS_DIR)) {
-      // console.error(`[DEBUG] Creating projects directory: ${PROJECTS_DIR}`);
-      fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+      console.error(`[Project Infra Check] Projects directory NOT FOUND: ${PROJECTS_DIR}`);
+      // Should not attempt creation from Next.js if using env var correctly
+    } else {
+      console.error(`[Project Infra Check] Projects directory FOUND: ${PROJECTS_DIR}`);
     }
-    
+
     if (!fs.existsSync(PROJECTS_FILE)) {
-      // console.error(`[DEBUG] Creating projects metadata file: ${PROJECTS_FILE}`);
-      fs.writeFileSync(PROJECTS_FILE, JSON.stringify({ projects: [] }), 'utf8');
+      console.error(`[Project Infra Check] Projects file NOT FOUND: ${PROJECTS_FILE}`);
+      // Should not attempt creation from Next.js if using env var correctly
+    } else {
+       console.error(`[Project Infra Check] Projects file FOUND: ${PROJECTS_FILE}`);
     }
-    // console.error(`[DEBUG] Project infrastructure check completed successfully`);
   } catch (error) {
-    console.error(`[ERROR] Failed to ensure project infrastructure:`, error);
-    throw error; // Re-throw to make the error visible to the caller
+    console.error(`[Project Infra Check] FAILED to ensure project infrastructure:`, error);
+    throw error;
   }
 }
 
