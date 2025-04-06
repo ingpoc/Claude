@@ -15,7 +15,8 @@ import {
     updateEntityDescription,
     getRelatedEntities as fetchRelatedEntities,
     editObservation,
-    deleteObservation
+    deleteObservation,
+    deleteProjectAction
 } from "../app/actions/knowledgeGraphActions"; // Import server actions
 import { getProject } from '../lib/projectManager';
 
@@ -48,6 +49,7 @@ interface ProjectContextType extends Omit<ProjectState, 'projectId'> {
   isLoading: boolean;
   editObservation: (entityId: string, observationId: string, newText: string) => Promise<boolean>;
   deleteObservation: (entityId: string, observationId: string) => Promise<boolean>;
+  deleteProject: (projectIdToDelete: string) => Promise<boolean>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -175,6 +177,11 @@ export const ProjectProvider = ({
     return success;
   }, [projectId, refreshState]);
 
+  const deleteProjectHandler = useCallback(async (projectIdToDelete: string): Promise<boolean> => {
+    const success = await deleteProjectAction(projectIdToDelete);
+    return success;
+  }, []);
+
   const findEntityByIdAction = useCallback(async (entityId: string) => 
     getEntity(projectId, entityId)
   , [projectId]);
@@ -220,6 +227,7 @@ export const ProjectProvider = ({
     isLoading,
     editObservation: editObservationAction,
     deleteObservation: deleteObservationAction,
+    deleteProject: deleteProjectHandler,
   };
 
   return (

@@ -1,42 +1,53 @@
 import React from 'react';
 import Link from 'next/link';
-import { Calendar, ExternalLink, Layers } from 'lucide-react';
+import { ArrowRight, Calendar, ExternalLink, FileText, Layers, Trash2 } from 'lucide-react';
 
 interface ProjectCardProps {
   id: string;
   name: string;
   description: string;
   lastUpdated: string;
+  onDelete?: () => void;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ id, name, description, lastUpdated }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ id, name, description, lastUpdated, onDelete }) => {
   return (
-    <div className="bg-gray-900 rounded-lg overflow-hidden transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl">
-      <div className="h-2 bg-blue-600"></div>
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-semibold mb-2">{name}</h2>
-            <p className="text-gray-400">{description}</p>
-          </div>
-          <div className="bg-gray-800 p-2 rounded-full">
-            <Layers size={18} className="text-blue-400" />
-          </div>
+    <div className="bg-gray-800/50 border border-gray-700/60 rounded-lg p-5 flex flex-col justify-between hover:shadow-lg transition-shadow duration-300 hover:border-gray-600">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-100 mb-2">{name}</h2>
+        <p className="text-sm text-gray-400 line-clamp-2 mb-4 flex items-start">
+          <FileText size={14} className="text-gray-500 mr-2 mt-0.5 flex-shrink-0" />
+          {description || "No description provided."}
+        </p>
+      </div>
+      
+      <div className="flex justify-between items-center mt-4">
+        <div className="text-xs text-gray-500 flex items-center">
+          <Calendar size={12} className="mr-1.5" />
+          Last Updated: {lastUpdated}
         </div>
         
-        <div className="text-sm text-gray-500 flex items-center mb-6">
-          <Calendar size={14} className="mr-1" />
-          Last updated: {lastUpdated}
-        </div>
-        
-        <div className="flex justify-between items-center pt-4 border-t border-gray-800">
-          <span className="text-sm font-medium text-gray-400">2 Entities</span>
+        <div className="flex items-center space-x-2">
+          {onDelete && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onDelete();
+              }}
+              className="p-1.5 rounded text-gray-400 hover:bg-red-900/50 hover:text-red-400 transition-colors duration-200"
+              title="Delete Project"
+              aria-label="Delete Project"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+
           <Link 
             href={`/projects/${id}/entities`}
-            className="inline-flex items-center text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded transition-colors duration-200"
+            className="inline-flex items-center text-xs bg-blue-600/80 hover:bg-blue-600 text-white px-3 py-1.5 rounded transition duration-300"
           >
-            <ExternalLink size={14} className="mr-1" />
-            View Project
+            View Project <ArrowRight size={14} className="ml-1" />
           </Link>
         </div>
       </div>

@@ -303,22 +303,13 @@ export async function deleteObservation(
 }
 
 // == Project Actions ==
-// If you have project actions (createProject, getProjects, deleteProject) in a separate file,
-// modify them similarly. For example:
-
-/*
-import { ProjectMetadata } from '../../lib/projectManager'; // Assuming type exists
-
-export async function getProjects(): Promise<ProjectMetadata[]> {
-    const projects = await fetchApi<ProjectMetadata[]>('/api/ui/projects');
-    return projects ?? [];
-}
-
-export async function createProjectAction(name: string, description?: string): Promise<ProjectMetadata | null> {
-    return await fetchApi<ProjectMetadata>('/api/ui/projects', {
-        method: 'POST',
-        body: JSON.stringify({ name, description: description || "" }),
-    });
+// Assuming ProjectMetadata type is defined elsewhere or can be imported/defined
+interface ProjectMetadata {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  lastAccessed: string;
 }
 
 export async function deleteProjectAction(projectId: string): Promise<boolean> {
@@ -326,6 +317,21 @@ export async function deleteProjectAction(projectId: string): Promise<boolean> {
         method: 'DELETE',
     });
     return success ?? false;
+}
+
+// Get all projects action
+export async function getProjectsAction(): Promise<ProjectMetadata[]> {
+    const projects = await fetchApi<ProjectMetadata[]>('/api/ui/projects');
+    return projects ?? []; // Return empty array on null/error
+}
+
+// Example other project actions (if needed later)
+/*
+export async function createProjectAction(name: string, description?: string): Promise<ProjectMetadata | null> {
+    return await fetchApi<ProjectMetadata>('/api/ui/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name, description: description || "" }),
+    });
 }
 
 export async function getProjectAction(projectId: string): Promise<ProjectMetadata | null> {

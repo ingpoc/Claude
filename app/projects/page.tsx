@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Navigation from '../../components/Navigation';
 import ProjectCard from '../../components/ProjectCard';
 import CreateProjectModal from '../../components/CreateProjectModal';
-import { PlusSquare } from 'lucide-react';
+import { PlusSquare, Trash2 } from 'lucide-react';
+
+import { deleteProjectAction, getProjectsAction } from '../actions/knowledgeGraphActions';
 
 interface Project {
   id: string;
@@ -19,27 +21,26 @@ export default function Projects() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchProjects() {
-      try {
-        const response = await fetch('/api/projects');
-        if (response.ok) {
-          const data = await response.json();
-          setProjects(data);
-        }
-      } catch (error) {
-        console.error('Error fetching projects:', error);
-      } finally {
-        setIsLoading(false);
-      }
+  const fetchProjects = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await getProjectsAction();
+      setProjects(data);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      setProjects([]);
+    } finally {
+      setIsLoading(false);
     }
-
-    fetchProjects();
   }, []);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
   const handleCreateProject = async (name: string, description: string) => {
     try {
-      const response = await fetch('/api/projects', {
+      const response = await fetch('/api/ui/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -48,15 +49,27 @@ export default function Projects() {
       });
 
       if (response.ok) {
-        const newProject = await response.json();
-        setProjects([...projects, newProject]);
+        await fetchProjects();
+      } else {
+        console.error("Failed to create project:", response.statusText);
       }
     } catch (error) {
       console.error('Error creating project:', error);
     }
-    
     setIsModalOpen(false);
   };
+
+  const handleDeleteProject = useCallback(async (projectIdToDelete: string) => {
+    if (window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+      const success = await deleteProjectAction(projectIdToDelete);
+      if (success) {
+        await fetchProjects();
+      } else {
+        console.error(`Failed to delete project ${projectIdToDelete}`);
+        alert(`Failed to delete project ${projectIdToDelete}.`);
+      }
+    }
+  }, [fetchProjects]);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -91,6 +104,7 @@ export default function Projects() {
                 name={project.name}
                 description={project.description || ""}
                 lastUpdated={new Date(project.lastAccessed || project.createdAt).toLocaleDateString()}
+                onDelete={() => handleDeleteProject(project.id)}
               />
             ))
           ) : (
