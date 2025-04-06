@@ -1124,3 +1124,81 @@ export async function deleteEntity(
         return false;
     }
 }
+
+// Function to edit an existing observation for an entity
+export async function editObservation(
+    projectId: string,
+    entityId: string,
+    observationId: string,
+    newText: string
+): Promise<Observation | null> {
+    try {
+        // 1. Fetch the current entity observations using runQuery
+        const fetchQuery = `MATCH (e:Entity) WHERE e.id = $entityId RETURN e.observations`;
+        const entityResult = await runQuery(projectId, fetchQuery, { entityId });
+
+        // Check if the query result is valid and has getAll method
+        if (!entityResult || typeof entityResult.getAll !== 'function') {
+            console.error(`[editObservation] Invalid query result or missing getAll method when fetching entity ${entityId}.`);
+            return null;
+        }
+
+        const rows = await entityResult.getAll();
+
+        if (!rows || rows.length === 0) {
+            console.error(`[editObservation] Entity not found: ${entityId}`);
+            return null;
+        }
+
+        const record = rows[0];
+        let observations: Observation[];
+        const obsData = record["e.observations"];
+
+        // Parse observations (handle string or array)
+        if (typeof obsData === 'string') {
+            try {
+                observations = JSON.parse(obsData);
+                if (!Array.isArray(observations)) throw new Error("Parsed data is not an array");
+            } catch (e) {
+                console.error(`[editObservation] Failed to parse observations JSON for entity ${entityId}:`, e);
+                return null;
+            }
+        } else if (Array.isArray(obsData)) {
+            observations = obsData;
+        } else {
+            console.error(`[editObservation] Observations data for entity ${entityId} is not a valid type (string or array):`, typeof obsData);
+            return null;
+        }
+
+        // 2. Find the observation to update
+        const observationIndex = observations.findIndex(obs => obs && obs.id === observationId);
+
+        if (observationIndex === -1) {
+            console.error(`[editObservation] Observation not found: ${observationId} on entity ${entityId}`);
+            return null;
+        }
+
+        // 3. Update the observation text
+        observations[observationIndex].text = newText;
+
+        // 4. Save the updated observations array back using runQuery
+        const updatedObservationsJson = stringifyObservations(observations); // Use helper
+        const updateQuery = `MATCH (e:Entity) WHERE e.id = $entityId SET e.observations = $updatedObservationsJson`;
+        const updateParams = { entityId, updatedObservationsJson };
+
+        const updateResult = await runQuery(projectId, updateQuery, updateParams);
+
+        // Check if the update query failed (runQuery returns null on failure)
+        if (updateResult === null) {
+            console.error(`[editObservation] Failed to execute update query for entity ${entityId}.`);
+            return null;
+        }
+
+        // 5. Return the updated observation
+        return observations[observationIndex];
+
+    } catch (error) {
+        console.error(`[editObservation] Error updating observation ${observationId} for entity ${entityId}:`, error);
+        return null;
+    }
+}

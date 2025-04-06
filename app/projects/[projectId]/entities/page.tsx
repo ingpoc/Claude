@@ -60,7 +60,7 @@ function EntitiesPageContent() {
       setSelectedEntity(null);
       setRelatedEntities([]);
     }
-  }, [selectedEntityId, findEntityById, getRelatedEntities]);
+  }, [selectedEntityId, findEntityById, getRelatedEntities, entities]);
 
   const filteredEntities = useMemo(() => 
     searchQuery ? 

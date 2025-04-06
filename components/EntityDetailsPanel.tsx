@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Link2, ArrowRight, ChevronDown, ChevronUp, Info, Clock, Hash, FilePlus } from 'lucide-react';
+import { X, Link2, ArrowRight, ChevronDown, ChevronUp, Info, Clock, Hash, FilePlus, Edit, Trash2, Save, XCircle } from 'lucide-react';
 // Import only types explicitly
-import type { Entity, Relationship } from '../lib/knowledgeGraph'; 
+import type { Entity, Relationship, Observation } from '../lib/knowledgeGraph'; 
 // Import constants from the shared file
 import { RelationshipTypes } from '../lib/constants';
+// Import context hook
+import { useProject } from '../context/ProjectContext';
 
 interface EntityDetailsPanelProps {
   entity: Entity;
@@ -56,8 +58,16 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
   const [expandedSections, setExpandedSections] = useState({
     description: true,
     relationships: true,
-    metadata: true
+    metadata: true,
+    // Add observations section state if needed, assuming it's part of description for now
   });
+  
+  // State for inline editing of observations
+  const [editingObservationId, setEditingObservationId] = useState<string | null>(null);
+  const [editingObservationText, setEditingObservationText] = useState<string>('');
+
+  // Get functions from project context
+  const { projectId, editObservation, deleteObservation, refreshState } = useProject();
 
   // Toggle a section's expanded state
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -138,6 +148,51 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
     );
   };
 
+  // Handlers for observation editing/deleting
+  const handleEditObservation = (observation: Observation) => {
+    setEditingObservationId(observation.id);
+    setEditingObservationText(observation.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingObservationId(null);
+    setEditingObservationText('');
+  };
+
+  const handleSaveObservation = async () => {
+    if (!editingObservationId || !projectId) return;
+
+    console.log(`[UI handleSaveObservation] Calling editObservation with: entityId=${entity.id}, observationId=${editingObservationId}, newText=${editingObservationText} (projectId=${projectId} from context)`);
+
+    // Pass entity.id, observationId, newText (projectId comes from context)
+    const success = await editObservation(entity.id, editingObservationId, editingObservationText);
+    if (success) {
+      handleCancelEdit(); // Clear editing state
+    } else {
+      // Handle error (e.g., show a notification)
+      console.error("Failed to save observation");
+      alert("Failed to save observation."); // Simple alert for now
+    }
+  };
+
+  const handleDeleteObservation = async (observationId: string) => {
+    if (!projectId) return;
+
+    console.log(`[UI handleDeleteObservation] Calling deleteObservation with: entityId=${entity.id}, observationId=${observationId} (projectId=${projectId} from context)`);
+
+    if (window.confirm("Are you sure you want to delete this observation?")) {
+      // Pass entity.id, observationId (projectId comes from context)
+      const success = await deleteObservation(entity.id, observationId);
+      if (success) {
+        // await refreshState(); // Removed redundant refresh call
+      } else {
+        // Handle error
+        console.error("Failed to delete observation");
+        alert("Failed to delete observation."); // Simple alert for now
+      }
+    }
+  };
+
   return (
     <div className="h-full flex flex-col overflow-auto">
       {/* Add keyframe styles */}
@@ -197,18 +252,60 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
                 {entity.description || `This is the ${entity.name} ${entity.type}.`}
               </p>
               
-              {/* Show observations as regular bullet points if they exist */}
-              {entity.observations && entity.observations.length > 0 && (
+              {/* Show observations with edit/delete controls */}
+              {entity.observations && Array.isArray(entity.observations) && entity.observations.length > 0 && (
                 <div className="mt-4 space-y-2">
                   <h4 className="text-sm font-medium text-gray-400">Additional Details:</h4>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {entity.observations.map((observation, index) => (
-                      <li key={index} className="text-gray-300 text-sm">
-                        {typeof observation === 'string' 
-                          ? observation 
-                          : (observation && typeof observation === 'object' && 'text' in observation)
-                            ? observation.text
-                            : 'Observation data'}
+                  <ul className="space-y-2">
+                    {entity.observations.map((observation) => ( // Assuming observation is { id: string, text: string }
+                      <li key={observation.id} className="text-gray-300 text-sm flex items-center group">
+                        {editingObservationId === observation.id ? (
+                          // Editing view
+                          <>
+                            <input
+                              type="text"
+                              value={editingObservationText}
+                              onChange={(e) => setEditingObservationText(e.target.value)}
+                              className="flex-grow bg-gray-700 border border-gray-600 rounded px-2 py-1 mr-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              autoFocus
+                            />
+                            <button
+                              onClick={handleSaveObservation}
+                              className="p-1 text-green-400 hover:text-green-300"
+                              aria-label="Save observation"
+                            >
+                              <Save size={16} />
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="p-1 text-gray-500 hover:text-gray-300 ml-1"
+                              aria-label="Cancel edit"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          // Display view
+                          <>
+                            <span className="flex-grow mr-2">{observation.text}</span>
+                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <button
+                                onClick={() => handleEditObservation(observation)}
+                                className="p-1 text-blue-400 hover:text-blue-300"
+                                aria-label="Edit observation"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteObservation(observation.id)}
+                                className="p-1 text-red-500 hover:text-red-400 ml-1"
+                                aria-label="Delete observation"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </li>
                     ))}
                   </ul>

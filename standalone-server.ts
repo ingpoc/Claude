@@ -7,7 +7,13 @@ import cors from 'cors';
 // Import SDK components
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ListToolsRequestSchema, CallToolRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { 
+    ListToolsRequestSchema, 
+    CallToolRequestSchema, 
+    ListResourcesRequestSchema,
+    ListPromptsRequestSchema,
+    McpError 
+} from "@modelcontextprotocol/sdk/types.js";
 
 // Keep SessionManager import if needed by tool info functions
 import { SessionManager } from './lib/mcp/SessionManager';
@@ -203,6 +209,9 @@ app.post('/api/ui/projects/:projectId/entities/:entityId/observations', async (r
 });
 
 app.delete('/api/ui/projects/:projectId/entities/:entityId/observations/:observationId', async (req: Request, res: Response) => {
+    // --- BEGIN ADDED LOGGING ---
+    console.log(`[API DELETE /obs] Received request: projectId=${req.params.projectId}, entityId=${req.params.entityId}, observationId=${req.params.observationId}`);
+    // --- END ADDED LOGGING ---
     try {
         const { projectId, entityId, observationId } = req.params;
 
@@ -216,6 +225,36 @@ app.delete('/api/ui/projects/:projectId/entities/:entityId/observations/:observa
         }
     } catch (error) {
         handleApiError(res, error, `Failed to delete observation ${req.params.observationId}`);
+    }
+});
+
+// PUT /api/ui/projects/:projectId/entities/:entityId/observations/:observationId - Edit an observation
+app.put('/api/ui/projects/:projectId/entities/:entityId/observations/:observationId', async (req: Request, res: Response) => {
+    // --- BEGIN ADDED LOGGING ---
+    console.log(`[API PUT /obs] Received request: projectId=${req.params.projectId}, entityId=${req.params.entityId}, observationId=${req.params.observationId}`);
+    console.log(`[API PUT /obs] Request body:`, req.body);
+    // --- END ADDED LOGGING ---
+    try {
+        const { projectId, entityId, observationId } = req.params;
+        const { text } = req.body;
+
+        if (typeof text !== 'string' || text.trim() === '') {
+             return res.status(400).json({ error: 'Observation text cannot be empty' });
+        }
+
+        // We need to import `editObservation` from `lib/knowledgeGraph`
+        // Assuming it returns the updated observation or null/throws on error
+        const updatedObservation = await knowledgeGraph.editObservation(projectId, entityId, observationId, text);
+
+        if (updatedObservation) {
+            // Return the updated observation (or just status 200/204 if preferred)
+             res.status(200).json(updatedObservation); 
+        } else {
+            // Could be entity not found, observation not found, or other DB error
+            res.status(404).json({ error: `Failed to update observation ${observationId}. Entity or observation may not exist.` });
+        }
+    } catch (error) {
+        handleApiError(res, error, `Failed to update observation ${req.params.observationId}`);
     }
 });
 
@@ -318,6 +357,9 @@ const server = new Server({
 }, {
     capabilities: {
         tools: {}, // Indicate tool capability
+        // Add declarations for resources and prompts
+        resources: {},
+        prompts: {},
     },
 });
 
@@ -379,6 +421,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Throw standard MCP error
         throw new McpError(-32000, error instanceof Error ? error.message : `Internal server error executing tool: ${name}`);
     }
+});
+
+// --- Add Dummy Handlers for listResources and listPrompts ---
+
+// Handler for listResources (return empty list)
+// Replace 'ListResourcesRequestSchema' if the actual schema name differs
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    // console.error("Received listResources request (returning empty)."); // Optional: remove for less noise
+    return {
+        resources: [],
+    };
+});
+
+// Handler for listPrompts (return empty list)
+// Replace 'ListPromptsRequestSchema' if the actual schema name differs
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+    // console.error("Received listPrompts request (returning empty)."); // Optional: remove for less noise
+    return {
+        prompts: [],
+    };
 });
 
 // --- Main function to connect server ---

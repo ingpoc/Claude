@@ -35,7 +35,7 @@ export interface Entity {
   name: string;
   type: string;
   description: string;
-  observations: Observation[] | string; // API might return JSON string initially
+  observations: Observation[];
   parentId?: string;
 }
 
@@ -104,6 +104,39 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 // Default project ID to use when one is not provided (can still be used as fallback)
 const DEFAULT_PROJECT_ID = "current_project"; // Or fetch a default from config/API if needed
 
+// Helper function to parse observations if they are a string
+function parseObservations(entity: Entity | null): Entity | null {
+    if (entity && typeof entity.observations === 'string') {
+        try {
+            const parsedObservations = JSON.parse(entity.observations);
+            // Basic validation: check if it's an array
+            if (Array.isArray(parsedObservations)) {
+                 // Further check if elements look like Observation objects (optional but recommended)
+                 const looksLikeObservations = parsedObservations.every(obs => 
+                    typeof obs === 'object' && obs !== null && 'id' in obs && 'text' in obs
+                 );
+                 if (looksLikeObservations) {
+                    return { ...entity, observations: parsedObservations };
+                 } else {
+                    console.warn(`[API Action] Parsed observations for entity ${entity.id} was not an array of Observation objects. Returning empty array.`);
+                    return { ...entity, observations: [] };
+                 }
+            } else {
+                console.warn(`[API Action] Parsed observations for entity ${entity.id} was not an array. Returning empty array.`);
+                 return { ...entity, observations: [] };
+            }
+        } catch (e) {
+            console.error(`[API Action] Failed to parse observations JSON string for entity ${entity.id}:`, e);
+             return { ...entity, observations: [] }; // Return empty array on parse error
+        }
+    } else if (entity && !Array.isArray(entity.observations)) {
+        // Handle cases where observations is neither string nor array (e.g., null, undefined, or other type)
+        console.warn(`[API Action] Observations for entity ${entity.id} was not an array or string. Returning empty array.`);
+        return { ...entity, observations: [] };
+    }
+    return entity; // Return entity as is if observations are already an array or entity is null
+}
+
 // --- Rewritten Server Actions using fetchApi ---
 
 export async function createEntity(
@@ -114,13 +147,11 @@ export async function createEntity(
     observationsText: string[] = [], // API expects simple array of strings? Check API spec
     parentId?: string
 ): Promise<Entity | null> {
-    // Note: The API endpoint POST /api/ui/projects/:projectId/entities
-    // expects `observations` in the body. Ensure this matches.
-    // The current implementation in standalone-server expects observations: string[]
-    return await fetchApi<Entity>(`/api/ui/projects/${projectId}/entities`, {
+    const entity = await fetchApi<Entity>(`/api/ui/projects/${projectId}/entities`, {
         method: 'POST',
         body: JSON.stringify({ name, type, description, observations: observationsText, parentId }),
     });
+    return parseObservations(entity);
 }
 
 export async function createRelationship(
@@ -177,14 +208,15 @@ export async function getEntity(
     projectId: string = DEFAULT_PROJECT_ID,
     entityId: string
 ): Promise<Entity | null> {
-    return await fetchApi<Entity>(`/api/ui/projects/${projectId}/entities/${entityId}`);
+    const entity = await fetchApi<Entity>(`/api/ui/projects/${projectId}/entities/${entityId}`);
+    return parseObservations(entity);
 }
 
 export async function getAllEntities(
     projectId: string = DEFAULT_PROJECT_ID
 ): Promise<Entity[]> {
     const entities = await fetchApi<Entity[]>(`/api/ui/projects/${projectId}/entities`);
-    return entities ?? []; // Return empty array if fetchApi returned null
+    return entities ? entities.map(parseObservations).filter((e): e is Entity => e !== null) : []; 
 }
 
 // Stubbed/Commented Out - API endpoint /api/ui/projects/:projectId/relationships exists,
@@ -220,7 +252,7 @@ export async function getRelatedEntities(
     const endpoint = `/api/ui/projects/${projectId}/entities/${entityId}/related${queryString ? '?' + queryString : ''}`;
 
     const entities = await fetchApi<Entity[]>(endpoint);
-    return entities ?? []; // Return empty array on null
+    return entities ? entities.map(parseObservations).filter((e): e is Entity => e !== null) : []; 
     // Original call: return await getRelatedEntitiesDb(projectId, entityId, relationshipType, direction);
 }
 
@@ -235,11 +267,29 @@ export async function updateEntityDescription(
         method: 'PUT',
         body: JSON.stringify({ description }), // Send only the description field
     });
-    return result !== null; // Return true if update was seemingly successful (API returned the updated entity)
+    // We might not need to parse observations here if we only care about success/failure
+    // But if the updated entity is used, parsing is good.
+    const parsedResult = parseObservations(result);
+    return parsedResult !== null;
     // Original call: return await updateEntityDescriptionDb(projectId, entityId, description);
 }
 
-// Implemented - Calls DELETE /entities/:entityId/observations/:observationId
+// New Server Action: editObservation
+export async function editObservation(
+    projectId: string = DEFAULT_PROJECT_ID,
+    entityId: string,
+    observationId: string,
+    newText: string
+): Promise<boolean> {
+    const result = await fetchApi<Observation>(`/api/ui/projects/${projectId}/entities/${entityId}/observations/${observationId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ text: newText }),
+    });
+    // Assuming the API returns the updated observation on success or null/error otherwise
+    return result !== null; 
+}
+
+// Existing deleteObservation...
 export async function deleteObservation(
     projectId: string = DEFAULT_PROJECT_ID,
     entityId: string,
@@ -249,8 +299,7 @@ export async function deleteObservation(
     const success = await fetchApi<boolean>(`/api/ui/projects/${projectId}/entities/${entityId}/observations/${observationId}`, {
         method: 'DELETE',
     });
-    return success ?? false; // Return false if fetchApi returned null
-    // Original call: return await deleteObservationDb(projectId, entityId, observationId);
+     return success ?? false; // Return false if fetchApi returned null
 }
 
 // == Project Actions ==

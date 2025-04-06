@@ -13,7 +13,9 @@ import {
     getAllEntities,
     getAllRelationshipsForContext,
     updateEntityDescription,
-    getRelatedEntities as fetchRelatedEntities
+    getRelatedEntities as fetchRelatedEntities,
+    editObservation,
+    deleteObservation
 } from "../app/actions/knowledgeGraphActions"; // Import server actions
 import { getProject } from '../lib/projectManager';
 
@@ -44,6 +46,8 @@ interface ProjectContextType extends Omit<ProjectState, 'projectId'> {
   getRelatedEntities: (entityId: string) => Promise<Array<{entity: Entity, relationship: RelationshipInfo}>>;
   refreshState: () => Promise<void>; 
   isLoading: boolean;
+  editObservation: (entityId: string, observationId: string, newText: string) => Promise<boolean>;
+  deleteObservation: (entityId: string, observationId: string) => Promise<boolean>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -155,6 +159,22 @@ export const ProjectProvider = ({
       return success;
   }, [projectId, refreshState]);
 
+  const editObservationAction = useCallback(async (entityId: string, observationId: string, newText: string): Promise<boolean> => {
+    const success = await editObservation(projectId, entityId, observationId, newText);
+    if (success) {
+      await refreshState();
+    }
+    return success;
+  }, [projectId, refreshState]);
+
+  const deleteObservationAction = useCallback(async (entityId: string, observationId: string): Promise<boolean> => {
+    const success = await deleteObservation(projectId, entityId, observationId);
+    if (success) {
+      await refreshState();
+    }
+    return success;
+  }, [projectId, refreshState]);
+
   const findEntityByIdAction = useCallback(async (entityId: string) => 
     getEntity(projectId, entityId)
   , [projectId]);
@@ -198,6 +218,8 @@ export const ProjectProvider = ({
     getRelatedEntities: getRelatedEntitiesAction,
     refreshState,
     isLoading,
+    editObservation: editObservationAction,
+    deleteObservation: deleteObservationAction,
   };
 
   return (
