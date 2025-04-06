@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Link2, ArrowRight, ChevronDown, ChevronUp, Info, Clock, Hash, FilePlus } from 'lucide-react';
 // Import only types explicitly
-import type { Entity, Relationship } from '@/lib/knowledgeGraph'; 
+import type { Entity, Relationship } from '../lib/knowledgeGraph'; 
 // Import constants from the shared file
-import { RelationshipTypes } from '@/lib/constants';
-// We might need to redefine or pass RelationshipTypes if they are truly needed here
-// For now, assuming relationshipLabels mapping is sufficient and removing direct import
-// import { RelationshipTypes } from '@/lib/knowledgeGraph';
+import { RelationshipTypes } from '../lib/constants';
 
 interface EntityDetailsPanelProps {
   entity: Entity;

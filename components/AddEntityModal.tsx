@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { EntityTypes } from '@/lib/constants';
+import { EntityTypes } from '../lib/constants';
 
 interface AddEntityModalProps {
   isOpen: boolean;

@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import Navigation from '@/components/Navigation';
-import { ProjectSidebar } from '@/components/ui/ProjectSidebar';
+import Navigation from '../../../../components/Navigation';
+import { ProjectSidebar } from '../../../../components/ui/ProjectSidebar';
 import { Search, ZoomIn, ZoomOut, RefreshCw, List, LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import ReactFlow, {
@@ -19,7 +19,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { ProjectProvider, useProject } from '@/context/ProjectContext';
+import { ProjectProvider, useProject } from '../../../../context/ProjectContext';
 
 // Map entity types to color classes for ReactFlow nodes
 const entityTypeColors: Record<string, string> = {
