@@ -537,9 +537,12 @@ export async function addObservation(
         const newObservation: Observation = { id: newObservationId, text: observationText };
         const newObsList = [...existingObs, newObservation];
 
-        // Update the entity with the new observations list
-        const writeQuery = `MATCH (e:Entity {id: $id}) SET e.observations = $newObsList`;
-        const writeResult = await runQuery(projectId, writeQuery, { id: entityId, newObsList });
+        // *** FIX: Convert the updated array to a JSON string before saving ***
+        const updatedObservationsJson = stringifyObservations(newObsList); // Use the helper
+
+        // Update the entity with the new observations list as a JSON string
+        const writeQuery = `MATCH (e:Entity {id: $id}) SET e.observations = $updatedObservationsJson`;
+        const writeResult = await runQuery(projectId, writeQuery, { id: entityId, updatedObservationsJson }); // Pass the JSON string
         
         if (writeResult) {
             console.error(`Observation ${newObservationId} added to entity: ${entityId} in project: ${projectId}`);
@@ -751,17 +754,16 @@ export async function getAllEntities(
                 let parsedObservations: Observation[] = [];
                 if (row.observations) {
                     try {
-                        // KuzuDB might return observations directly as parsed JSON/objects in newer versions or specific setups
                         if (typeof row.observations === 'string') {
+                            console.log(`[DEBUG] Attempting to parse observations string for entity ${row.id}:`, JSON.stringify(row.observations));
                             parsedObservations = JSON.parse(row.observations);
-                        } else if (Array.isArray(row.observations)) { 
-                            // Assume it's already parsed if it's an array
-                            parsedObservations = row.observations; 
+                        } else if (Array.isArray(row.observations)) {
+                            parsedObservations = row.observations;
                         } else {
                              console.warn(`[WARN] Unexpected format for observations in getAllEntities:`, row.observations);
                         }
                     } catch (parseErr) {
-                        console.error(`[ERROR] Failed to parse observations for entity ${row.id} in getAllEntities:`, parseErr);
+                        console.error(`[ERROR] Failed to parse observations string: ${JSON.stringify(row.observations)} for entity ${row.id} in getAllEntities:`, parseErr);
                     }
                 }
 
@@ -826,8 +828,14 @@ export async function getRelationships(
     query += ` RETURN r.id AS id, from.id AS fromId, to.id AS toId, r.type AS type`;
     
     const result = await runQuery(projectId, query, queryParams);
-    if (!result) return [];
-    
+
+    // *** ADD THIS CHECK ***
+    if (!result || typeof result.getAll !== 'function') {
+      console.warn(`[getRelationships] Query executed but result is invalid or missing getAll method. Returning empty array. Query: ${query}, Result:`, result);
+      return []; // Return empty array if result is problematic
+    }
+    // *** END ADDED CHECK ***
+
     const relationships: Relationship[] = [];
     
     // Handle result

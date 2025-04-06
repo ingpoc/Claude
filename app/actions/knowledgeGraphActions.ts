@@ -78,13 +78,17 @@ export async function getEntity(
 export async function getAllEntities(
     projectId: string = DEFAULT_PROJECT_ID
 ): Promise<Entity[]> {
-    return await getAllEntitiesDb(projectId);
+    // console.warn(`[TEMP DEBUG] getAllEntities called for project ${projectId}. Bypassing DB call and returning empty array.`);
+    return await getAllEntitiesDb(projectId); // <-- Restore original call
+    // return Promise.resolve([]);
 }
 
 export async function getAllRelationshipsForContext(
     projectId: string = DEFAULT_PROJECT_ID
 ): Promise<Relationship[]> {
-    return await getAllRelationshipsForContextDb(projectId);
+    // console.warn(`[TEMP DEBUG] getAllRelationshipsForContext called for project ${projectId}. Bypassing DB call and returning empty array.`);
+    return await getAllRelationshipsForContextDb(projectId); // <-- Restore original call
+    // return Promise.resolve([]);
 }
 
 export async function getRelatedEntities(

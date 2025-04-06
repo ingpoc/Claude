@@ -14,6 +14,12 @@ export interface ProjectMetadata {
   lastAccessed: string;
 }
 
+// Add a flag to track if schema was initialized for a given DB path
+const schemaInitializedPaths = new Set<string>();
+
+// *** REINTRODUCE connectionCache ***
+const connectionCache: Record<string, { db: kuzu.Database, conn: kuzu.Connection, lastAccessed: number }> = {};
+
 // Determine Project Root: Prioritize ENV variable, fallback for non-Next.js context
 const getProjectRoot = () => {
   // Check if running in Next.js context AND the variable is set
@@ -37,33 +43,22 @@ console.error(`[ProjectManager Init - Final Attempt] Using PROJECT_ROOT: ${PROJE
 console.error(`[ProjectManager Init - Final Attempt] Using PROJECTS_DIR: ${PROJECTS_DIR}`);
 console.error(`[ProjectManager Init - Final Attempt] Using PROJECTS_FILE: ${PROJECTS_FILE}`);
 
-// DB instances cache
-const dbConnections: Record<string, { 
-  db: kuzu.Database, 
-  conn: kuzu.Connection,
-  schemaInitialized: boolean 
-}> = {};
-
-// Get or create a KuzuDB connection for a project
-// Cache connections for better performance
-const connectionCache: Record<string, { db: kuzu.Database, conn: kuzu.Connection, lastAccessed: number }> = {};
-
 // Initialize the projects directory and metadata file if they don't exist
 function ensureProjectInfrastructure() {
   console.error(`[Project Infra Check] Target Dir: ${PROJECTS_DIR}, Target File: ${PROJECTS_FILE}`);
   try {
     if (!fs.existsSync(PROJECTS_DIR)) {
-      console.error(`[Project Infra Check] Projects directory NOT FOUND: ${PROJECTS_DIR}`);
-      // Should not attempt creation from Next.js if using env var correctly
+      console.error(`[Project Infra Check] Projects directory NOT FOUND: ${PROJECTS_DIR}. Creating...`);
+      fs.mkdirSync(PROJECTS_DIR, { recursive: true });
     } else {
       console.error(`[Project Infra Check] Projects directory FOUND: ${PROJECTS_DIR}`);
     }
 
     if (!fs.existsSync(PROJECTS_FILE)) {
-      console.error(`[Project Infra Check] Projects file NOT FOUND: ${PROJECTS_FILE}`);
-      // Should not attempt creation from Next.js if using env var correctly
+      console.error(`[Project Infra Check] Projects file NOT FOUND: ${PROJECTS_FILE}. Creating...`);
+      fs.writeFileSync(PROJECTS_FILE, JSON.stringify({ projects: [] }), 'utf8');
     } else {
-       console.error(`[Project Infra Check] Projects file FOUND: ${PROJECTS_FILE}`);
+      console.error(`[Project Infra Check] Projects file FOUND: ${PROJECTS_FILE}`);
     }
   } catch (error) {
     console.error(`[Project Infra Check] FAILED to ensure project infrastructure:`, error);
@@ -196,60 +191,62 @@ async function initializeSchema(conn: kuzu.Connection): Promise<void> {
 }
 
 // Get or create a KuzuDB connection for a project
-// Cache connections for better performance
+// *** REVERT to Caching Logic ***
 export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.Connection }> {
     // Check if a connection exists and is less than 5 minutes old
     const cached = connectionCache[projectId];
     const now = Date.now();
-    
+
     if (cached && (now - cached.lastAccessed) < 300000) { // 5 minutes
         // Update last accessed time
         cached.lastAccessed = now;
+        console.log(`[GetConnection] Using CACHED KuzuDB connection for project: ${projectId}`);
         return { conn: cached.conn };
     }
-    
+
     // Check for and remove stale connections to prevent too many open connections
     const staleConnections = Object.keys(connectionCache).filter(
         id => (now - connectionCache[id].lastAccessed) > 600000 // 10 minutes
     );
-    
+
     // Remove stale connections
     for (const staleId of staleConnections) {
-        // console.error(`[DEBUG] Removing stale connection for project: ${staleId}`);
+        console.log(`[GetConnection] Removing STALE connection cache for project: ${staleId}`);
+        // We might need explicit closing if the driver supports it and leaks resources
+        // connectionCache[staleId].db.close(); // Example if a close method exists
         delete connectionCache[staleId];
     }
-    
+
     // Create a new connection
     try {
-        // Initialize database path and dir with better error handling
         const projectDirPath = path.join(PROJECTS_DIR, projectId);
         const dbPath = path.join(projectDirPath, 'graph.db');
-        
-        // console.error(`[DEBUG] Ensuring project directory exists: ${projectDirPath}`);
+
         if (!fs.existsSync(projectDirPath)) {
             fs.mkdirSync(projectDirPath, { recursive: true });
-            // console.error(`[DEBUG] Created project directory: ${projectDirPath}`);
         }
-        
-        // console.error(`[DEBUG] Creating new database for project: ${projectId}`);
-        // First create the database object
+
+        console.log(`[GetConnection] Creating NEW KuzuDB connection for project: ${projectId}`);
         const db = new kuzu.Database(dbPath);
-        
-        // console.error(`[DEBUG] Creating new connection for project: ${projectId}`);
-        // Then create a connection from the database
         const conn = new kuzu.Connection(db);
-        
-        // Initialize schema if needed
-        await initializeSchema(conn);
-        
-        // Cache the connection
+
+        // Initialize schema ONLY if not already done for this DB path
+        if (!schemaInitializedPaths.has(dbPath)) {
+            console.log(`[GetConnection] Schema not yet initialized for ${dbPath}. Initializing...`);
+            await initializeSchema(conn);
+            schemaInitializedPaths.add(dbPath);
+             console.log(`[GetConnection] Schema initialization complete for ${dbPath}.`);
+        } else {
+             console.log(`[GetConnection] Schema already initialized for ${dbPath}. Skipping initialization.`); // Adjusted log
+        }
+
+        // Cache the new connection
         connectionCache[projectId] = { db, conn, lastAccessed: now };
-        
-        console.error(`KuzuDB connection established for project: ${projectId}`);
+
+        console.log(`[GetConnection] NEW KuzuDB connection established and cached for project: ${projectId}`);
         return { conn };
     } catch (error) {
-        // Handle connection errors
-        console.error(`[ERROR] Error connecting to KuzuDB for project ${projectId}:`, error);
+        console.error(`[GetConnection] Error connecting to KuzuDB for project ${projectId}:`, error);
         throw error;
     }
 }
@@ -264,12 +261,6 @@ export async function deleteProject(projectId: string): Promise<boolean> {
     if (projects.length === updatedProjects.length) {
       console.warn(`Project not found for deletion: ${projectId}`);
       return false;
-    }
-    
-    // Close DB connection if exists
-    if (dbConnections[projectId]) {
-      // No explicit close method in KuzuDB? Remove from cache
-      delete dbConnections[projectId];
     }
     
     // Update projects metadata
