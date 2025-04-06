@@ -52,12 +52,12 @@ function parseObservations(obsData: string | Observation[] | null | undefined): 
             const parsed = JSON.parse(obsData);
             return Array.isArray(parsed) ? parsed : [];
         } catch (e) {
-            console.error('[DEBUG] Failed to parse observations JSON string:', obsData, e);
+            console.error('Failed to parse observations JSON string:', obsData, e);
             return []; // Return empty array on parsing error
         }
     }
     // Should not happen, but return empty array as fallback
-    console.warn('[WARN] Unexpected data type for observations:', typeof obsData);
+    console.warn(' Unexpected data type for observations:', typeof obsData);
     return [];
 }
 
@@ -66,7 +66,7 @@ function stringifyObservations(observations: Observation[]): string {
   try {
     return JSON.stringify(observations);
   } catch (e) {
-    console.error('[DEBUG] Failed to stringify observations:', e);
+    console.error('Failed to stringify observations:', e);
     return '[]'; // Return empty JSON array on error
   }
 }
@@ -94,16 +94,16 @@ async function runQuery<T = any>(
         
         if (params) {
             // Use prepared statements: prepare on connection, then execute on connection
-            // console.error(`[DEBUG] Preparing statement: ${query.substring(0, 100)}...`);
+            // console.error(`Preparing statement: ${query.substring(0, 100)}...`);
             try {
                 // @ts-ignore - Linter error might be due to outdated types, runtime expects prepare
                 const statement = await conn.prepare(query);
-                // console.error(`[DEBUG] Executing prepared statement via conn.execute with params:`, params);
+                // console.error(`Executing prepared statement via conn.execute with params:`, params);
                 // Pass prepared statement and params to conn.execute()
                 // Add undefined for the progressCallback argument
                 // @ts-ignore - Linter error might be due to outdated types, runtime expects execute
                 const result = await conn.execute(statement, params, undefined); 
-                // console.error(`[DEBUG] Raw result from prepared statement execution:`, result);
+                // console.error(`Raw result from prepared statement execution:`, result);
                 // Manually close statement if needed (check KuzuDB API)
                 // await statement.close(); 
                 return result;
@@ -112,11 +112,11 @@ async function runQuery<T = any>(
                 return null;
             }
         } else {
-            // console.error(`[DEBUG] Running non-parameterized query: ${query}`);
+            // console.error(`Running non-parameterized query: ${query}`);
             try {
                 // Add undefined for the progressCallback argument
                 const result = await conn.query(query, undefined);
-                // console.error(`[DEBUG] Raw result from conn.query (non-parameterized):`, result);
+                // console.error(`Raw result from conn.query (non-parameterized):`, result);
                 return result;
             } catch (queryError) {
                 console.error(`[ERROR] Failed to execute query: ${query.substring(0, 100)}...`, queryError);
@@ -138,7 +138,7 @@ export async function createEntity(
   observationsText: string[] = [], // Accept text initially
   parentId?: string
 ): Promise<Entity | null> {
-  // console.error(`[DEBUG] Creating entity: ${name} (${type}) in project ${projectId}`);
+  // console.error(`Creating entity: ${name} (${type}) in project ${projectId}`);
 
   try {
     // Get direct database connection
@@ -179,18 +179,18 @@ export async function createEntity(
       })
     `;
 
-    // console.error(`[DEBUG] Executing combined entity creation query within explicit transaction`);
+    // console.error(`Executing combined entity creation query within explicit transaction`);
     let transactionStarted = false;
     try {
       // 1. Begin Transaction
-      // console.error(`[DEBUG] Beginning transaction...`);
+      // console.error(`Beginning transaction...`);
       const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
       if (!beginResult) {
           console.error(`[ERROR] Failed to begin transaction for entity "${name}".`);
           return null;
       }
       transactionStarted = true;
-      // console.error(`[DEBUG] Transaction begun.`);
+      // console.error(`Transaction begun.`);
       
       // 2. Execute the single creation query with parameters using runQuery
       const createResult = await runQuery(projectId, createQuery, params);
@@ -200,32 +200,32 @@ export async function createEntity(
           console.error(`[ERROR] Entity creation query failed for name "${name}" within transaction.`);
           // Attempt rollback if transaction started
           if (transactionStarted) {
-              // console.error(`[DEBUG] Rolling back transaction due to creation failure...`);
+              // console.error(`Rolling back transaction due to creation failure...`);
               await runQuery(projectId, "ROLLBACK;");
           }
           return null;
       }
-      // console.error(`[DEBUG] Entity creation query executed within transaction for ID: ${id}.`);
+      // console.error(`Entity creation query executed within transaction for ID: ${id}.`);
 
       // 3. Commit Transaction
-      // console.error(`[DEBUG] Committing transaction...`);
+      // console.error(`Committing transaction...`);
       const commitResult = await runQuery(projectId, "COMMIT;");
       if (!commitResult) {
           console.error(`[ERROR] Failed to commit transaction for entity "${name}".`);
            // Attempt rollback - though commit failure might make this ineffective
-           // console.error(`[DEBUG] Attempting rollback after commit failure...`);
+           // console.error(`Attempting rollback after commit failure...`);
            await runQuery(projectId, "ROLLBACK;"); 
           return null; // Return null as commit failed
       }
-      // console.error(`[DEBUG] Transaction committed successfully for ID: ${id}.`);
+      // console.error(`Transaction committed successfully for ID: ${id}.`);
       transactionStarted = false; // Transaction ended
 
       // --- Force Checkpoint (Diagnostic Step) ---
-      // console.error(`[DEBUG] Forcing CHECKPOINT after commit for ID: ${id}`);
+      // console.error(`Forcing CHECKPOINT after commit for ID: ${id}`);
       try {
         const checkpointResult = await runQuery(projectId, "CHECKPOINT;");
         if (checkpointResult) {
-          // console.error(`[DEBUG] CHECKPOINT executed successfully.`);
+          // console.error(`CHECKPOINT executed successfully.`);
         } else {
           console.error(`[ERROR] CHECKPOINT command failed after commit.`);
         }
@@ -237,17 +237,17 @@ export async function createEntity(
       // --- Verification Step RE-ENABLED ---
       
       const verifyQuery = `MATCH (e:Entity {id: $id}) RETURN e.id`;
-      // console.error(`[DEBUG] Verifying entity exists with query: MATCH (e:Entity {id: ${id}}) RETURN e.id`);
+      // console.error(`Verifying entity exists with query: MATCH (e:Entity {id: ${id}}) RETURN e.id`);
 
       try {
         // Add more robust verification with retries
         let verificationPassed = false;
         for (let attempt = 0; attempt < 3; attempt++) {
-          // console.error(`[DEBUG] Verification attempt ${attempt + 1} for entity ${id}`);
+          // console.error(`Verification attempt ${attempt + 1} for entity ${id}`);
           
           // Add increasing delay between attempts
           if (attempt > 0) {
-            // console.error(`[DEBUG] Waiting ${100 * attempt}ms before retry...`);
+            // console.error(`Waiting ${100 * attempt}ms before retry...`);
             await new Promise(resolve => setTimeout(resolve, 100 * attempt));
           }
           
@@ -264,7 +264,7 @@ export async function createEntity(
                   verifyRows = []; // Assume empty on error
               }
           } else {
-               console.warn(`[WARN] verifyQueryResult does not have getAll method. Result:`, verifyQueryResult);
+               console.warn(` verifyQueryResult does not have getAll method. Result:`, verifyQueryResult);
                // Fallback attempts (less ideal)
                if (verifyQueryResult?.getRows) {
                    verifyRows = verifyQueryResult.getRows();
@@ -274,10 +274,10 @@ export async function createEntity(
           }
           // --- End Use getAll() ---
           
-          // console.error(`[DEBUG] Verification rows (attempt ${attempt + 1}):`, JSON.stringify(verifyRows));
+          // console.error(`Verification rows (attempt ${attempt + 1}):`, JSON.stringify(verifyRows));
 
           if (verifyRows && verifyRows.length > 0 && verifyRows[0]['e.id'] === id) { // Check specific ID in result
-            // console.error(`[DEBUG] Entity verified in database on attempt ${attempt + 1}: ${id}`);
+            // console.error(`Entity verified in database on attempt ${attempt + 1}: ${id}`);
             verificationPassed = true;
             break;
           }
@@ -287,18 +287,18 @@ export async function createEntity(
           // This case indicates a problem - the CREATE supposedly succeeded, but verification failed after retries.
           console.error(`[ERROR] Entity verification failed after ${3} attempts for ID: ${id}. The entity might not be queryable immediately.`);
           // Despite verification failure, we'll return the entity anyway as the transaction was committed
-          // console.error(`[DEBUG] Returning entity despite verification failure as transaction was committed: ${id}`);
+          // console.error(`Returning entity despite verification failure as transaction was committed: ${id}`);
         }
       } catch (verifyError) {
         console.error(`[ERROR] Error during entity verification for ID ${id}:`, verifyError);
         // Despite verification error, we'll return the entity anyway as the transaction was committed
-        // console.error(`[DEBUG] Returning entity despite verification error as transaction was committed: ${id}`);
+        // console.error(`Returning entity despite verification error as transaction was committed: ${id}`);
       }
       
       // --- END Verification Step RE-ENABLED ---
 
       // --- Add Direct Persistence Check ---
-      // console.error(`[DEBUG] Performing direct persistence check immediately after commit for ID: ${id}`);
+      // console.error(`Performing direct persistence check immediately after commit for ID: ${id}`);
       try {
           const directCheckQuery = `MATCH (e:Entity {id: $id}) RETURN e.id`;
           const directCheckResult = await runQuery(projectId, directCheckQuery, { id });
@@ -306,7 +306,7 @@ export async function createEntity(
           if (directCheckResult && typeof directCheckResult.getAll === 'function') {
               directCheckRows = await directCheckResult.getAll();
           }
-          // console.error(`[DEBUG] Direct persistence check result rows:`, JSON.stringify(directCheckRows));
+          // console.error(`Direct persistence check result rows:`, JSON.stringify(directCheckRows));
           if (directCheckRows && directCheckRows.length > 0 && directCheckRows[0]['e.id'] === id) {
               // console.error(`[SUCCESS] Direct persistence check PASSED for ${id}.`);
           } else {
@@ -326,7 +326,7 @@ export async function createEntity(
         observations, // Return the object, not the JSON string
         parentId: parentId || undefined // Return undefined if not provided initially
       };
-      // console.error(`[DEBUG] Returning entity: ${id}`);
+      // console.error(`Returning entity: ${id}`);
       return entity;
 
     } catch (createError) {
@@ -351,7 +351,7 @@ async function manageRelationship(
     description?: string, // Optional for create
     relationshipId?: string // Required for delete by ID (if needed)
 ): Promise<string | null> {
-    console.error(`[DEBUG] ${action} relationship: ${type} from ${sourceId} to ${targetId}`);
+    console.error(`${action} relationship: ${type} from ${sourceId} to ${targetId}`);
     
     let transactionStarted = false;
     try {
@@ -359,7 +359,7 @@ async function manageRelationship(
         const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
         if (!beginResult) throw new Error('Failed to begin transaction');
         transactionStarted = true;
-        console.error(`[DEBUG] Transaction begun for ${action}.`);
+        console.error(`Transaction begun for ${action}.`);
         
         let query = '';
         let params: Record<string, any> = {};
@@ -389,13 +389,13 @@ async function manageRelationship(
         if (!result) {
             throw new Error(`${action} relationship query failed.`);
         }
-        console.error(`[DEBUG] ${action} query executed.`);
+        console.error(`${action} query executed.`);
 
         // Commit Transaction
         const commitResult = await runQuery(projectId, "COMMIT;");
         if (!commitResult) throw new Error('Failed to commit transaction');
         transactionStarted = false;
-        console.error(`[DEBUG] Transaction committed for ${action}.`);
+        console.error(`Transaction committed for ${action}.`);
         
         // Force checkpoint after successful commit
         await runQuery(projectId, "CHECKPOINT;");
@@ -405,7 +405,7 @@ async function manageRelationship(
     } catch (error) {
         console.error(`[ERROR] Error during manageRelationship (${action}):`, error);
         if (transactionStarted) {
-            console.error(`[DEBUG] Rolling back transaction due to error...`);
+            console.error(`Rolling back transaction due to error...`);
             await runQuery(projectId, "ROLLBACK;");
         }
         return null;
@@ -437,7 +437,7 @@ export async function deleteRelationship(
     // This design is awkward. RETHINK: deleteRelationship should likely just take ID.
     
     // Let's simplify: Assume deleteRelationship only needs the ID
-    console.error(`[DEBUG] Deleting relationship by ID: ${relationshipId}`);
+    console.error(`Deleting relationship by ID: ${relationshipId}`);
     let transactionStarted = false;
     try {
         const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
@@ -477,7 +477,7 @@ export async function addObservation(
   entityId: string, 
   observationText: string
 ): Promise<{ observation_id: string } | null> {
-    console.log(`[DEBUG] Adding observation to entity ${entityId}: "${observationText}"`);
+    // console.log(`Adding observation to entity ${entityId}: "${observationText}"`);
     let transactionStarted = false;
     try {
         // 1. Get current observations
@@ -526,14 +526,14 @@ export async function addObservation(
         transactionStarted = false;
 
         await runQuery(projectId, "CHECKPOINT;");
-        console.log(`[DEBUG] Observation added successfully to entity ${entityId}. New Obs ID: ${newObservation.id}`);
+        // console.log(`Observation added successfully to entity ${entityId}. New Obs ID: ${newObservation.id}`);
         
         return { observation_id: newObservation.id };
 
     } catch (error) {
         console.error(`[ERROR] Error adding observation to entity ${entityId}:`, error);
         if (transactionStarted) {
-            console.error(`[DEBUG] Rolling back observation addition transaction...`);
+            console.error(`Rolling back observation addition transaction...`);
             await runQuery(projectId, "ROLLBACK;");
         }
         return null;
@@ -546,7 +546,7 @@ export async function deleteObservation(
     entityId: string,
     observationId: string
 ): Promise<boolean> {
-    console.log(`[DEBUG] Deleting observation ${observationId} from entity ${entityId}`);
+    // console.log(`Deleting observation ${observationId} from entity ${entityId}`);
     let transactionStarted = false;
     try {
         // 1. Get current observations
@@ -573,7 +573,7 @@ export async function deleteObservation(
 
         // Check if the observation was actually found and removed
         if (updatedObservations.length === currentObservations.length) {
-            console.warn(`[WARN] Observation ${observationId} not found on entity ${entityId}. No changes made.`);
+            console.warn(` Observation ${observationId} not found on entity ${entityId}. No changes made.`);
             return false; // Indicate observation not found or no change needed
         }
 
@@ -598,13 +598,13 @@ export async function deleteObservation(
         transactionStarted = false;
 
         await runQuery(projectId, "CHECKPOINT;");
-        console.log(`[DEBUG] Observation ${observationId} deleted successfully from entity ${entityId}.`);
+        // console.log(`Observation ${observationId} deleted successfully from entity ${entityId}.`);
         return true;
 
     } catch (error) {
         console.error(`[ERROR] Error deleting observation ${observationId} from entity ${entityId}:`, error);
         if (transactionStarted) {
-            console.error(`[DEBUG] Rolling back observation deletion transaction...`);
+            console.error(`Rolling back observation deletion transaction...`);
             await runQuery(projectId, "ROLLBACK;");
         }
         return false;
@@ -626,7 +626,7 @@ export async function getEntity(
         if (result && typeof result.getAll === 'function') {
             rows = await result.getAll();
         } else {
-            console.warn(`[WARN] getEntity result does not have getAll method. Result:`, result);
+            console.warn(` getEntity result does not have getAll method. Result:`, result);
             // Fallback attempts
             if (result?.getRows) {
                 rows = result.getRows();
@@ -666,7 +666,7 @@ export async function getEntity(
         }
         
         // No valid entity found
-        // console.error(`[DEBUG] No entity found or data malformed for ID: ${entityId}. Rows:`, JSON.stringify(rows));
+        // console.error(`No entity found or data malformed for ID: ${entityId}. Rows:`, JSON.stringify(rows));
         return null;
     } catch (error) {
         console.error(`[ERROR] Error processing entity query result for ID ${entityId}:`, error);
@@ -678,7 +678,7 @@ export async function getEntity(
 export async function getAllEntities(
   projectId: string
 ): Promise<Entity[]> {
-    // console.error(`[DEBUG] getAllEntities called for project: ${projectId}`);
+    // console.error(`getAllEntities called for project: ${projectId}`);
     
     // Get database connection directly
     const { conn } = await getDbConnection(projectId);
@@ -686,9 +686,9 @@ export async function getAllEntities(
     try {
         // Query to get all entity data directly
         const query = `MATCH (e:Entity) RETURN e.id AS id, e.name AS name, e.type AS type, e.description AS description, e.observations AS observations, e.parentId AS parentId`;
-        // console.error(`[DEBUG] Executing query: ${query}`);
+        // console.error(`Executing query: ${query}`);
         const result = await conn.query(query);
-        // console.error(`[DEBUG] Raw result from getAllEntities query:`, result); // Log raw result
+        // console.error(`Raw result from getAllEntities query:`, result); // Log raw result
 
         // --- Use getAll() for result processing ---
         let rows: any[] = [];
@@ -700,7 +700,7 @@ export async function getAllEntities(
                  rows = []; // Assume empty on error
              }
          } else {
-              console.warn(`[WARN] getAllEntities result does not have getAll method. Result:`, result);
+              console.warn(` getAllEntities result does not have getAll method. Result:`, result);
               // Fallback attempts
               if ((result as any)?.getRows) { // Check for getRows existence
                   rows = (result as any).getRows();
@@ -708,7 +708,7 @@ export async function getAllEntities(
                   rows = result;
               }
          }
-         // console.error(`[DEBUG] Processed rows from getAllEntities: ${rows.length} rows found.`);
+         // console.error(`Processed rows from getAllEntities: ${rows.length} rows found.`);
          // --- End Use getAll() ---
         
         const entities: Entity[] = [];
@@ -719,12 +719,12 @@ export async function getAllEntities(
                 if (row.observations) {
                     try {
                         if (typeof row.observations === 'string') {
-                            console.log(`[DEBUG] Attempting to parse observations string for entity ${row.id}:`, JSON.stringify(row.observations));
+                            // console.log(`Attempting to parse observations string for entity ${row.id}:`, JSON.stringify(row.observations));
                             parsedObservations = JSON.parse(row.observations);
                         } else if (Array.isArray(row.observations)) {
                             parsedObservations = row.observations;
                         } else {
-                             console.warn(`[WARN] Unexpected format for observations in getAllEntities:`, row.observations);
+                             console.warn(` Unexpected format for observations in getAllEntities:`, row.observations);
                         }
                     } catch (parseErr) {
                         console.error(`[ERROR] Failed to parse observations string: ${JSON.stringify(row.observations)} for entity ${row.id} in getAllEntities:`, parseErr);
@@ -747,7 +747,7 @@ export async function getAllEntities(
             }
         }
         
-        // console.error(`[DEBUG] getAllEntities returning ${entities.length} entities.`);
+        // console.error(`getAllEntities returning ${entities.length} entities.`);
         return entities;
     } catch (error) {
         console.error('[ERROR] Error in getAllEntities:', error);
@@ -814,7 +814,7 @@ export async function getRelationships(
                  rows = []; // Assume empty on error
              }
          } else {
-              console.warn(`[WARN] getRelationships result does not have getAll method. Result:`, result);
+              console.warn(` getRelationships result does not have getAll method. Result:`, result);
               // Fallback attempts
               if ((result as any)?.getRows) {
                   rows = (result as any).getRows();
@@ -852,7 +852,7 @@ export async function getRelatedEntities(
     relationshipType?: string,
     direction: 'incoming' | 'outgoing' | 'both' = 'both'
 ): Promise<Entity[]> {
-    console.log(`[DEBUG] Getting related entities for ${entityId}, type: ${relationshipType || 'any'}, direction: ${direction}`);
+    // console.log(`Getting related entities for ${entityId}, type: ${relationshipType || 'any'}, direction: ${direction}`);
     try {
         let matchClause = '';
         const params: Record<string, any> = { entityId };
@@ -883,8 +883,8 @@ export async function getRelatedEntities(
                           ${finalReturnNode}.parentId as parentId
         `;
 
-        console.log(`[DEBUG] GetRelated Query: ${query}`);
-        console.log(`[DEBUG] GetRelated Params:`, params);
+        // console.log(`GetRelated Query: ${query}`);
+        // console.log(`GetRelated Params:`, params);
 
         const result = await runQuery(projectId, query, params);
         if (!result) {
@@ -902,11 +902,11 @@ export async function getRelatedEntities(
                  rows = []; // Assume empty on error
              }
         } else {
-             console.warn(`[WARN] getRelatedEntities result does not have getAll method. Result:`, result);
+             console.warn(` getRelatedEntities result does not have getAll method. Result:`, result);
              rows = Array.isArray(result) ? result : []; // Fallback
         }
         
-        console.log(`[DEBUG] Found ${rows.length} related entities.`);
+        // console.log(`Found ${rows.length} related entities.`);
         
         // Parse observations for each entity
         return rows.map(row => ({
@@ -941,7 +941,7 @@ export async function updateEntity(
     entityId: string,
     updates: Partial<Omit<Entity, 'id' | 'observations'> & { observations?: Observation[] }> // Allow updating specific fields, incl. observations array
 ): Promise<Entity | null> {
-    console.log(`[DEBUG] Updating entity ${entityId} in project ${projectId} with updates:`, updates);
+    // console.log(`Updating entity ${entityId} in project ${projectId} with updates:`, updates);
     let transactionStarted = false;
     try {
         // 1. Fetch the current entity data
@@ -987,7 +987,7 @@ export async function updateEntity(
         }
 
         if (setClauses.length === 0) {
-            console.warn(`[WARN] No updatable fields provided for entity ${entityId}. Returning current entity.`);
+            console.warn(` No updatable fields provided for entity ${entityId}. Returning current entity.`);
             return currentEntity; // No changes to apply
         }
 
@@ -1002,8 +1002,8 @@ export async function updateEntity(
             RETURN e.id, e.name, e.type, e.description, e.observations, e.parentId
         `;
 
-        console.log(`[DEBUG] Update Query: ${updateQuery}`);
-        console.log(`[DEBUG] Update Params:`, params);
+        // console.log(`Update Query: ${updateQuery}`);
+        // console.log(`Update Params:`, params);
 
         const updateResult = await runQuery(projectId, updateQuery, params);
         if (!updateResult) throw new Error('Entity update query failed');
@@ -1013,7 +1013,7 @@ export async function updateEntity(
         transactionStarted = false;
 
         await runQuery(projectId, "CHECKPOINT;");
-        console.log(`[DEBUG] Update transaction committed for entity ${entityId}.`);
+        // console.log(`Update transaction committed for entity ${entityId}.`);
 
         // 4. Fetch and return the updated entity
         // The RETURN clause in the update query might not reflect the *committed* state immediately?
@@ -1023,7 +1023,7 @@ export async function updateEntity(
     } catch (error) {
         console.error(`[ERROR] Error updating entity ${entityId}:`, error);
         if (transactionStarted) {
-            console.error(`[DEBUG] Rolling back update transaction...`);
+            console.error(`Rolling back update transaction...`);
             await runQuery(projectId, "ROLLBACK;");
         }
         return null;
@@ -1032,7 +1032,7 @@ export async function updateEntity(
 
 // Get all nodes and edges for graph visualization
 export async function getGraphData(projectId: string): Promise<{ nodes: Entity[], links: Relationship[] }> {
-     console.log(`[DEBUG] Getting graph data for project ${projectId}`);
+     // console.log(`Getting graph data for project ${projectId}`);
     try {
         // Fetch all nodes
         const nodesQuery = `
@@ -1049,14 +1049,14 @@ export async function getGraphData(projectId: string): Promise<{ nodes: Entity[]
                  nodesRaw = [];
              }
         } else {
-            console.warn(`[WARN] getGraphData (nodes) result does not have getAll method.`);
+            console.warn(` getGraphData (nodes) result does not have getAll method.`);
              nodesRaw = Array.isArray(nodesResult) ? nodesResult : [];
         }
         const nodes = nodesRaw.map(node => ({
             ...node,
             observations: parseObservations(node.observations)
         }));
-        console.log(`[DEBUG] Fetched ${nodes.length} nodes.`);
+        // console.log(`Fetched ${nodes.length} nodes.`);
 
         // Fetch all relationships
         const linksQuery = `
@@ -1073,11 +1073,11 @@ export async function getGraphData(projectId: string): Promise<{ nodes: Entity[]
                  linksRaw = [];
              }
         } else {
-             console.warn(`[WARN] getGraphData (links) result does not have getAll method.`);
+             console.warn(` getGraphData (links) result does not have getAll method.`);
              linksRaw = Array.isArray(linksResult) ? linksResult : [];
         }
         const links = linksRaw; // Assuming direct mapping works
-        console.log(`[DEBUG] Fetched ${links.length} links.`);
+        // console.log(`Fetched ${links.length} links.`);
         
         return { nodes, links };
 
@@ -1092,7 +1092,7 @@ export async function deleteEntity(
   projectId: string,
   entityId: string
 ): Promise<boolean> {
-    console.error(`[DEBUG] Deleting entity ${entityId} in project ${projectId}`);
+    console.error(`Deleting entity ${entityId} in project ${projectId}`);
     let transactionStarted = false;
     try {
         const beginResult = await runQuery(projectId, "BEGIN TRANSACTION;");
@@ -1113,7 +1113,7 @@ export async function deleteEntity(
         transactionStarted = false;
 
         await runQuery(projectId, "CHECKPOINT;");
-        console.log(`[DEBUG] Entity ${entityId} deleted successfully.`);
+        // console.log(`Entity ${entityId} deleted successfully.`);
         return true; // Assume success if commit worked
 
     } catch (error) {

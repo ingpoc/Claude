@@ -138,7 +138,7 @@ export class NextJsSSETransport {
       const args = message.args || {};
       const extra = this.extra || {};
       
-      console.log(`Processing tool request: ${toolName} with args:`, args);
+      // console.log(`Processing tool request: ${toolName} with args:`, args);
       
       // Find the registered tool handler
       const toolHandler = this.toolHandlers[toolName];
@@ -157,7 +157,7 @@ export class NextJsSSETransport {
         content: result.content || []
       };
       
-      console.log(`Sending response for tool: ${toolName}`);
+      // console.log(`Sending response for tool: ${toolName}`);
       await this.send(response);
     } catch (error) {
       console.error("Error handling message:", error);

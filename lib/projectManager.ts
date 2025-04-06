@@ -24,12 +24,12 @@ const connectionCache: Record<string, { db: kuzu.Database, conn: kuzu.Connection
 const getProjectRoot = () => {
   // Check if running in Next.js context AND the variable is set
   if (process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR) {
-    console.log("[ProjectManager] Using NEXT_PUBLIC_PROJECT_ROOT_DIR env var:", process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR);
+    // console.log("[ProjectManager] Using NEXT_PUBLIC_PROJECT_ROOT_DIR env var:", process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR);
     return process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR;
   } else {
     // Fallback for other contexts (like the standalone server run from dist)
     const fallbackPath = path.resolve(__dirname, '..');
-    console.log(`[ProjectManager] NEXT_PUBLIC_PROJECT_ROOT_DIR not set or not in Next.js context. Falling back to path relative to __dirname (${__dirname}): ${fallbackPath}`);
+    // console.log(`[ProjectManager] NEXT_PUBLIC_PROJECT_ROOT_DIR not set or not in Next.js context. Falling back to path relative to __dirname (${__dirname}): ${fallbackPath}`);
     return fallbackPath;
   }
 };
@@ -200,7 +200,7 @@ export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.C
     if (cached && (now - cached.lastAccessed) < 300000) { // 5 minutes
         // Update last accessed time
         cached.lastAccessed = now;
-        console.log(`[GetConnection] Using CACHED KuzuDB connection for project: ${projectId}`);
+        // console.log(`[GetConnection] Using CACHED KuzuDB connection for project: ${projectId}`);
         return { conn: cached.conn };
     }
 
@@ -211,7 +211,7 @@ export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.C
 
     // Remove stale connections
     for (const staleId of staleConnections) {
-        console.log(`[GetConnection] Removing STALE connection cache for project: ${staleId}`);
+        // console.log(`[GetConnection] Removing STALE connection cache for project: ${staleId}`);
         // We might need explicit closing if the driver supports it and leaks resources
         // connectionCache[staleId].db.close(); // Example if a close method exists
         delete connectionCache[staleId];
@@ -226,24 +226,24 @@ export async function getDbConnection(projectId: string): Promise<{ conn: kuzu.C
             fs.mkdirSync(projectDirPath, { recursive: true });
         }
 
-        console.log(`[GetConnection] Creating NEW KuzuDB connection for project: ${projectId}`);
+        // console.log(`[GetConnection] Creating NEW KuzuDB connection for project: ${projectId}`);
         const db = new kuzu.Database(dbPath);
         const conn = new kuzu.Connection(db);
 
         // Initialize schema ONLY if not already done for this DB path
         if (!schemaInitializedPaths.has(dbPath)) {
-            console.log(`[GetConnection] Schema not yet initialized for ${dbPath}. Initializing...`);
+            // console.log(`[GetConnection] Schema not yet initialized for ${dbPath}. Initializing...`);
             await initializeSchema(conn);
             schemaInitializedPaths.add(dbPath);
-             console.log(`[GetConnection] Schema initialization complete for ${dbPath}.`);
+             // console.log(`[GetConnection] Schema initialization complete for ${dbPath}.`);
         } else {
-             console.log(`[GetConnection] Schema already initialized for ${dbPath}. Skipping initialization.`); // Adjusted log
+             // console.log(`[GetConnection] Schema already initialized for ${dbPath}. Skipping initialization.`); // Adjusted log
         }
 
         // Cache the new connection
         connectionCache[projectId] = { db, conn, lastAccessed: now };
 
-        console.log(`[GetConnection] NEW KuzuDB connection established and cached for project: ${projectId}`);
+        // console.log(`[GetConnection] NEW KuzuDB connection established and cached for project: ${projectId}`);
         return { conn };
     } catch (error) {
         console.error(`[GetConnection] Error connecting to KuzuDB for project ${projectId}:`, error);

@@ -76,7 +76,7 @@ export const ProjectProvider = ({
             getAllRelationshipsForContext(projectId)
         ]);
         
-        console.log(`[DEBUG] getAllEntities returned: ${JSON.stringify(entities)}`);
+        // console.log(`getAllEntities returned: ${JSON.stringify(entities)}`);
         
         setState({ 
           projectId,
@@ -86,7 +86,7 @@ export const ProjectProvider = ({
           relationships 
         });
         
-        console.log(`Refreshed state for project ${projectId}: ${entities.length} entities, ${relationships.length} relationships.`);
+        // console.log(`Refreshed state for project ${projectId}: ${entities.length} entities, ${relationships.length} relationships.`);
     } catch (error) {
         console.error(`Failed to load project ${projectId}:`, error);
         setState({ 

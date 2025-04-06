@@ -26,7 +26,7 @@ export function createMcpServer(): McpServer {
         };
       });
       
-      console.log(`Responding to tools/list with ${toolList.length} tools`);
+      // console.log(`Responding to tools/list with ${toolList.length} tools`);
       
       // Return in the expected format with content property
       return {
@@ -39,7 +39,7 @@ export function createMcpServer(): McpServer {
     
     server.tool("resources/list", "Lists all available resources", {}, async (_args: any, _extra: any) => {
       // Currently no resources implemented
-      console.log('Responding to resources/list with empty list');
+      // console.log('Responding to resources/list with empty list');
       
       return {
         content: [{
@@ -51,7 +51,7 @@ export function createMcpServer(): McpServer {
     
     server.tool("prompts/list", "Lists all available prompts", {}, async (_args: any, _extra: any) => {
       // Currently no prompts implemented
-      console.log('Responding to prompts/list with empty list');
+      // console.log('Responding to prompts/list with empty list');
       
       return {
         content: [{

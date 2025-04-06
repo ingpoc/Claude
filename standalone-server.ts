@@ -15,7 +15,6 @@ import { SessionManager } from './lib/mcp/SessionManager';
 // Import the new tool info functions
 import { getKnowledgeGraphToolInfo } from './lib/mcp/tools/KnowledgeGraphTools';
 import { getProjectToolInfo } from './lib/mcp/tools/ProjectTools';
-import { getMemoryToolInfo } from './lib/mcp/tools/MemoryToolsInfo';
 
 // Import project and graph functions needed for UI API
 import * as projectManager from './lib/projectManager';
@@ -326,18 +325,15 @@ const server = new Server({
 // Pass sessionManager if the get...Info functions require it
 const kgToolInfo = getKnowledgeGraphToolInfo(sessionManager);
 const projectToolInfo = getProjectToolInfo(sessionManager);
-const memoryToolInfo = getMemoryToolInfo(sessionManager);
 
 // Combine tool definitions and handlers
 const allToolDefinitions = [
     ...kgToolInfo.definitions,
-    ...projectToolInfo.definitions,
-    ...memoryToolInfo.definitions
+    ...projectToolInfo.definitions
 ];
 const allToolHandlers = {
     ...kgToolInfo.handlers,
-    ...projectToolInfo.handlers,
-    ...memoryToolInfo.handlers
+    ...projectToolInfo.handlers
 };
 
 // --- Register SDK Handlers ---

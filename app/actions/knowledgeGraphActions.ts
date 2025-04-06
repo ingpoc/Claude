@@ -56,7 +56,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || 'http://localhost
 // Helper function for API calls
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
     const url = `${API_BASE_URL}${endpoint}`;
-    console.log(`[API Action] Fetching: ${options.method || 'GET'} ${url}`);
+    // console.log(`[API Action] Fetching: ${options.method || 'GET'} ${url}`);
     try {
         const response = await fetch(url, {
             ...options,
@@ -87,11 +87,11 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 
         // Handle 204 No Content specifically (for DELETE)
         if (response.status === 204) {
-            // console.log(`[API Action] Success (204 No Content): ${options.method || 'GET'} ${url}`);
+            // // console.log(`[API Action] Success (204 No Content): ${options.method || 'GET'} ${url}`);
             return true as T; // Assuming T is boolean for DELETE success
         }
 
-        // console.log(`[API Action] Success: ${options.method || 'GET'} ${url}`);
+        // // console.log(`[API Action] Success: ${options.method || 'GET'} ${url}`);
         const data = await response.json();
         return data as T;
     } catch (error) {

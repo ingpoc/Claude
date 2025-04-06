@@ -10,7 +10,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || 'http://localhost
 // Reusable fetch helper (could be moved to a shared utility)
 async function fetchFromApi(endpoint: string, options: RequestInit = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
-    console.log(`[API Route] Fetching: ${options.method || 'GET'} ${url}`);
+    // console.log(`[API Route] Fetching: ${options.method || 'GET'} ${url}`);
     const response = await fetch(url, {
         ...options,
         headers: {

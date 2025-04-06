@@ -36,7 +36,7 @@ export class MemoryGraphManager {
    */
   async initialize(): Promise<boolean> {
     try {
-      console.log(`[MemoryGraph] Initializing memory graph for user ${this.userId}`);
+      // console.log(`[MemoryGraph] Initializing memory graph for user ${this.userId}`);
       
       // Find or create the user entity
       await this.findOrCreateUserEntity();
@@ -65,7 +65,7 @@ export class MemoryGraphManager {
       
       if (userEntity) {
         this.userEntityId = userEntity.id;
-        console.log(`[MemoryGraph] Found existing user entity: ${this.userEntityId}`);
+        // console.log(`[MemoryGraph] Found existing user entity: ${this.userEntityId}`);
         return;
       }
       
@@ -80,7 +80,7 @@ export class MemoryGraphManager {
       
       if (newUserEntity) {
         this.userEntityId = newUserEntity.id;
-        console.log(`[MemoryGraph] Created new user entity: ${this.userEntityId}`);
+        // console.log(`[MemoryGraph] Created new user entity: ${this.userEntityId}`);
       } else {
         console.error(`[MemoryGraph] Failed to create user entity for ${this.userId}`);
       }

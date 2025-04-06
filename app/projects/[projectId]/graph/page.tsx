@@ -99,9 +99,9 @@ function GraphPageContent() {
     isLoading 
   } = useProject();
   
-  console.log(`Graph page rendering for project ${projectId}`);
-  console.log(`Entities: ${entities.length}, Relationships: ${relationships.length}`);
-  console.log('Entity IDs:', entities.map(e => e.id));
+  // console.log(`Graph page rendering for project ${projectId}`);
+  // console.log(`Entities: ${entities.length}, Relationships: ${relationships.length}`);
+  // console.log('Entity IDs:', entities.map(e => e.id));
 
   const [searchQuery, setSearchQuery] = useState('');
   

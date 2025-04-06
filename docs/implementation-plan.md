@@ -2,91 +2,98 @@
 
 ## Goal
 
-Implement a robust and user-friendly Knowledge Graph MCP server that allows AI clients to effectively build, query, and maintain a knowledge graph of codebases and related concepts.
+Implement a robust and user-friendly Knowledge Graph MCP server that allows AI clients to effectively build, query, and maintain a knowledge graph of codebases and related concepts using the Model Context Protocol.
 
 ## Core Tool Implementation
 
-The following tools, outlined in `docs/knowledge-graph.md`, need to be implemented. Clear input validation and informative error handling are crucial for each.
+The following tools, based on the features outlined in `docs/feature-goals.md`, need to be implemented. Clear input validation and informative error handling adhering to MCP standards are crucial for each.
 
-**Crucial Aspect:** Each tool handler *must* return data in the format expected by the `@modelcontextprotocol/sdk`, which is typically an object containing a `content` array with items like `{ type: 'text', text: '...' }` or `{ type: 'json', json: {...} }`. The exact structure should conform to the SDK's requirements to avoid type errors.
+**Crucial Aspect:** Each tool handler *must* return data in the format expected by the `@modelcontextprotocol/sdk`, which is an object containing a `content` array. Items in this array can be `{ type: 'text', text: '...' }`, `{ type: 'json', json: {...} }`, etc. Conformance is vital to avoid client-side errors. Error conditions should also return this structure, often with a text message describing the error, and potentially setting an `isError: true` flag if the SDK supports it in the result.
 
 ### 1. Entity Management
 
 *   **`create_entity`**
-    *   **Inputs:** `name: string`, `type: string`, `description: string = ''`, `parent_id: string | null = null`
-    *   **Output:** `{ content: [{ type: 'json', json: { id: string, name: string, type: string, description: string, parent_id: string | null } }] }` or error message.
-    *   **Logic:** Generate unique ID, validate inputs, insert into KuzuDB.
+    *   **Inputs:** `project_id: string` (Context), `name: string`, `type: string`, `description: string = ''`, `observations: string[] = []` (Optional initial observations), `parentId: string | null = null` (Optional parent entity ID)
+    *   **Output (Success):** `{ content: [{ type: 'json', json: { entity: { id: string, name: string, type: string, description: string, parentId: string | null, /* other relevant fields */ } } }] }`
+    *   **Output (Error):** `{ content: [{ type: 'text', text: 'Error: ...' }] }`
+    *   **Logic:** Generate unique entity ID, validate inputs (e.g., check if parentId exists if provided), insert into KuzuDB for the given `project_id`. Handle potential name/type uniqueness constraints if desired.
 *   **`get_entity`**
-    *   **Inputs:** `id: string`
-    *   **Output:** `{ content: [{ type: 'json', json: { id: string, name: string, type: string, description: string, parent_id: string | null, observations: string[] } }] }` or error message.
-    *   **Logic:** Query KuzuDB by ID, retrieve entity and associated observations.
+    *   **Inputs:** `project_id: string`, `entity_id: string`
+    *   **Output (Success):** `{ content: [{ type: 'json', json: { entity: { id: string, name: string, type: string, description: string, parentId: string | null, observations: { id: string, text: string }[] /* potentially add relationships here too */ } } }] }`
+    *   **Output (Error):** `{ content: [{ type: 'text', text: 'Error: Entity {entity_id} not found.' }] }`
+    *   **Logic:** Query KuzuDB by `entity_id` within the `project_id`, retrieve entity details and its associated observations.
 *   **`list_entities`**
-    *   **Inputs:** `type: string | null = null`, `name_contains: string | null = null`, `limit: number = 20`
+    *   **Inputs:** `project_id: string`, `type: string | null = null`, `name_contains: string | null = null`, `limit: number = 50`
     *   **Output:** `{ content: [{ type: 'json', json: { entities: [{ id: string, name: string, type: string }] } }] }`
-    *   **Logic:** Query KuzuDB with optional filters.
+    *   **Logic:** Query KuzuDB entities table for the `project_id` with optional filters for `type` and partial `name` matching. Apply limit.
 *   **`update_entity_description`**
-    *   **Inputs:** `id: string`, `description: string`
-    *   **Output:** `{ content: [{ type: 'text', text: 'Entity description updated successfully.' }] }` or error message.
-    *   **Logic:** Find entity by ID and update its description field.
+    *   **Inputs:** `project_id: string`, `entity_id: string`, `description: string`
+    *   **Output (Success):** `{ content: [{ type: 'text', text: 'Entity description updated successfully.' }] }`
+    *   **Output (Error):** `{ content: [{ type: 'text', text: 'Error: Entity {entity_id} not found.' }] }`
+    *   **Logic:** Find entity by `entity_id` within `project_id` and update its description field in KuzuDB.
 *   **`delete_entity`**
-    *   **Inputs:** `id: string`
-    *   **Output:** `{ content: [{ type: 'text', text: 'Entity and related relationships deleted.' }] }` or error message.
-    *   **Logic:** Delete entity and *all* its incoming/outgoing relationships from KuzuDB.
+    *   **Inputs:** `project_id: string`, `entity_id: string`
+    *   **Output (Success):** `{ content: [{ type: 'text', text: 'Entity, its observations, and related relationships deleted.' }] }`
+    *   **Output (Error):** `{ content: [{ type: 'text', text: 'Error: Entity {entity_id} not found.' }] }`
+    *   **Logic:** Delete the entity node, its associated observations, and *all* its incoming/outgoing relationships from KuzuDB for the given `project_id`.
 
 ### 2. Relationship Management
 
 *   **`create_relationship`**
-    *   **Inputs:** `from_id: string`, `to_id: string`, `type: string`
-    *   **Output:** `{ content: [{ type: 'json', json: { id: string, from_id: string, to_id: string, type: string } }] }` or error message.
-    *   **Logic:** Validate `from_id` and `to_id` exist, insert relationship into KuzuDB.
+    *   **Inputs:** `project_id: string`, `source_id: string`, `target_id: string`, `type: string`, `description: string = ''`
+    *   **Output (Success):** `{ content: [{ type: 'json', json: { relationship: { id: string, source_id: string, target_id: string, type: string, description: string } } }] }`
+    *   **Output (Error):** `{ content: [{ type: 'text', text: 'Error: Source or Target entity not found.' }] }`
+    *   **Logic:** Validate `source_id` and `target_id` exist within `project_id`, generate unique relationship ID, insert relationship edge into KuzuDB.
 *   **`get_relationships`**
-    *   **Inputs:** `entity_id: string | null = null`, `type: string | null = null`, `direction: 'incoming' | 'outgoing' | 'both' = 'both'`, `limit: number = 20`
-    *   **Output:** `{ content: [{ type: 'json', json: { relationships: [{ id: string, from_id: string, to_id: string, type: string }] } }] }`
-    *   **Logic:** Query KuzuDB relationships table with filters.
+    *   **Inputs:** `project_id: string`, `entity_id: string`, `relationship_type: string | null = null`, `direction: 'incoming' | 'outgoing' | 'both' = 'both'`, `limit: number = 50`
+    *   **Output:** `{ content: [{ type: 'json', json: { relationships: [{ id: string, source_id: string, target_id: string, type: string, description: string }] } }] }`
+    *   **Logic:** Query KuzuDB relationships table connected to `entity_id` within `project_id`, applying filters for type and direction.
 *   **`get_related_entities`**
-    *   **Inputs:** `entity_id: string`, `relationship_type: string | null = null`, `direction: 'incoming' | 'outgoing' | 'both' = 'both'`, `limit: number = 20`
-    *   **Output:** `{ content: [{ type: 'json', json: { related_entities: [{ id: string, name: string, type: string, relationship_type: string }] } }] }`
-    *   **Logic:** Perform graph traversal query from `entity_id` based on filters.
+    *   **Inputs:** `project_id: string`, `entity_id: string`, `relationship_type: string | null = null`, `direction: 'incoming' | 'outgoing' | 'both' = 'both'`, `limit: number = 50`
+    *   **Output:** `{ content: [{ type: 'json', json: { related_entities: [{ entity: { id: string, name: string, type: string }, relationship: { id: string, type: string, direction: 'incoming' | 'outgoing' } }] } }] }`
+    *   **Logic:** Perform graph traversal query from `entity_id` within `project_id` based on filters. Return the connected entities and details about the relationship connecting them.
 *   **`delete_relationship`**
-    *   **Inputs:** `id: string`
-    *   **Output:** `{ content: [{ type: 'text', text: 'Relationship deleted.' }] }` or error message.
-    *   **Logic:** Delete specific relationship by its ID.
+    *   **Inputs:** `project_id: string`, `relationship_id: string`
+    *   **Output (Success):** `{ content: [{ type: 'text', text: 'Relationship deleted.' }] }`
+    *   **Output (Error):** `{ content: [{ type: 'text', text: 'Error: Relationship {relationship_id} not found.' }] }`
+    *   **Logic:** Delete the specific relationship edge by its ID within the `project_id` from KuzuDB.
 
 ### 3. Observation Management
 
 *   **`add_observation`**
-    *   **Inputs:** `entity_id: string`, `observation: string`
-    *   **Output:** `{ content: [{ type: 'text', text: 'Observation added successfully.' }] }` or error message.
-    *   **Logic:** Find entity by ID, append observation text to its observation list/relation.
+    *   **Inputs:** `project_id: string`, `entity_id: string`, `observation: string`
+    *   **Output (Success):** `{ content: [{ type: 'json', json: { observation: { id: string, text: string } } }] }` (Returning the created observation with its ID)
+    *   **Output (Error):** `{ content: [{ type: 'text', text: 'Error: Entity {entity_id} not found.' }] }`
+    *   **Logic:** Find entity by `entity_id` within `project_id`. Add the observation, potentially as a separate node related to the entity or as structured data within the entity node itself in KuzuDB. Generate unique observation ID.
 *   **`delete_observation`**
-    *   **Inputs:** `entity_id: string`, `observation_index: number` (or a unique observation ID if implemented)
-    *   **Output:** `{ content: [{ type: 'text', text: 'Observation deleted.' }] }` or error message.
-    *   **Logic:** Find entity, remove the specified observation.
+    *   **Inputs:** `project_id: string`, `entity_id: string`, `observation_id: string`
+    *   **Output (Success):** `{ content: [{ type: 'text', text: 'Observation deleted.' }] }`
+    *   **Output (Error):** `{ content: [{ type: 'text', text: 'Error: Observation {observation_id} not found or does not belong to entity {entity_id}.' }] }`
+    *   **Logic:** Find and remove the specific observation identified by `observation_id` associated with `entity_id` within `project_id`.
 
 ## Pre-packaged Prompts / Usage Examples (for AI Client)
 
-These demonstrate how an AI might use the tools:
+These demonstrate how an AI might interact with the tools (assuming `project_id = 'proj_123'`):
 
-*   **Creating an entity:** "Create a 'file' entity named 'src/api/auth.ts' with the description 'Handles user authentication endpoints'."
-    *   *Expected Tool Call:* `create_entity(name='src/api/auth.ts', type='file', description='Handles user authentication endpoints')`
-*   **Linking entities:** "Create an 'imports' relationship from the entity 'src/api/auth.ts' (ID: {auth_file_id}) to the entity 'src/lib/utils.ts' (ID: {utils_file_id})."
-    *   *Expected Tool Call:* `create_relationship(from_id='{auth_file_id}', to_id='{utils_file_id}', type='imports')`
-*   **Adding details:** "Add an observation to entity {auth_file_id}: 'Uses JWT for token generation'."
-    *   *Expected Tool Call:* `add_observation(entity_id='{auth_file_id}', observation='Uses JWT for token generation')`
-*   **Querying relationships:** "Show me entities that the 'src/api/auth.ts' file (ID: {auth_file_id}) calls."
-    *   *Expected Tool Call:* `get_related_entities(entity_id='{auth_file_id}', relationship_type='calls', direction='outgoing')`
-*   **Listing entities:** "List all entities of type 'function' that contain 'user' in their name."
-    *   *Expected Tool Call:* `list_entities(type='function', name_contains='user')`
+*   **Creating an entity:** "Create a 'file' entity named 'src/utils.ts' under project 'proj_123'."
+    *   *Expected Tool Call:* `create_entity(project_id='proj_123', name='src/utils.ts', type='file')`
+*   **Linking entities:** "In project 'proj_123', create an 'imports' relationship from entity 'file_abc' to entity 'func_xyz'."
+    *   *Expected Tool Call:* `create_relationship(project_id='proj_123', source_id='file_abc', target_id='func_xyz', type='imports')`
+*   **Adding details:** "For entity 'func_xyz' in project 'proj_123', add the observation: 'Handles date formatting using moment.js'."
+    *   *Expected Tool Call:* `add_observation(project_id='proj_123', entity_id='func_xyz', observation='Handles date formatting using moment.js')`
+*   **Querying:** "In project 'proj_123', what functions does entity 'file_abc' contain?"
+    *   *Expected Tool Call:* `get_related_entities(project_id='proj_123', entity_id='file_abc', relationship_type='contains', direction='outgoing')` (Assuming 'contains' relationship type)
+*   **Listing:** "List all 'class' entities in project 'proj_123'."
+    *   *Expected Tool Call:* `list_entities(project_id='proj_123', type='class')`
 
 ## Crucial Aspects for MCP Server Usefulness
 
-1.  **Clear Tool Definition:** Provide comprehensive documentation (`knowledge-graph.md` and this plan) detailing each tool's purpose, parameters (name, type, required/optional), and expected return format.
-2.  **Consistent Return Structure:** *Strictly* adhere to the MCP SDK's expected return format (e.g., `{ content: [...] }`). This is the primary source of the current issues and must be correctly implemented.
-3.  **Robust Input Validation:** Validate all incoming parameters (type, format, existence of IDs where necessary). Return clear, actionable error messages within the standard MCP return structure (e.g., `{ content: [{ type: 'text', text: 'Error: Entity ID {id} not found.' }] }`).
-4.  **Idempotency (where applicable):** Consider if operations like `create_entity` should be idempotent (e.g., return the existing entity if called with the same unique parameters) or throw an error.
-5.  **State Management:** The graph database (KuzuDB) inherently manages state. Ensure database connections are handled correctly (pooling, closing). 
-6.  **Scalability:** While KuzuDB is embedded, consider potential future scaling needs if the graph becomes very large.
-7.  **Error Handling & Logging:** Implement comprehensive server-side logging to debug issues. Return user-friendly errors via the MCP structure.
-8.  **Security:** If the MCP server is exposed, consider authentication/authorization mechanisms (though likely less critical for a local dev tool).
+1.  **Clear Tool Definition:** Provide comprehensive documentation (like this plan and potentially generated API docs) detailing each tool's purpose, parameters (name, type, required/optional), and expected return format.
+2.  **Consistent Return Structure:** *Strictly* adhere to the MCP SDK's expected return format (`{ content: [...] }`) for both success and error cases. This is critical for client compatibility.
+3.  **Robust Input Validation:** Validate all incoming parameters (type, format, existence of IDs within the correct `project_id`). Return clear, actionable error messages within the standard MCP structure.
+4.  **Project Context:** Ensure all operations correctly scope data to the provided `project_id`.
+5.  **State Management & Persistence:** The graph database **KuzuDB** is responsible for managing the state of the knowledge graph. Ensure database connections are handled correctly (e.g., initialized per project) and that data persists across server restarts.
+6.  **Error Handling & Logging:** Implement comprehensive server-side logging (e.g., using a library like Winston or Pino) to aid debugging. Return user/AI-friendly errors via the MCP structure.
+7.  **Security:** As this is likely a local development tool, security might be less critical initially. However, if exposed, proper authentication/authorization would be necessary. Input sanitization is always recommended.
 
-By focusing on these implementation details, particularly the correct return structure and clear definitions, the Knowledge Graph MCP server can become a reliable and useful tool for AI clients.
+By focusing on these implementation details, particularly consistent return structures, clear definitions, and robust data handling per project, the Knowledge Graph MCP server can become a reliable and valuable tool.

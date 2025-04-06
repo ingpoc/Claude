@@ -88,10 +88,10 @@ function EntitiesPageContent() {
   }, []);
   
   const handleAddEntity = useCallback(async (name: string, type: string, description: string) => {
-    console.log(`Adding entity: ${name} (${type})`);
+    // console.log(`Adding entity: ${name} (${type})`);
     const newEntity = await addEntity(name, type, description, []);
-    console.log('Entity creation result:', newEntity);
-    console.log(`Current entities count: ${entities.length}`);
+    // console.log('Entity creation result:', newEntity);
+    // console.log(`Current entities count: ${entities.length}`);
     setIsAddEntityModalOpen(false);
   }, [addEntity, entities.length]);
 
