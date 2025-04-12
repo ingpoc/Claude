@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { PlusSquare, Search, LayoutGrid, List, Folder, ArrowUp, ArrowDown } from 'lucide-react';
+import { PlusSquare, Search, LayoutGrid, List, Folder, ArrowUp, ArrowDown, FolderSearch, Command } from 'lucide-react';
 import Link from 'next/link';
-import Navigation from '../../../../components/Navigation';
 import { ProjectSidebar } from '../../../../components/ui/ProjectSidebar';
 import EntityDetailsPanel from '../../../../components/EntityDetailsPanel';
 import AddEntityModal from '../../../../components/AddEntityModal';
 import TransitionWrapper from '../../../../components/TransitionWrapper';
 import { ProjectProvider, useProject } from '../../../../context/ProjectContext';
+import { Button } from '../../../../components/ui/button';
 
 function EntitiesPageContent() {
   const {
@@ -101,8 +101,6 @@ function EntitiesPageContent() {
 
   return (
     <main className="min-h-screen bg-background text-foreground flex flex-col">
-      <Navigation currentPath={`/projects/${projectId}/entities`} />
-      
       <div className="flex flex-1 overflow-hidden">
         <ProjectSidebar 
           projectName={projectName} 
@@ -119,7 +117,7 @@ function EntitiesPageContent() {
         
         <div className="flex-1 overflow-auto flex flex-col">
           <div className="h-full w-full">
-            <div className="bg-gray-900 border border-gray-800 shadow-lg overflow-hidden flex h-full">
+            <div className="overflow-hidden flex h-full">
               <TransitionWrapper
                 isVisible={!!selectedEntity || !selectedEntityId}
                 direction="right"
@@ -127,7 +125,7 @@ function EntitiesPageContent() {
                 className="flex-1"
               >
                 {isDetailLoading ? (
-                  <div className="flex items-center justify-center h-full">Loading details...</div>
+                  <div className="flex items-center justify-center h-full text-muted-foreground">Loading details...</div>
                 ) : selectedEntity ? (
                   <EntityDetailsPanel 
                     entity={selectedEntity}
@@ -139,63 +137,63 @@ function EntitiesPageContent() {
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full flex-1 p-8">
-                    <div className="w-20 h-20 rounded-full bg-gray-800/70 flex items-center justify-center mb-6 relative overflow-hidden">
-                      <div className="w-10 h-10 border-2 border-dashed border-gray-600 rounded-full"></div>
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10"></div>
+                    <div className="w-20 h-20 rounded-full bg-muted/60 flex items-center justify-center mb-6 relative overflow-hidden">
+                      <FolderSearch size={40} className="text-muted-foreground" />
                     </div>
                     
-                    <h3 className="text-xl font-medium mb-3 text-gray-300">Select an Entity to View Details</h3>
+                    <h3 className="text-xl font-semibold mb-3 text-foreground">Select an Entity to View Details</h3>
                     
-                    <p className="text-gray-500 text-center max-w-md mb-6">
+                    <p className="text-muted-foreground text-center max-w-md mb-6">
                       Explore the knowledge graph by selecting an entity from the sidebar. You can view relationships, properties, and metadata for each entity.
                     </p>
                     
-                    <div className="bg-gray-800/50 rounded-lg p-5 max-w-md w-full">
-                      <h4 className="text-sm font-medium text-gray-400 mb-3">Quick Tips:</h4>
+                    <div className="bg-card border rounded-lg p-5 max-w-md w-full text-left">
+                      <h4 className="text-sm font-medium text-foreground mb-3">Quick Tips:</h4>
                       
                       <div className="space-y-3">
                         <div className="flex items-start">
-                          <div className="w-6 h-6 rounded-full bg-purple-900/30 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">
-                            <Folder size={14} className="text-purple-400" />
+                          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">
+                            <Folder size={14} className="text-primary" />
                           </div>
                           <div>
-                            <p className="text-gray-300 text-sm font-medium">Explore Domains</p>
-                            <p className="text-gray-500 text-sm">Start by expanding a domain to see its child entities</p>
+                            <p className="text-foreground text-sm font-medium">Explore Domains</p>
+                            <p className="text-muted-foreground text-sm">Start by expanding a domain to see its child entities</p>
                           </div>
                         </div>
                         
                         <div className="flex items-start">
-                          <div className="w-6 h-6 rounded-full bg-blue-900/30 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">
-                            <Search size={14} className="text-blue-400" />
+                          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">
+                            <Search size={14} className="text-primary" />
                           </div>
                           <div>
-                            <p className="text-gray-300 text-sm font-medium">Use Search</p>
-                            <p className="text-gray-500 text-sm">Filter entities by typing in the search box</p>
+                            <p className="text-foreground text-sm font-medium">Use Search</p>
+                            <p className="text-muted-foreground text-sm">Filter entities by typing in the search box</p>
                           </div>
                         </div>
                         
                         <div className="flex items-start">
-                          <div className="w-6 h-6 rounded-full bg-green-900/30 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">
-                            <ArrowUp size={14} className="text-green-400" />
-                            <ArrowDown size={14} className="text-green-400" />
+                          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">
+                            <Command size={14} className="text-primary" />
                           </div>
                           <div>
-                            <p className="text-gray-300 text-sm font-medium">Keyboard Navigation</p>
-                            <p className="text-gray-500 text-sm">Use arrow keys to move between entities</p>
+                            <p className="text-foreground text-sm font-medium">Keyboard Navigation</p>
+                            <p className="text-muted-foreground text-sm">Use arrow keys to move between entities</p>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="mt-5 pt-4 border-t border-gray-700 flex justify-between items-center">
-                        <button
+                      <div className="mt-5 pt-4 border-t flex justify-between items-center">
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="text-sm p-0 h-auto"
                           onClick={() => setIsAddEntityModalOpen(true)}
-                          className="text-blue-400 text-sm flex items-center hover:text-blue-300"
                         >
                           <PlusSquare size={14} className="mr-1" />
                           Add New Entity
-                        </button>
+                        </Button>
                         
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-muted-foreground">
                           {entities.length} total {entities.length === 1 ? 'entity' : 'entities'}
                         </span>
                       </div>

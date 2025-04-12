@@ -1,32 +1,41 @@
 import React from 'react';
-import { Code, FunctionSquare } from 'lucide-react';
+import { Code, FunctionSquare, File } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
+import { Badge } from './ui/badge';
 
 interface EntityCardProps {
   name: string;
-  type: 'class' | 'function';
+  type: string;
   onClick?: () => void;
+  className?: string;
 }
 
-const EntityCard: React.FC<EntityCardProps> = ({ name, type, onClick }) => {
+const typeStyles: Record<string, { icon: React.ElementType, colorClass: string }> = {
+  'class': { icon: Code, colorClass: 'text-pink-600 border-pink-600/30 bg-pink-500/10' },
+  'function': { icon: FunctionSquare, colorClass: 'text-green-600 border-green-600/30 bg-green-500/10' },
+  'default': { icon: File, colorClass: 'text-muted-foreground border-border bg-muted/50' }
+};
+
+const EntityCard: React.FC<EntityCardProps> = ({ name, type, onClick, className }) => {
+  const styles = typeStyles[type.toLowerCase()] || typeStyles.default;
+  const Icon = styles.icon;
+
   return (
-    <div 
-      className="bg-gray-900 rounded-lg p-5 cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:shadow-lg"
+    <Card 
+      className={cn("cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50", className)}
       onClick={onClick}
     >
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-medium text-lg">{name}</h3>
-        <div className={`p-2 rounded-full ${type === 'class' ? 'bg-blue-900/30' : 'bg-green-900/30'}`}>
-          {type === 'class' ? (
-            <Code size={18} className="text-blue-400" />
-          ) : (
-            <FunctionSquare size={18} className="text-green-400" />
-          )}
-        </div>
-      </div>
-      <div className={`text-sm inline-block py-1 px-2 rounded-full ${type === 'class' ? 'text-blue-400 bg-blue-900/20' : 'text-green-400 bg-green-900/20'}`}>
-        {type}
-      </div>
-    </div>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-lg font-medium">{name}</CardTitle>
+        <Badge variant="outline" className={cn("p-1.5", styles.colorClass)}>
+          <Icon size={18} />
+        </Badge>
+      </CardHeader>
+      <CardContent>
+        <Badge variant="outline" className={cn(styles.colorClass)}>{type}</Badge>
+      </CardContent>
+    </Card>
   );
 };
 

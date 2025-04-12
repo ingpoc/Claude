@@ -1,14 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { X, Link2, ArrowRight, ChevronDown, ChevronUp, Info, Clock, Hash, FilePlus, Edit, Trash2, Save, XCircle } from 'lucide-react';
-// Import only types explicitly
-import type { Entity, Relationship, Observation } from '../lib/knowledgeGraph'; 
-// Import constants from the shared file
-import { RelationshipTypes } from '../lib/constants';
-// Import context hook
-import { useProject } from '../context/ProjectContext';
+import { X, Link2, ArrowRight, Info, Clock, Hash, FilePlus, Edit, Trash2, Save, XCircle } from 'lucide-react';
+import type { Entity, Relationship, Observation } from '../lib/knowledgeGraph'; // Reverted path
+import { RelationshipTypes } from '../lib/constants'; // Reverted path
+import { useProject } from '../context/ProjectContext'; // Reverted path
+import { cn } from "../lib/utils"; // Reverted path
+
+// Import shadcn components
+import { Badge } from "./ui/badge"; // Reverted path
+import { Button } from "./ui/button"; // Reverted path
+import { Textarea } from "./ui/textarea"; // Reverted path
+import { 
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "./ui/accordion"; // Reverted path
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip"; // Reverted path
+import { Separator } from "./ui/separator"; // Reverted path
+import { ScrollArea } from "./ui/scroll-area"; // Reverted path
 
 interface EntityDetailsPanelProps {
-  entity: Entity;
+  entity: Entity | null; // Allow null for initial state or error
   allEntities: Entity[];
   relationships?: Array<{
     entity: Entity;
@@ -17,14 +34,6 @@ interface EntityDetailsPanelProps {
   onClose: () => void;
   onSelectEntity: (id: string) => void;
 }
-
-// Animation keyframes for relationships
-const slideInKeyframes = `
-  @keyframes customSlideIn {
-    from { transform: translateX(10px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-`;
 
 // Map relationship types to human-readable descriptions
 const relationshipLabels: Record<string, string> = {
@@ -37,15 +46,15 @@ const relationshipLabels: Record<string, string> = {
 
 // Map entity types to color classes
 const entityTypeColors: Record<string, string> = {
-  'component': 'bg-blue-900/30 text-blue-400',
-  'domain': 'bg-purple-900/30 text-purple-400',
-  'utility': 'bg-green-900/30 text-green-400',
-  'page': 'bg-orange-900/30 text-orange-400',
-  'function': 'bg-yellow-900/30 text-yellow-400',
-  'class': 'bg-pink-900/30 text-pink-400',
-  'api': 'bg-red-900/30 text-red-400',
-  'config': 'bg-cyan-900/30 text-cyan-400',
-  'default': 'bg-gray-800 text-gray-400'
+  'component': 'bg-blue-900/10 border-blue-500/30',
+  'domain':    'bg-purple-900/10 border-purple-500/30',
+  'utility':   'bg-green-900/10 border-green-500/30',
+  'page':      'bg-orange-900/10 border-orange-500/30',
+  'function':  'bg-yellow-900/10 border-yellow-500/30',
+  'class':     'bg-pink-900/10 border-pink-500/30',
+  'api':       'bg-red-900/10 border-red-500/30',
+  'config':    'bg-cyan-900/10 border-cyan-500/30',
+  'default':   'bg-muted'
 };
 
 const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({ 
@@ -55,45 +64,22 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
   onClose, 
   onSelectEntity
 }) => {
-  const [expandedSections, setExpandedSections] = useState({
-    description: true,
-    relationships: true,
-    metadata: true,
-    // Add observations section state if needed, assuming it's part of description for now
-  });
-  
-  // State for inline editing of observations
   const [editingObservationId, setEditingObservationId] = useState<string | null>(null);
   const [editingObservationText, setEditingObservationText] = useState<string>('');
-
-  // Get functions from project context
-  const { projectId, editObservation, deleteObservation, refreshState } = useProject();
-
-  // Toggle a section's expanded state
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
+  const { projectId, editObservation, deleteObservation } = useProject();
 
   // Add keyboard shortcut to close panel with Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
+      if (e.key === 'Escape') onClose();
     };
-    
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   // Get color class based on entity type
   const getEntityTypeColorClass = (type: string): string => {
-    return entityTypeColors[type] || entityTypeColors.default;
+    return entityTypeColors[type.toLowerCase()] || entityTypeColors.default;
   };
 
   // Get human-readable relationship label
@@ -118,25 +104,21 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
     return newPath;
   };
 
-  const renderBreadcrumbs = () => {
+  const renderBreadcrumbs = () => { 
+    if (!entity) return null;
     const pathEntities = buildBreadcrumbPath(entity.id);
-    
-    // If only the current entity is in the path (no parents), don't render breadcrumbs
     if (pathEntities.length <= 1) return null;
-
     return (
-      <div className="flex items-center text-xs text-gray-500 mt-1 mb-2">
+      <div className="flex items-center text-xs text-muted-foreground mt-1 mb-2">
         <span className="mr-2">Path:</span>
         {pathEntities.map((pathEntity, index) => (
           <React.Fragment key={pathEntity.id}>
-            {index > 0 && <span className="mx-1 text-gray-600">/</span>}
+            {index > 0 && <span className="mx-1">/</span>}
             {index === pathEntities.length - 1 ? (
-              // Current entity (last item) - not clickable
-              <span className="text-gray-400">{pathEntity.name}</span>
+              <span className="text-foreground">{pathEntity.name}</span>
             ) : (
-              // Parent entity - clickable
               <span 
-                className="text-blue-400/70 hover:text-blue-400 cursor-pointer"
+                className="text-primary/80 hover:text-primary hover:underline cursor-pointer"
                 onClick={() => onSelectEntity(pathEntity.id)}
               >
                 {pathEntity.name}
@@ -193,229 +175,192 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
     }
   };
 
+  // Handle case where entity is null (e.g., loading or error)
+  if (!entity) {
+    return (
+      <div className="h-full flex items-center justify-center p-6 bg-card border-l">
+        <p className="text-muted-foreground">Select an entity to view details.</p>
+      </div>
+    );
+  }
+
+  // --- Render Logic --- 
   return (
-    <div className="h-full flex flex-col overflow-auto">
-      {/* Add keyframe styles */}
-      <style jsx>{slideInKeyframes}</style>
-      
+    <div className="h-full flex flex-col border-l bg-card">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-gray-900 border-b border-gray-700 px-5 py-4 flex justify-between items-center">
-        <div className="flex flex-col">
-          <div className="flex items-center">
-            <div className={`inline-block text-xs py-1 px-2 rounded-full mr-3 ${getEntityTypeColorClass(entity.type)}`}>
+      <div className="sticky top-0 z-10 border-b bg-card px-5 py-3">
+        <div className="flex justify-between items-start mb-1">
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className={cn("border font-mono text-xs", getEntityTypeColorClass(entity.type))}>
               {entity.type}
-            </div>
-            <h2 className="text-xl font-semibold text-white">{entity.name}</h2>
+            </Badge>
+            <h2 className="text-xl font-semibold tracking-tight">{entity.name}</h2>
           </div>
-          {renderBreadcrumbs()}
-        </div>
-        <div className="flex items-center">
-          <div className="text-xs text-gray-500 mr-3">
-            Press <kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1">Esc</kbd> to close
+          <div className="flex items-center gap-1">
+            <TooltipProvider delayDuration={100}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                   <span className="text-xs text-muted-foreground mr-2">Esc</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Press Esc to close panel</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={onClose} aria-label="Close details">
+              <X size={16} />
+            </Button>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-800 transition-colors duration-200 text-gray-400 hover:text-white"
-            aria-label="Close details"
-          >
-            <X size={18} />
-          </button>
         </div>
+        {renderBreadcrumbs()}
       </div>
       
-      {/* Content */}
-      <div className="p-6 overflow-auto space-y-6">
-        {/* Description Section */}
-        <div className="border border-gray-800 rounded-lg overflow-hidden">
-          <div 
-            className="bg-gray-800/40 px-5 py-3 flex justify-between items-center cursor-pointer"
-            onClick={() => toggleSection('description')}
-          >
-            <h3 className="text-sm font-medium text-gray-300 uppercase flex items-center">
-              <Info size={14} className="text-blue-400 mr-2" />
-              Description
-            </h3>
-            <button className="text-gray-500 hover:text-gray-300">
-              {expandedSections.description ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-          </div>
+      {/* Content using Accordion and ScrollArea */}
+      <ScrollArea className="flex-1 overflow-auto p-4">
+        <Accordion type="multiple" defaultValue={['description', 'relationships', 'metadata']} className="w-full">
           
-          {expandedSections.description && (
-            <div 
-              className="p-5" 
-              style={{ 
-                transition: 'opacity 300ms ease-in-out',
-                borderLeft: '3px solid rgba(59, 130, 246, 0.5)'
-              }}
-            >
-              <p className="text-gray-300 leading-relaxed">
-                {entity.description || `This is the ${entity.name} ${entity.type}.`}
-              </p>
-              
-              {/* Show observations with edit/delete controls */}
-              {entity.observations && Array.isArray(entity.observations) && entity.observations.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <h4 className="text-sm font-medium text-gray-400">Additional Details:</h4>
-                  <ul className="space-y-2">
-                    {entity.observations.map((observation) => ( // Assuming observation is { id: string, text: string }
-                      <li key={observation.id} className="text-gray-300 text-sm flex items-center group">
-                        {editingObservationId === observation.id ? (
-                          // Editing view
-                          <>
-                            <input
-                              type="text"
-                              value={editingObservationText}
-                              onChange={(e) => setEditingObservationText(e.target.value)}
-                              className="flex-grow bg-gray-700 border border-gray-600 rounded px-2 py-1 mr-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              autoFocus
-                            />
-                            <button
-                              onClick={handleSaveObservation}
-                              className="p-1 text-green-400 hover:text-green-300"
-                              aria-label="Save observation"
-                            >
-                              <Save size={16} />
-                            </button>
-                            <button
-                              onClick={handleCancelEdit}
-                              className="p-1 text-gray-500 hover:text-gray-300 ml-1"
-                              aria-label="Cancel edit"
-                            >
-                              <XCircle size={16} />
-                            </button>
-                          </>
-                        ) : (
-                          // Display view
-                          <>
-                            <span className="flex-grow mr-2">{observation.text}</span>
-                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                              <button
-                                onClick={() => handleEditObservation(observation)}
-                                className="p-1 text-blue-400 hover:text-blue-300"
-                                aria-label="Edit observation"
-                              >
-                                <Edit size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteObservation(observation.id)}
-                                className="p-1 text-red-500 hover:text-red-400 ml-1"
-                                aria-label="Delete observation"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {/* Related Entities Section */}
-        <div className="border border-gray-800 rounded-lg overflow-hidden">
-          <div 
-            className="bg-gray-800/40 px-5 py-3 flex justify-between items-center cursor-pointer"
-            onClick={() => toggleSection('relationships')}
-          >
-            <h3 className="text-sm font-medium text-gray-300 uppercase flex items-center">
-              <Link2 size={14} className="text-blue-400 mr-2" />
-              Related Entities <span className="ml-2 text-xs text-gray-500">({relationships.length})</span>
-            </h3>
-            <button className="text-gray-500 hover:text-gray-300">
-              {expandedSections.relationships ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-          </div>
-          
-          {expandedSections.relationships && (
-            <div className="p-2">
-              {relationships && relationships.length > 0 ? (
-                <div className="grid gap-2">
-                  {relationships.map((item, index) => (
-                    <div 
-                      key={index} 
-                      className="flex items-center justify-between bg-gray-800/30 p-3 px-4 rounded-md hover:bg-gray-800 transition-colors duration-200 cursor-pointer"
-                      style={{ 
-                        animation: 'customSlideIn 0.5s forwards',
-                        animationDelay: `${80 * (index + 1)}ms`,
-                        borderLeft: '2px solid rgba(59, 130, 246, 0.3)'
-                      }}
-                      onClick={() => onSelectEntity(item.entity.id)}
-                    >
-                      <div className="flex items-center min-w-0">
-                        <span className="text-gray-200 truncate">{item.entity.name}</span>
-                        <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${getEntityTypeColorClass(item.entity.type)} flex-shrink-0`}>
-                          {item.entity.type}
-                        </span>
-                      </div>
-                      <div className="flex items-center flex-shrink-0 ml-2">
-                        <span className="text-xs text-gray-500 mr-2">{getRelationshipLabel(item.relationship.type)}</span>
-                        <ArrowRight size={14} className="text-gray-500" />
-                      </div>
+          {/* Description & Observations Section */}
+          <AccordionItem value="description">
+            <AccordionTrigger className="text-sm font-medium">
+              <div className="flex items-center gap-2">
+                <Info size={16} /> Description & Observations
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-1 pb-4 px-2 space-y-4">
+              {entity.description && <p className="text-sm text-muted-foreground mb-4">{entity.description}</p>}
+              {entity.description && entity.observations && <Separator className="my-4" />}
+              {entity.observations && entity.observations.length > 0 ? (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-medium text-muted-foreground uppercase">Observations</h4>
+                  {entity.observations.map(obs => (
+                    <div key={obs.id} className="text-sm border rounded-md p-3 bg-background">
+                      {editingObservationId === obs.id ? (
+                        <div className="space-y-2">
+                          <Textarea 
+                            value={editingObservationText}
+                            onChange={(e) => setEditingObservationText(e.target.value)}
+                            className="text-sm"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="sm" onClick={handleCancelEdit}>Cancel</Button>
+                            <Button size="sm" onClick={handleSaveObservation}>Save</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-start gap-2">
+                          <p className="flex-1 whitespace-pre-wrap">{obs.text}</p>
+                          <div className="flex gap-1">
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleEditObservation(obs)}>
+                                    <Edit size={14} />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Edit</p></TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteObservation(obs.id)}>
+                                    <Trash2 size={14} />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Delete</p></TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-gray-500 italic bg-gray-800/20 rounded-md p-4 text-center">
-                  No related entities found.
-                </div>
+                 !entity.description && <p className="text-sm text-muted-foreground italic">No description or observations recorded.</p>
               )}
-            </div>
-          )}
-        </div>
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Entity metadata Section */}
-        <div className="border border-gray-800 rounded-lg overflow-hidden">
-          <div 
-            className="bg-gray-800/40 px-5 py-3 flex justify-between items-center cursor-pointer"
-            onClick={() => toggleSection('metadata')}
-          >
-            <h3 className="text-sm font-medium text-gray-300 uppercase flex items-center">
-              <Hash size={14} className="text-blue-400 mr-2" />
-              Entity Metadata
-            </h3>
-            <button className="text-gray-500 hover:text-gray-300">
-              {expandedSections.metadata ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-          </div>
-          
-          {expandedSections.metadata && (
-            <div className="p-4">
-              <div className="bg-gray-800/40 rounded-md p-4 grid grid-cols-2 gap-4">
-                <div>
-                  <span className="block text-xs text-gray-500 mb-1">ID</span>
-                  <span className="text-gray-400 font-mono text-sm">{entity.id}</span>
-                </div>
-                {entity.parentId && (
-                  <div>
-                    <span className="block text-xs text-gray-500 mb-1">Parent ID</span>
-                    <span className="text-gray-400 font-mono text-sm">{entity.parentId}</span>
+          {/* Relationships Section */}
+          <AccordionItem value="relationships">
+            <AccordionTrigger className="text-sm font-medium">
+              <div className="flex items-center gap-2">
+                 <Link2 size={16} /> Relationships ({relationships.length})
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-1 pb-4 px-2">
+              {relationships.length > 0 ? (
+                <ul className="space-y-2">
+                  {relationships.map(({ entity: relatedEntity, relationship }) => (
+                    <li key={`${relationship.id}-${relatedEntity.id}`} className="text-sm flex items-center justify-between p-2 rounded hover:bg-muted/50">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="font-normal">
+                          {getRelationshipLabel(relationship.type)}
+                        </Badge>
+                        <span 
+                           className="text-primary hover:underline cursor-pointer"
+                           onClick={() => onSelectEntity(relatedEntity.id)} 
+                        >
+                          {relatedEntity.name}
+                        </span>
+                        <Badge variant="outline" className={cn("font-mono text-xs", getEntityTypeColorClass(relatedEntity.type))}>
+                          {relatedEntity.type}
+                        </Badge>
+                      </div>
+                      <ArrowRight size={14} className="text-muted-foreground" />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No relationships defined.</p>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Metadata Section */}
+          <AccordionItem value="metadata">
+            <AccordionTrigger className="text-sm font-medium">
+               <div className="flex items-center gap-2">
+                 <Hash size={16} /> Metadata
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-1 pb-4 px-2 text-sm space-y-2">
+               <div className="flex justify-between">
+                 <span className="text-muted-foreground">Entity ID:</span>
+                 <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{entity.id}</span>
+               </div>
+                <div className="flex justify-between">
+                 <span className="text-muted-foreground">Parent ID:</span>
+                 <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                   {entity.parentId ? (
+                      <span 
+                        className="text-primary hover:underline cursor-pointer"
+                        onClick={() => onSelectEntity(entity.parentId!)} 
+                      >
+                        {entity.parentId}
+                      </span>
+                   ) : (
+                     'None'
+                   )}
+                 </span>
+               </div>
+               <div className="flex justify-between">
+                 <span className="text-muted-foreground">Created:</span>
+                 <span>{new Date(entity.createdAt).toLocaleString()}</span>
+               </div>
+                {entity.updatedAt && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Updated:</span>
+                    <span>{new Date(entity.updatedAt).toLocaleString()}</span>
                   </div>
                 )}
-                <div>
-                  <span className="block text-xs text-gray-500 mb-1">Creation Date</span>
-                  <div className="flex items-center">
-                    <Clock size={12} className="text-gray-500 mr-1" />
-                    <span className="text-gray-400 text-sm">March 30, 2025</span>
-                  </div>
-                </div>
-                <div>
-                  <span className="block text-xs text-gray-500 mb-1">Last Modified</span>
-                  <div className="flex items-center">
-                    <FilePlus size={12} className="text-gray-500 mr-1" />
-                    <span className="text-gray-400 text-sm">Today</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+                 {/* Add other metadata like source, etc. if available */}
+            </AccordionContent>
+          </AccordionItem>
+
+        </Accordion>
+      </ScrollArea>
     </div>
   );
 };
 
-export default EntityDetailsPanel; 
+export default EntityDetailsPanel;

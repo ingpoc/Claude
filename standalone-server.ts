@@ -21,6 +21,7 @@ import { SessionManager } from './lib/mcp/SessionManager';
 // Import the new tool info functions
 import { getKnowledgeGraphToolInfo } from './lib/mcp/tools/KnowledgeGraphTools';
 import { getProjectToolInfo } from './lib/mcp/tools/ProjectTools';
+import { getInitSessionToolInfo } from './lib/mcp/tools/InitSessionTool';
 
 // Import project and graph functions needed for UI API
 import * as projectManager from './lib/projectManager';
@@ -367,15 +368,18 @@ const server = new Server({
 // Pass sessionManager if the get...Info functions require it
 const kgToolInfo = getKnowledgeGraphToolInfo(sessionManager);
 const projectToolInfo = getProjectToolInfo(sessionManager);
+const initSessionToolInfo = getInitSessionToolInfo(sessionManager);
 
 // Combine tool definitions and handlers
 const allToolDefinitions = [
     ...kgToolInfo.definitions,
-    ...projectToolInfo.definitions
+    ...projectToolInfo.definitions,
+    ...initSessionToolInfo.definitions
 ];
 const allToolHandlers = {
     ...kgToolInfo.handlers,
-    ...projectToolInfo.handlers
+    ...projectToolInfo.handlers,
+    ...initSessionToolInfo.handlers
 };
 
 // --- Register SDK Handlers ---
@@ -392,7 +396,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // Handler for callTool request
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    console.error(`Received callTool request for: ${name}`); // Log tool calls
+    // Use the SessionManager's default ID for stdio context
+    const currentSessionId = undefined; // Explicitly undefined for stdio context
+
+    console.error(`[CallTool] Received request for: ${name} (Session Context: ${sessionManager.hasActiveProjectContext(currentSessionId) ? `Project ${sessionManager.getActiveProjectContext(currentSessionId)?.projectId}` : 'None'})`);
+
+    // --- Session Initialization Check --- 
+    if (name !== 'init_session' && !sessionManager.hasActiveProjectContext(currentSessionId)) {
+        console.error(`[CallTool] Rejecting tool call '${name}': Session not initialized.`);
+        // Throw standard MCP error for invalid request state
+        throw new McpError(-32001, `Session not initialized. Please call 'init_session' first with a codebase identifier.`);
+    }
+    // --- End Session Initialization Check ---
 
     const handler = allToolHandlers[name];
     if (!handler) {
@@ -402,23 +417,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     const handlerArgs = args || {};
-    // Note: sessionId is not available via stdio transport
+    // Note: sessionId is not available via stdio transport explicitly, using SessionManager's default
 
     try {
-        // Assume the handler function returns the expected { content: [...] } structure
-        const result = await handler(handlerArgs);
-        console.error(`Tool ${name} executed successfully.`); // Log success
+        // Pass the handlerArgs and the sessionManager (or just sessionID if needed) to the handler
+        // Adapting this based on previous tool handler structure assumption
+        // The handler itself should use the sessionManager instance it was created with
+        const result = await handler(handlerArgs); 
+        console.error(`[CallTool] Tool ${name} executed successfully.`); // Log success
 
         // Check if the handler itself indicated an error (optional pattern)
         if (result?.isError) {
-             console.warn(`Handler for ${name} indicated an error:`, result.content);
+             console.warn(`[CallTool] Handler for ${name} indicated an error:`, result.content);
              // Consider throwing McpError here for consistency if possible
         }
 
         return result; // Directly return the { content: [...] } object
     } catch (error) {
-        console.error(`Error executing tool ${name}:`, error);
-        // Throw standard MCP error
+        console.error(`[CallTool] Error executing tool ${name}:`, error);
+        // If the error is already an McpError, rethrow it, otherwise wrap it
+        if (error instanceof McpError) {
+            throw error;
+        }
         throw new McpError(-32000, error instanceof Error ? error.message : `Internal server error executing tool: ${name}`);
     }
 });

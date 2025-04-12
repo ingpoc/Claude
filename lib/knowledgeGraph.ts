@@ -29,6 +29,8 @@ export interface Entity {
   description: string;
   observations: Observation[]; // Updated observation structure
   parentId?: string;
+  createdAt?: string; // Add createdAt
+  updatedAt?: string; // Add updatedAt
 }
 
 export interface Relationship {
@@ -324,7 +326,9 @@ export async function createEntity(
         type,
         description,
         observations, // Return the object, not the JSON string
-        parentId: parentId || undefined // Return undefined if not provided initially
+        parentId: parentId || undefined, // Return undefined if not provided initially
+        createdAt: new Date().toISOString(), // Set createdAt
+        updatedAt: new Date().toISOString() // Set updatedAt
       };
       // console.error(`Returning entity: ${id}`);
       return entity;
@@ -660,7 +664,9 @@ export async function getEntity(
                     type: entityData.type || '',
                     description: entityData.description || '',
                     observations: parsedObservations, // Use parsed observations
-                    parentId: entityData.parentId
+                    parentId: entityData.parentId,
+                    createdAt: entityData.createdAt,
+                    updatedAt: entityData.updatedAt
                 };
             }
         }
@@ -738,7 +744,9 @@ export async function getAllEntities(
                     type: row.type || 'Unknown Type',
                     description: row.description || '',
                     observations: parsedObservations,
-                    parentId: row.parentId || undefined // Ensure undefined if null/empty
+                    parentId: row.parentId || undefined, // Ensure undefined if null/empty
+                    createdAt: row.createdAt,
+                    updatedAt: row.updatedAt
                 };
                 
                 entities.push(entity);
@@ -1202,3 +1210,72 @@ export async function editObservation(
         return null;
     }
 }
+
+// --- NEW Function: Get Project Context Summary ---
+/**
+ * Retrieves a summary of the project context from the knowledge graph.
+ * Currently includes entity counts by type and names of recent entities.
+ * The 'version' is expected to be managed externally (e.g., project creation time).
+ * @param projectId The ID of the project.
+ * @returns An object containing context details or null on error.
+ */
+export async function getProjectContext(projectId: string): Promise<{ version?: string; details: any } | null> {
+    console.log(`[KnowledgeGraph] Getting context summary for project: ${projectId}`);
+    try {
+        // 1. Get entity counts by type
+        const countQuery = `MATCH (e:Entity) RETURN e.type, count(e) AS count`;
+        const countResult = await runQuery(projectId, countQuery);
+
+        let entityCounts: Record<string, number> = {};
+        if (countResult && countResult.rows) {
+             // Use type assertion as Kuzu types might not be perfectly aligned
+             entityCounts = (countResult.rows as any[]).reduce((acc, row) => {
+                // Assuming row structure is [type: string, count: number | bigint]
+                const type = row[0];
+                const count = typeof row[1] === 'bigint' ? Number(row[1]) : row[1]; // Handle potential BigInt
+                if (typeof type === 'string' && typeof count === 'number') {
+                   acc[type] = count;
+                }
+                return acc;
+            }, {} as Record<string, number>);
+            console.log(`[KnowledgeGraph] Entity counts:`, entityCounts);
+        } else {
+             console.warn(`[KnowledgeGraph] Could not retrieve entity counts for project ${projectId}.`);
+        }
+
+        // 2. Get names of the 5 most recently created entities (assuming an implicit creation order)
+        // KuzuDB doesn't directly support ORDER BY on internal ID or a creation timestamp unless added explicitly.
+        // This query fetches 5 entities arbitrarily for now.
+        // TODO: Enhance this if a reliable creation timestamp property is added to Entity nodes.
+        const recentQuery = `MATCH (e:Entity) RETURN e.name LIMIT 5`;
+        const recentResult = await runQuery(projectId, recentQuery);
+
+        let recentEntityNames: string[] = [];
+         if (recentResult && recentResult.rows) {
+             // Use type assertion
+             recentEntityNames = (recentResult.rows as any[]).map(row => row[0]).filter((name): name is string => typeof name === 'string');
+             console.log(`[KnowledgeGraph] Recent entity names:`, recentEntityNames);
+         } else {
+             console.warn(`[KnowledgeGraph] Could not retrieve recent entity names for project ${projectId}.`);
+         }
+
+        // 3. Combine details
+        const details = {
+            entityCounts,
+            recentEntityNames,
+            // Add more context details here as needed in the future
+        };
+
+        // Note: Version is not retrieved here, assumed to be handled externally.
+        // If version was stored as a property on a dedicated Project node, query it here.
+        return {
+            details: details
+            // version: "some-version-from-graph" // Example if version was queried
+        };
+
+    } catch (error) {
+        console.error(`[KnowledgeGraph] Error getting project context for ${projectId}:`, error);
+        return null;
+    }
+}
+// --- End of NEW Function ---

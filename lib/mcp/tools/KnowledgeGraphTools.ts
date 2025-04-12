@@ -41,7 +41,7 @@ const createEntitySchemaDef = {
   name: z.string().describe("The primary name or identifier of the entity (e.g., 'src/components/Button.tsx', 'calculateTotal', 'UserAuthenticationFeature')."),
   type: z.string().describe("The classification of the entity (e.g., 'file', 'function', 'class', 'variable', 'module', 'concept', 'feature', 'requirement')."),
   description: z.string().describe("A brief description of the entity's purpose or role."),
-  observations: z.array(z.string()).optional().describe("Optional list of initial observation texts about this entity."),
+  observations: z.string().optional().describe("Optional single string containing initial observations about this entity. Separate multiple observations with newlines (\\n)."),
   parentId: z.string().optional().describe("Optional ID of the parent entity.")
 };
 
@@ -120,13 +120,18 @@ const deleteObservationSchemaDef = {
 
 const createEntityHandler = async (args: ToolArgs<typeof createEntitySchemaDef>) => {
   try {
+    // Parse the observations string into an array if provided
+    const observationsArray: string[] = args.observations 
+        ? args.observations.split('\n').map(s => s.trim()).filter(s => s.length > 0) 
+        : [];
+
     // Project ID now comes from args
     const entity = await createEntityDb(
       args.project_id,
       args.name,
       args.type,
       args.description,
-      args.observations,
+      observationsArray, // Pass the parsed array
       args.parentId
     );
 
@@ -382,57 +387,260 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
     {
       name: "create_entity",
       description: "Registers a new entity (like a file, function, concept) in the knowledge graph for a specific project.",
-      inputSchema: { type: "object", properties: createEntitySchemaDef, required: ["project_id", "name", "type", "description"] }
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          name: {
+            type: "string",
+            description: "The primary name or identifier of the entity (e.g., 'src/components/Button.tsx', 'calculateTotal', 'UserAuthenticationFeature')."
+          },
+          type: {
+            type: "string",
+            description: "The classification of the entity (e.g., 'file', 'function', 'class', 'variable', 'module', 'concept', 'feature', 'requirement')."
+          },
+          description: {
+            type: "string",
+            description: "A brief description of the entity's purpose or role."
+          },
+          observations: {
+            type: "string",
+            description: "Optional single string containing initial observations about this entity. Separate multiple observations with newlines (\\n)."
+          },
+          parentId: {
+            type: "string",
+            description: "Optional ID of the parent entity."
+          }
+        }, 
+        required: ["project_id", "name", "type", "description"] 
+      }
     },
     {
       name: "create_relationship",
       description: "Defines a relationship between two existing entities within a specific project.",
-      inputSchema: { type: "object", properties: createRelationshipSchemaDef, required: ["project_id", "source_id", "target_id", "type"] }
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          source_id: {
+            type: "string",
+            description: "The unique ID of the source entity."
+          },
+          target_id: {
+            type: "string",
+            description: "The unique ID of the target entity."
+          },
+          type: {
+            type: "string",
+            description: "The type of relationship (e.g., 'calls', 'contains', 'implements', 'related_to')."
+          },
+          description: {
+            type: "string",
+            description: "An optional description for the relationship."
+          }
+        }, 
+        required: ["project_id", "source_id", "target_id", "type"] 
+      }
     },
     {
       name: "add_observation",
       description: "Adds a specific textual observation to an existing entity within a specific project.",
-      inputSchema: { type: "object", properties: addObservationSchemaDef, required: ["project_id", "entity_id", "observation"] }
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          entity_id: {
+            type: "string",
+            description: "The unique ID of the entity to add the observation to."
+          },
+          observation: {
+            type: "string",
+            description: "The textual observation to add."
+          }
+        }, 
+        required: ["project_id", "entity_id", "observation"] 
+      }
     },
-     {
+    {
       name: "get_entity",
       description: "Retrieves details for a specific entity within a project.",
-      inputSchema: { type: "object", properties: getEntitySchemaDef, required: ["project_id", "entity_id"] }
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          entity_id: {
+            type: "string",
+            description: "The unique ID of the entity to retrieve."
+          }
+        }, 
+        required: ["project_id", "entity_id"] 
+      }
     },
     {
       name: "list_entities",
       description: "Lists entities within a specific project, optionally filtered by type.",
-      inputSchema: { type: "object", properties: listEntitiesSchemaDef, required: ["project_id"] }
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          type: {
+            type: "string",
+            description: "Optional filter to list entities only of a specific type."
+          }
+        }, 
+        required: ["project_id"] 
+      }
     },
     {
-        name: "get_related_entities",
-        description: "Finds entities related to a specific entity within a project, optionally filtering by relationship type and direction.",
-        inputSchema: { type: "object", properties: getRelatedEntitiesSchemaDef, required: ["project_id", "entity_id"] }
+      name: "get_related_entities",
+      description: "Finds entities related to a specific entity within a project, optionally filtering by relationship type and direction.",
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          entity_id: {
+            type: "string",
+            description: "The ID of the entity to find related entities for."
+          },
+          relationship_type: {
+            type: "string",
+            description: "Optional filter by relationship type."
+          },
+          direction: {
+            type: "string",
+            enum: ["incoming", "outgoing", "both"],
+            default: "both",
+            description: "Direction of relationships to consider ('incoming', 'outgoing', 'both'). Default is 'both'."
+          }
+        }, 
+        required: ["project_id", "entity_id"] 
+      }
     },
     {
-        name: "get_relationships",
-        description: "Retrieves relationships connected to a specific entity within a project, optionally filtering by type and direction.",
-        inputSchema: { type: "object", properties: getRelationshipsSchemaDef, required: ["project_id", "entity_id"] }
+      name: "get_relationships",
+      description: "Retrieves relationships connected to a specific entity within a project, optionally filtering by type and direction.",
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          entity_id: {
+            type: "string",
+            description: "The ID of the entity to get relationships for."
+          },
+          relationship_type: {
+            type: "string",
+            description: "Optional filter by relationship type."
+          },
+          direction: {
+            type: "string",
+            enum: ["incoming", "outgoing", "both"],
+            default: "both",
+            description: "Direction of relationships to consider ('incoming', 'outgoing', 'both'). Default is 'both'."
+          }
+        }, 
+        required: ["project_id", "entity_id"] 
+      }
     },
     {
-        name: "update_entity_description",
-        description: "Updates the description of a specific entity within a project.",
-        inputSchema: { type: "object", properties: updateEntityDescriptionSchemaDef, required: ["project_id", "entity_id", "description"] }
+      name: "update_entity_description",
+      description: "Updates the description of a specific entity within a project.",
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          entity_id: {
+            type: "string",
+            description: "The unique ID of the entity to update."
+          },
+          description: {
+            type: "string",
+            description: "The new description for the entity."
+          }
+        }, 
+        required: ["project_id", "entity_id", "description"] 
+      }
     },
     {
-        name: "delete_entity",
-        description: "Deletes a specific entity and its associated observations and relationships within a project.",
-        inputSchema: { type: "object", properties: deleteEntitySchemaDef, required: ["project_id", "entity_id"] }
+      name: "delete_entity",
+      description: "Deletes a specific entity and its associated observations and relationships within a project.",
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          entity_id: {
+            type: "string",
+            description: "The unique ID of the entity to delete."
+          }
+        }, 
+        required: ["project_id", "entity_id"] 
+      }
     },
     {
-        name: "delete_relationship",
-        description: "Deletes a specific relationship between entities within a project.",
-        inputSchema: { type: "object", properties: deleteRelationshipSchemaDef, required: ["project_id", "relationship_id"] }
+      name: "delete_relationship",
+      description: "Deletes a specific relationship between entities within a project.",
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          relationship_id: {
+            type: "string",
+            description: "The unique ID of the relationship to delete."
+          }
+        }, 
+        required: ["project_id", "relationship_id"] 
+      }
     },
     {
-        name: "delete_observation",
-        description: "Deletes a specific observation associated with an entity within a project.",
-        inputSchema: { type: "object", properties: deleteObservationSchemaDef, required: ["project_id", "entity_id", "observation_id"] }
+      name: "delete_observation",
+      description: "Deletes a specific observation associated with an entity within a project.",
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project context for this operation."
+          },
+          entity_id: {
+            type: "string",
+            description: "The ID of the entity the observation belongs to."
+          },
+          observation_id: {
+            type: "string",
+            description: "The unique ID of the observation to delete."
+          }
+        }, 
+        required: ["project_id", "entity_id", "observation_id"] 
+      }
     }
   ];
 

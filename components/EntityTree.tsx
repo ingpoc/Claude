@@ -64,11 +64,11 @@ const EntityTree: React.FC<EntityTreeProps> = ({
   if (safeEntities.length === 0) {
     return (
       <div className="p-4 text-center">
-        <div className="text-gray-500 text-sm">
+        <div className="text-muted-foreground text-sm">
           No entities available.
           <br />
           <span className="text-xs mt-1 block">
-            Click &quot;Add Entity&quot; below to create your first entity. {/* Fixed quotes */}
+            Click &quot;Add Entity&quot; below to create your first entity.
           </span>
         </div>
       </div>
@@ -120,7 +120,7 @@ const EntityTree: React.FC<EntityTreeProps> = ({
       case 'api':
         return <Globe size={16} className="text-red-400" />;
       default:
-        return <Database size={16} className="text-gray-400" />;
+        return <Database size={16} className="text-muted-foreground" />;
     }
   };
   
@@ -145,18 +145,18 @@ const EntityTree: React.FC<EntityTreeProps> = ({
   const { domainEntities, counts } = getDomainEntityCounts();
 
   return (
-    <div className="p-2">
+    <div className="p-2 space-y-1">
       {/* Show domain entities first if they exist */}
       {domainEntities && domainEntities.length > 0 && (
-        <div className="mb-4">
+        <div className="space-y-1">
           {domainEntities.map(domain => (
-            <div key={domain.id} className="mb-2">
+            <div key={domain.id}>
               <div 
                 className={cn(
-                  "flex items-center p-2 rounded cursor-pointer",
+                  "flex items-center p-2 rounded cursor-pointer text-sm",
                   selectedEntityId === domain.id 
-                    ? "bg-blue-600/20 text-blue-400"
-                    : "hover:bg-gray-800 text-gray-300"
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "hover:bg-muted text-foreground"
                 )}
               >
                 <div 
@@ -164,9 +164,9 @@ const EntityTree: React.FC<EntityTreeProps> = ({
                   onClick={() => toggleGroup(domain.id)}
                 >
                   {expandedGroups[domain.id] ? (
-                    <ChevronDown size={16} className="text-gray-500 mr-2" />
+                    <ChevronDown size={16} className="text-muted-foreground mr-2" />
                   ) : (
-                    <ChevronRight size={16} className="text-gray-500 mr-2" />
+                    <ChevronRight size={16} className="text-muted-foreground mr-2" />
                   )}
                   {getEntityIcon('domain')}
                   <span 
@@ -179,27 +179,20 @@ const EntityTree: React.FC<EntityTreeProps> = ({
                     {domain.name}
                   </span>
                 </div>
-                
-                {/* Show a dot indicator if selected */}
-                {selectedEntityId === domain.id && (
-                  <div className="w-2 h-2 rounded-full bg-blue-400 mr-1"></div>
-                )}
               </div>
               
-              {/* If domain is expanded, show child entities under it */}
               {expandedGroups[domain.id] && (
-                <div className="ml-6 pl-2 border-l border-gray-800">
-                  {/* Find entities that have this domain as their parent */}
+                <div className="ml-6 pl-2 border-l border-border space-y-px">
                   {safeEntities
                     .filter(entity => entity.parentId === domain.id)
                     .map(childEntity => (
                       <div 
                         key={childEntity.id}
                         className={cn(
-                          "flex items-center p-2 rounded cursor-pointer",
+                          "flex items-center p-2 rounded cursor-pointer text-sm",
                           selectedEntityId === childEntity.id 
-                            ? "bg-blue-600/20 text-blue-400"
-                            : "hover:bg-gray-800 text-gray-300"
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "hover:bg-muted text-foreground"
                         )}
                         onClick={() => onSelectEntity(childEntity.id)}
                       >
@@ -214,52 +207,49 @@ const EntityTree: React.FC<EntityTreeProps> = ({
         </div>
       )}
       
+      {/* Separator before other groups if domains exist */}
+      {domainEntities && domainEntities.length > 0 && Object.keys(groupedEntities).filter(g => g !== 'DOMAIN').length > 0 && (
+        <div className="pt-2">
+          <hr className="border-border" />
+        </div>
+      )}
+
       {/* Other entity groups */}
       {Object.entries(groupedEntities).map(([groupName, groupEntities]) => {
-        // Skip DOMAIN as we've already handled it specially
         if (groupName === 'DOMAIN') return null;
-        
-        // Sort entities alphabetically within each group
-        const sortedEntities = [...groupEntities].sort((a, b) => 
-          a.name.localeCompare(b.name)
-        );
+        const sortedEntities = [...groupEntities].sort((a, b) => a.name.localeCompare(b.name));
         
         return (
-          <div key={groupName} className="mb-2">
+          <div key={groupName}>
             <div 
-              className="flex items-center p-2 rounded hover:bg-gray-800 cursor-pointer"
+              className="flex items-center p-2 rounded hover:bg-muted cursor-pointer text-sm text-foreground"
               onClick={() => toggleGroup(groupName)}
             >
               {expandedGroups[groupName] ? (
-                <ChevronDown size={16} className="text-gray-500 mr-2" />
+                <ChevronDown size={16} className="text-muted-foreground mr-2" />
               ) : (
-                <ChevronRight size={16} className="text-gray-500 mr-2" />
+                <ChevronRight size={16} className="text-muted-foreground mr-2" />
               )}
               {getEntityIcon(groupName.toLowerCase())}
-              <span className="ml-2 text-gray-300 capitalize">{groupName.toLowerCase()}s</span>
-              <span className="ml-2 text-gray-500 text-xs">{groupEntities.length}</span>
+              <span className="ml-2 capitalize font-medium">{groupName.toLowerCase()}s</span>
+              <span className="ml-auto text-muted-foreground text-xs pr-1">{groupEntities.length}</span>
             </div>
             
             {expandedGroups[groupName] && (
-              <div className="ml-6 pl-2 border-l border-gray-800">
+              <div className="ml-6 pl-2 border-l border-border space-y-px">
                 {sortedEntities.map(entity => (
                   <div 
                     key={entity.id}
                     className={cn(
-                      "flex items-center p-2 rounded cursor-pointer group",
+                      "flex items-center p-2 rounded cursor-pointer text-sm",
                       selectedEntityId === entity.id 
-                        ? "bg-blue-600/20 text-blue-400"
-                        : "hover:bg-gray-800 text-gray-300"
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "hover:bg-muted text-foreground"
                     )}
                     onClick={() => onSelectEntity(entity.id)}
                   >
-                    {getEntityIcon(entity.type.toLowerCase())}
+                    {getEntityIcon(entity.type)}
                     <span className="ml-2">{entity.name}</span>
-                    
-                    {/* Keyboard shortcut hint - only show on hover */}
-                    <span className="ml-auto opacity-0 group-hover:opacity-100 text-gray-500 text-xs">
-                      Click to view
-                    </span>
                   </div>
                 ))}
               </div>

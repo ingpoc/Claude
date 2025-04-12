@@ -100,17 +100,48 @@ export function getProjectToolInfo(_sessionManager: SessionManager) { // session
     {
       name: "create_project",
       description: "Creates a new project with a separate knowledge graph.",
-      inputSchema: { type: "object", properties: createProjectSchemaDef, required: ["name"] }
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          name: { 
+            type: "string", 
+            description: "A unique name for the project." 
+          },
+          description: { 
+            type: "string", 
+            description: "Optional description of the project." 
+          }
+        }, 
+        required: ["name"] 
+      }
     },
     {
       name: "list_projects",
       description: "Lists all available projects.",
-      inputSchema: { type: "object", properties: listProjectsSchemaDef }
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          random_string: {
+            type: "string",
+            description: "Dummy parameter for no-parameter tools"
+          }
+        },
+        required: ["random_string"]
+      }
     },
     {
       name: "delete_project",
       description: "Deletes a project and its knowledge graph.",
-      inputSchema: { type: "object", properties: deleteProjectSchemaDef, required: ["project_id"] }
+      inputSchema: { 
+        type: "object", 
+        properties: {
+          project_id: {
+            type: "string",
+            description: "The ID of the project to delete."
+          }
+        }, 
+        required: ["project_id"] 
+      }
     }
   ];
 

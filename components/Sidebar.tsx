@@ -1,103 +1,117 @@
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { ChevronLeft, ChevronDown, ChevronRight, Code, FunctionSquare } from 'lucide-react';
+'use client'; // Needed for Tooltip and potential future client-side interactions
 
-interface SidebarProps {
-  projectName: string;
-  projectId: string;
+import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { Home, Package, Settings, User } from 'lucide-react'; // Example icons
+
+import { cn } from '../lib/utils';
+import { Button } from './ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip';
+
+// Define the props for the Sidebar component, including className
+interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ projectName, projectId }) => {
-  const [featuresExpanded, setFeaturesExpanded] = useState(true);
-  const [entityTypesExpanded, setEntityTypesExpanded] = useState(true);
-  
-  return (
-    <div className="w-64 bg-gray-900 h-screen border-r border-gray-800 flex flex-col">
-      <div className="px-4 py-3 border-b border-gray-800">
-        <Link 
-          href="/projects" 
-          className="flex items-center text-sm text-gray-400 hover:text-white transition-colors duration-200"
-        >
-          <ChevronLeft size={16} className="mr-1" />
-          Back to Projects
-        </Link>
-      </div>
-      
-      <div className="px-4 py-4 border-b border-gray-800">
-        <h2 className="text-lg font-medium">{projectName}</h2>
-        <div className="flex items-center mt-1">
-          <span className="bg-green-500 rounded-full w-2 h-2 mr-2"></span>
-          <span className="text-sm text-gray-400">Active</span>
-        </div>
-        <div className="mt-2 text-sm text-gray-500">
-          Last Updated: 3/31/2025
-        </div>
-        <div className="mt-2 text-sm text-gray-400">
-          {projectName === 'Financial Dashboard' && 'Real-time financial analytics dashboard'}
-          {projectName === 'Recipe Application' && 'A recipe management application with AI features'}
-          {projectName === 'Knowledge Graph' && 'A knowledge graph for code understanding'}
-        </div>
-      </div>
-      
-      <div className="px-4 py-3 border-b border-gray-800">
-        <button 
-          onClick={() => setFeaturesExpanded(!featuresExpanded)}
-          className="flex items-center justify-between w-full"
-        >
-          <span className="font-medium">Features</span>
-          {featuresExpanded ? 
-            <ChevronDown size={16} /> : 
-            <ChevronRight size={16} />
-          }
-        </button>
-        
-        <ul className={`mt-2 space-y-1 transition-all duration-300 ${featuresExpanded ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-          <li>
-            <Link 
-              href={`/projects/${projectId}/entities`} 
-              className="block text-sm py-1 px-2 rounded hover:bg-gray-800"
-            >
-              All Entities
-            </Link>
-          </li>
-        </ul>
-      </div>
-      
-      <div className="px-4 py-3 border-b border-gray-800">
-        <button 
-          onClick={() => setEntityTypesExpanded(!entityTypesExpanded)}
-          className="flex items-center justify-between w-full"
-        >
-          <span className="font-medium">Entity Types</span>
-          {entityTypesExpanded ?
-            <ChevronDown size={16} /> :
-            <ChevronRight size={16} />
-          }
-        </button>
-        
-        <ul className={`mt-2 space-y-1 transition-all duration-300 ${entityTypesExpanded ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-          <li>
-            <div className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-gray-800 cursor-pointer">
-              <div className="flex items-center">
-                <Code size={14} className="mr-2" />
-                class
-              </div>
-              <span className="text-xs text-gray-500">(1)</span>
-            </div>
-          </li>
-          <li>
-            <div className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-gray-800 cursor-pointer">
-              <div className="flex items-center">
-                <FunctionSquare size={14} className="mr-2" />
-                function
-              </div>
-              <span className="text-xs text-gray-500">(1)</span>
-            </div>
-          </li>
-        </ul>
-      </div>
-    </div>
-  );
-};
+// Define the navigation items
+const navItems: NavItem[] = [
+  { href: '/', label: 'Home', icon: Home },
+  { href: '/projects', label: 'Projects', icon: Package },
+  // Add more items as needed
+  // { href: '/settings', label: 'Settings', icon: Settings },
+];
 
+// Correctly define the Sidebar component accepting SidebarProps
+export function Sidebar({ className }: SidebarProps) {
+  const pathname = usePathname(); // Hook to get the current path
+
+  return (
+    // Use aside semantic element for sidebar
+    <aside className={cn('flex h-screen flex-col border-r bg-card sticky top-0', className)}>
+      <TooltipProvider delayDuration={0}>
+        {/* Main navigation section */}
+        <nav className="flex flex-col items-center gap-4 px-2 py-5">
+          {navItems.map((item) => {
+            // Determine if the current nav item is active
+            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+            return (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>
+                  <Link href={item.href}>
+                    <Button
+                      variant={isActive ? 'secondary' : 'ghost'} // Use secondary variant for active, ghost otherwise
+                      size="icon" // Render button as an icon
+                      className={cn(
+                        'rounded-lg',
+                         // Apply specific styles for active state
+                         isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+                      )}
+                      aria-label={item.label} // Accessibility label
+                    >
+                      <item.icon className="h-5 w-5" />
+                    </Button>
+                  </Link>
+                </TooltipTrigger>
+                {/* Tooltip content shown on hover */}
+                <TooltipContent side="right" sideOffset={5}>
+                  {item.label}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </nav>
+
+        {/* Bottom navigation section (Settings, Profile) */}
+        <nav className="mt-auto flex flex-col items-center gap-4 px-2 py-5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/settings"> {/* Placeholder link */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="mt-auto rounded-lg text-muted-foreground"
+                  aria-label="Settings"
+                >
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={5}>
+              Settings
+            </TooltipContent>
+          </Tooltip>
+           <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/profile"> {/* Placeholder link */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-lg text-muted-foreground"
+                  aria-label="Profile"
+                >
+                  <User className="h-5 w-5" />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={5}>
+              Profile
+            </TooltipContent>
+          </Tooltip>
+        </nav>
+      </TooltipProvider>
+    </aside>
+  );
+}
+
+// Export the component as default
 export default Sidebar;

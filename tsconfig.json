@@ -7,6 +7,9 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
     "rootDir": ".",
     "outDir": "dist",
     "lib": [
@@ -28,16 +31,14 @@
     ]
   },
   "include": [
-    "lib/**/*.ts",
-    "standalone-server.ts",
-    ".next/types/**/*.ts"
+    "next-env.d.ts", 
+    "**/*.ts", 
+    "**/*.tsx", 
+    ".next/types/**/*.ts",
+    "standalone-server.ts" 
   ],
   "exclude": [
     "node_modules",
-    "app",
-    "components",
-    "public",
-    ".next",
     "dist"
   ]
 }

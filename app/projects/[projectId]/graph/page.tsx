@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import Navigation from '../../../../components/Navigation';
 import { ProjectSidebar } from '../../../../components/ui/ProjectSidebar';
-import { Search, ZoomIn, ZoomOut, RefreshCw, List, LayoutGrid } from 'lucide-react';
+import { Search, ZoomIn, ZoomOut, RefreshCw, List, LayoutGrid, AlertTriangle, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import ReactFlow, {
   MiniMap,
@@ -20,6 +19,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import { ProjectProvider, useProject } from '../../../../context/ProjectContext';
+import { Button } from '../../../../components/ui/button';
 
 // Map entity types to color classes for ReactFlow nodes
 const entityTypeColors: Record<string, string> = {
@@ -111,18 +111,16 @@ function GraphPageContent() {
       id: entity.id,
       type: 'default',
       data: { 
-        label: entity.name || 'Unnamed Entity', 
+        label: entity.name || 'Unnamed Entity',
         type: entity.type || 'default'
       },
       position: { x: 0, y: 0 },
       style: {
-        background: entity.type && entityTypeColors[entity.type.toLowerCase()] 
-          ? entityTypeColors[entity.type.toLowerCase()] 
-          : entityTypeColors.default,
-        color: '#1A202C',
-        border: '1px solid #4A5568',
-        borderRadius: '8px',
-        padding: '10px 15px',
+        background: 'hsl(var(--card))', 
+        color: 'hsl(var(--card-foreground))',
+        border: `1px solid ${entity.type && entityTypeColors[entity.type.toLowerCase()] ? entityTypeColors[entity.type.toLowerCase()] : entityTypeColors.default}`,
+        borderRadius: 'var(--radius)',
+        padding: '8px 12px',
         fontSize: '12px',
         width: 150
       }
@@ -148,9 +146,9 @@ function GraphPageContent() {
         label: rel.type || 'related',
         type: 'smoothstep',
         animated: true,
-        style: { stroke: '#A0AEC0' },
-        labelStyle: { fill: '#A0AEC0', fontSize: 10 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#A0AEC0' }
+        style: { stroke: 'hsl(var(--border))' },
+        labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--border))' }
       }));
   }, [relationships, entities]);
 
@@ -172,37 +170,33 @@ function GraphPageContent() {
     setEdges(layoutedEdges);
   }, [layoutedEdges, setEdges]);
 
-  // Add loading indicator
+  // Update loading indicator style
   if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">Loading project data...</div>;
+    return <div className="flex items-center justify-center h-screen text-muted-foreground">Loading project data...</div>;
   }
 
-  // Handle empty state
+  // Empty state view
   if (entities.length === 0 || relationships.length === 0) {
     return (
       <main className="min-h-screen bg-background text-foreground flex flex-col">
-        <Navigation currentPath={`/projects/${projectId}/graph`} />
-        
         <div className="flex flex-1 overflow-hidden">
           <ProjectSidebar 
             projectName={projectName} 
             projectId={projectId}
             description={projectDescription}
             activeView="graph"
+            entities={entities || []}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
           />
           
           <div className="flex-1 overflow-auto flex flex-col">
             <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-              <div className="w-24 h-24 rounded-full bg-gray-800/70 flex items-center justify-center mb-6 relative">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full"></div>
+              <div className="w-24 h-24 rounded-full bg-muted/60 flex items-center justify-center mb-6 relative">
+                <Share2 size={48} className="text-muted-foreground" />
               </div>
               
-              <h3 className="text-xl font-medium mb-3 text-gray-300">No Graph Data Available</h3>
+              <h3 className="text-xl font-semibold mb-3 text-foreground">No Graph Data Available</h3>
               
               <p className="text-gray-500 max-w-md mb-6">
                 {entities.length === 0 
@@ -227,8 +221,6 @@ function GraphPageContent() {
 
   return (
     <main className="min-h-screen bg-background text-foreground flex flex-col">
-      <Navigation currentPath={`/projects/${projectId}/graph`} />
-      
       <div className="flex flex-1 overflow-hidden">
         <ProjectSidebar 
           projectName={projectName} 
@@ -247,11 +239,20 @@ function GraphPageContent() {
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               fitView
-              className="bg-gray-900"
+              style={{ background: 'hsl(var(--background))' }}
             >
-              <MiniMap nodeColor={(node) => entityTypeColors[node.data.type] || entityTypeColors.default} nodeStrokeWidth={3} zoomable pannable />
+              <Background color="hsl(var(--border))" gap={16} />
+              <MiniMap 
+                 nodeStrokeWidth={3} 
+                 zoomable 
+                 pannable 
+                 style={{ 
+                   background: 'hsl(var(--card))',
+                   border: '1px solid hsl(var(--border))'
+                 }} 
+                 nodeColor={(node) => node.style?.border?.toString() || 'hsl(var(--primary))'}
+                />
               <Controls />
-              <Background color="#4A5568" gap={16} />
             </ReactFlow>
           </div>
         </div>

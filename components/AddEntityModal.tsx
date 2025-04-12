@@ -1,6 +1,27 @@
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { EntityTypes } from '../lib/constants';
+import { cn } from "../lib/utils";
+
+// Import shadcn components
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface AddEntityModalProps {
   isOpen: boolean;
@@ -8,116 +29,118 @@ interface AddEntityModalProps {
   onSubmit: (name: string, type: string, description: string) => void;
 }
 
+// Define options for the select dropdown based on EntityTypes
+const entityTypeOptions = Object.values(EntityTypes).map(type => ({
+  value: type,
+  label: type.charAt(0).toUpperCase() + type.slice(1) // Capitalize first letter
+}));
+
 const AddEntityModal: React.FC<AddEntityModalProps> = ({ isOpen, onClose, onSubmit }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState(EntityTypes.COMPONENT);
   const [description, setDescription] = useState('');
-  const [parentId, setParentId] = useState('');
 
-  if (!isOpen) return null;
+  // Reset form when modal is closed/opened
+  useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setType(EntityTypes.COMPONENT);
+      setDescription('');
+    }
+  }, [isOpen]);
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      onClose();
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!name || !type || !description) {
-      alert('Please fill out all required fields');
+    if (!name.trim() || !type || !description.trim()) { 
+      // Basic validation
+      // Consider adding more specific error feedback (e.g., toast)
+      console.error('Form validation failed: Missing required fields.');
       return;
-    }
-    
+    } 
     onSubmit(name, type, description);
-    
-    // Reset form
-    setName('');
-    setType(EntityTypes.COMPONENT);
-    setDescription('');
-    setParentId('');
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gray-900 rounded-lg w-full max-w-lg p-6 shadow-xl">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Add New Entity</h2>
-          <button 
-            onClick={onClose}
-            className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-800"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[480px]"> {/* Slightly wider */} 
+        <DialogHeader>
+          <DialogTitle>Add New Entity</DialogTitle>
+          <DialogDescription>
+            Define a new component, page, function, or other entity for your project.
+          </DialogDescription>
+        </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium mb-1">
-                Entity Name <span className="text-red-500">*</span>
-              </label>
-              <input
+          <div className="grid gap-4 py-4">
+            {/* Name Field */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
                 id="name"
-                type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. SearchComponent"
+                className="col-span-3"
+                placeholder="e.g. UserAuthenticationService"
                 required
               />
             </div>
             
-            <div>
-              <label htmlFor="type" className="block text-sm font-medium mb-1">
-                Entity Type <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="type"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value={EntityTypes.COMPONENT}>Component</option>
-                <option value={EntityTypes.PAGE}>Page</option>
-                <option value={EntityTypes.FUNCTION}>Function</option>
-                <option value={EntityTypes.CLASS}>Class</option>
-                <option value={EntityTypes.API}>API</option>
-                <option value={EntityTypes.UTILITY}>Utility</option>
-                <option value={EntityTypes.CONFIG}>Config</option>
-                <option value={EntityTypes.DOMAIN}>Domain</option>
-              </select>
+            {/* Type Field */}
+            <div className="grid grid-cols-4 items-center gap-4">
+               <Label htmlFor="type" className="text-right">
+                 Type <span className="text-destructive">*</span>
+               </Label>
+               <Select 
+                 value={type} 
+                 onValueChange={setType} // Directly set the type state
+                 required
+                >
+                 <SelectTrigger id="type" className="col-span-3">
+                   <SelectValue placeholder="Select entity type" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   {entityTypeOptions.map(option => (
+                     <SelectItem key={option.value} value={option.value}>
+                       {option.label}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
             </div>
             
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium mb-1">
-                Description <span className="text-red-500">*</span>
-              </label>
-              <textarea
+            {/* Description Field */}
+            <div className="grid grid-cols-4 items-start gap-4"> 
+              <Label htmlFor="description" className="text-right pt-2">
+                Description <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
-                placeholder="Brief explanation of the entity's purpose..."
+                className="col-span-3 min-h-24"
+                placeholder="Explain the purpose and main function of this entity..."
                 required
               />
             </div>
           </div>
-          
-          <div className="flex justify-end space-x-2 mt-8">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-md"
-            >
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
-            >
+            </Button>
+            <Button type="submit">
               Add Entity
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

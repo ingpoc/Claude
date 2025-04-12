@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, FolderIcon, FileIcon, Code, GitBranch, Search, PlusSquare } from 'lucide-react';
 import Link from 'next/link';
 import type { Entity } from '../../lib/knowledgeGraph';
 import EntityTree from '../../components/EntityTree';
+import { cn } from '../../lib/utils';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import { Separator } from '../ui/separator';
+import { Badge } from '../ui/badge';
 
 interface ProjectSidebarProps {
   projectName: string;
@@ -32,120 +37,147 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
   const [expandedEntityTypes, setExpandedEntityTypes] = useState(true);
   const toggleEntityTypes = () => setExpandedEntityTypes(!expandedEntityTypes);
 
+  // Calculate entity types and counts dynamically
+  const entityTypeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    entities.forEach(entity => {
+      const type = entity.type || 'unknown';
+      counts[type] = (counts[type] || 0) + 1;
+    });
+    return Object.entries(counts).sort(([typeA], [typeB]) => typeA.localeCompare(typeB)); // Sort alphabetically
+  }, [entities]);
+
+  // Function to get a color (can reuse logic from details panel or simplify)
+  const getTypeColor = (type: string): string => {
+    // Simplified example - map common types to colors
+    const colors: Record<string, string> = {
+      'class': 'bg-pink-500',
+      'function': 'bg-green-500',
+      'component': 'bg-blue-500',
+      'page': 'bg-orange-500',
+      'domain': 'bg-purple-500',
+      'api': 'bg-red-500',
+      'utility': 'bg-teal-500',
+      'config': 'bg-cyan-500',
+    }
+    return colors[type.toLowerCase()] || 'bg-muted-foreground'; // Use muted for others
+  };
+
   return (
-    <div className="w-64 bg-gray-900 border-r border-gray-800 h-full flex flex-col overflow-hidden">
+    <div className="w-64 bg-card border-r h-full flex flex-col overflow-hidden">
       {/* Project Info */}
-      <div className="p-4 border-b border-gray-800">
-        <div className="flex items-center mb-1">
-          <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-          <span className="text-xs text-green-500">Active</span>
+      <div className="p-4 border-b">
+        <div className="flex items-center mb-2">
+          <Badge variant="outline" className="border-green-600 bg-green-500/10 text-green-700 text-xs px-1.5 py-0.5">
+             <span className="w-1.5 h-1.5 rounded-full bg-green-600 mr-1.5"></span>
+             Active
+          </Badge>
         </div>
         
-        <h2 className="text-lg font-semibold">{projectName}</h2>
-        <p className="text-sm text-gray-400 mt-1">{description}</p>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{projectName}</h2>
+        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{description}</p>
         
-        <div className="flex items-center mt-3 text-xs text-gray-500">
+        <div className="flex items-center mt-3 text-xs text-muted-foreground">
           <GitBranch size={12} className="mr-1" />
-          <span>Last Updated: 3/31/2025</span>
+          <span>Last Updated: {new Date().toLocaleDateString()}</span>
         </div>
       </div>
       
-      {/* Search in sidebar */}
+      {/* Search input - using shadcn Input */}
       <div className="px-3 pt-3 pb-2">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
-          <input
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange?.(e.target.value)}
             placeholder="Search entities..."
-            className="pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 w-full text-sm"
+            className="pl-8 h-9 text-sm"
           />
         </div>
       </div>
       
-      {/* Add Entity Button */}
-      <div className="px-3 py-2 border-b border-gray-800">
-        <button 
+      {/* Add Entity Button - using shadcn Button */}
+      <div className="px-3 py-2 border-b">
+        <Button 
           onClick={onAddEntityClick}
-          className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm"
+          className="w-full text-sm h-9"
+          variant="default"
         >
           <PlusSquare size={16} className="mr-2" />
           Add Entity
-        </button>
+        </Button>
       </div>
       
-      {/* Entity list section - only show for entities view */}
-      {activeView === 'entities' && entities && entities.length > 0 && (
-        <div className="flex-1 overflow-auto">
-          <div className="p-3 bg-gray-800/40 border-y border-gray-800 flex items-center">
-            <h3 className="text-sm font-medium">Knowledge Entities</h3>
-          </div>
-          <EntityTree 
-            entities={entities}
-            onSelectEntity={onSelectEntity || (() => {})}
-            selectedEntityId={selectedEntityId}
-          />
-        </div>
-      )}
-      
-      {/* Entity Types section */}
-      {activeView === 'graph' && (
-        <div className="flex-1 overflow-auto">
-          <div className="p-3 bg-gray-800/40 border-y border-gray-800 flex items-center justify-between">
-            <h3 className="text-sm font-medium">Entity Types</h3>
-            <button onClick={toggleEntityTypes} className="text-gray-500 hover:text-gray-300">
-              {expandedEntityTypes ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </button>
-          </div>
-          
-          {expandedEntityTypes && (
-            <div className="p-2 space-y-1">
-              <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-800 text-sm">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-blue-400 mr-2"></div>
-                  <span>Class</span>
-                </div>
-                <span className="text-xs text-gray-500">(5)</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-800 text-sm">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-green-400 mr-2"></div>
-                  <span>Function</span>
-                </div>
-                <span className="text-xs text-gray-500">(2)</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-800 text-sm">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-purple-400 mr-2"></div>
-                  <span>Utility</span>
-                </div>
-                <span className="text-xs text-gray-500">(1)</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-800 text-sm">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-yellow-400 mr-2"></div>
-                  <span>Component</span>
-                </div>
-                <span className="text-xs text-gray-500">(3)</span>
-              </div>
+      {/* Entity list section or Entity Types section */}
+      <div className="flex-1 overflow-y-auto">
+        {activeView === 'entities' && entities && entities.length > 0 && (
+          <>
+            <div className="p-3 bg-muted/50 border-b flex items-centersticky top-0 z-10">
+              <h3 className="text-sm font-medium text-foreground">Knowledge Entities</h3>
             </div>
-          )}
-        </div>
-      )}
+            <EntityTree 
+              entities={entities}
+              onSelectEntity={onSelectEntity || (() => {})}
+              selectedEntityId={selectedEntityId}
+            />
+          </>
+        )}
+        
+        {activeView === 'graph' && (
+          <>
+            <div 
+              className="p-3 bg-muted/50 border-b flex items-center justify-between cursor-pointer sticky top-0 z-10"
+              onClick={toggleEntityTypes}
+            >
+              <h3 className="text-sm font-medium text-foreground">Entity Types</h3>
+              <button className="text-muted-foreground hover:text-foreground">
+                {expandedEntityTypes ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
+            </div>
+            
+            {expandedEntityTypes && (
+              <div className="p-2 space-y-1">
+                {/* Render dynamic types and counts */}
+                {entityTypeCounts.length > 0 ? (
+                  entityTypeCounts.map(([type, count]) => (
+                    <div key={type} className="flex items-center justify-between p-2 rounded-md hover:bg-muted text-sm text-foreground">
+                      <div className="flex items-center">
+                        <span className={cn("w-2.5 h-2.5 rounded-full mr-2", getTypeColor(type))}></span>
+                        <span className="capitalize">{type}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">({count})</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="p-2 text-xs text-muted-foreground italic">No entity types found.</p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
       
-      <div className="mt-auto border-t border-gray-800 p-3 flex justify-between">
-        <Link href="/settings" className="text-xs text-gray-500 hover:text-gray-400">
-          Settings
-        </Link>
-        <div className="flex space-x-2">
-          <Link href={`/projects/${projectId}/entities`} className={`text-xs px-2 py-1 rounded ${activeView === 'entities' ? 'bg-blue-900/30 text-blue-400' : 'text-gray-500 hover:text-gray-400'}`}>
-            Entities
-          </Link>
-          <Link href={`/projects/${projectId}/graph`} className={`text-xs px-2 py-1 rounded ${activeView === 'graph' ? 'bg-blue-900/30 text-blue-400' : 'text-gray-500 hover:text-gray-400'}`}>
-            Graph
-          </Link>
-        </div>
+      {/* Bottom View Switcher */}
+      <div className="border-t p-3 flex justify-between items-center">
+         <div className="flex space-x-1">
+           <Button 
+             variant={activeView === 'entities' ? 'secondary' : 'ghost'} 
+             size="sm" 
+             className="text-xs h-7 px-2" 
+             asChild
+            >
+             <Link href={`/projects/${projectId}/entities`}>Entities</Link>
+           </Button>
+           <Button 
+             variant={activeView === 'graph' ? 'secondary' : 'ghost'} 
+             size="sm" 
+             className="text-xs h-7 px-2" 
+             asChild
+            >
+             <Link href={`/projects/${projectId}/graph`}>Graph</Link>
+           </Button>
+         </div>
       </div>
     </div>
   );

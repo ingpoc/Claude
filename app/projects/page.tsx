@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Navigation from '../../components/Navigation';
 import ProjectCard from '../../components/ProjectCard';
 import CreateProjectModal from '../../components/CreateProjectModal';
-import { PlusSquare, Trash2 } from 'lucide-react';
+import { Button } from "../../components/ui/button";
+import { PlusSquare } from 'lucide-react';
 
 import { deleteProjectAction, getProjectsAction } from '../actions/knowledgeGraphActions';
 
@@ -16,7 +16,7 @@ interface Project {
   lastAccessed?: string;
 }
 
-export default function Projects() {
+export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,56 +61,51 @@ export default function Projects() {
 
   const handleDeleteProject = useCallback(async (projectIdToDelete: string) => {
     if (window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+      setIsLoading(true);
       const success = await deleteProjectAction(projectIdToDelete);
       if (success) {
         await fetchProjects();
       } else {
         console.error(`Failed to delete project ${projectIdToDelete}`);
         alert(`Failed to delete project ${projectIdToDelete}.`);
+        setIsLoading(false);
       }
     }
   }, [fetchProjects]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <Navigation currentPath="/projects" />
-      
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-2xl font-bold">Projects</h1>
-            <p className="text-gray-400 mt-1">
-              Manage your knowledge graph projects and organize entities
-            </p>
-          </div>
-          
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-          >
-            <PlusSquare size={18} className="mr-2" />
-            Create Project
-          </button>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your knowledge graph projects and organize entities.
+          </p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {isLoading ? (
-            <div className="col-span-3 text-center py-8">Loading projects...</div>
-          ) : projects.length > 0 ? (
-            projects.map((project) => (
-              <ProjectCard 
-                key={project.id}
-                id={project.id}
-                name={project.name}
-                description={project.description || ""}
-                lastUpdated={new Date(project.lastAccessed || project.createdAt).toLocaleDateString()}
-                onDelete={() => handleDeleteProject(project.id)}
-              />
-            ))
-          ) : (
-            <div className="col-span-3 text-center py-8">No projects found. Create one to get started!</div>
-          )}
-        </div>
+        <Button onClick={() => setIsModalOpen(true)}>
+          <PlusSquare size={18} className="mr-2" />
+          Create Project
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {isLoading && projects.length === 0 ? (
+          <div className="col-span-full text-center text-muted-foreground py-8">Loading projects...</div>
+        ) : !isLoading && projects.length === 0 ? (
+          <div className="col-span-full text-center text-muted-foreground py-8">No projects found. Create one to get started!</div>
+        ) : (
+          projects.map((project) => (
+            <ProjectCard 
+              key={project.id}
+              id={project.id}
+              name={project.name}
+              description={project.description || ""}
+              lastUpdated={new Date(project.lastAccessed || project.createdAt).toLocaleDateString()}
+              onDelete={() => handleDeleteProject(project.id)}
+            />
+          ))
+        )}
       </div>
       
       <CreateProjectModal 
@@ -118,6 +113,6 @@ export default function Projects() {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateProject}
       />
-    </main>
+    </div>
   );
 }
