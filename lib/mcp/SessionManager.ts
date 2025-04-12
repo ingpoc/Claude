@@ -57,7 +57,7 @@ export class SessionManager {
       }
       this.sessions[effectiveSessionId].projectId = projectId;
       this.sessions[effectiveSessionId].projectVersion = version;
-      console.log(`[SessionManager] Set active context for session '${effectiveSessionId}': ProjectID=${projectId}, Version=${version}`);
+      console.error(`[SessionManager] Set active context for session '${effectiveSessionId}': ProjectID=${projectId}, Version=${version}`);
   }
 
   /**
@@ -93,7 +93,7 @@ export class SessionManager {
       if (this.sessions[effectiveSessionId]) {
           delete this.sessions[effectiveSessionId].projectId;
           delete this.sessions[effectiveSessionId].projectVersion;
-          console.log(`[SessionManager] Cleared active context for session '${effectiveSessionId}'`);
+          console.error(`[SessionManager] Cleared active context for session '${effectiveSessionId}'`);
       }
   }
 

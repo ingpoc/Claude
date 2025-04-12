@@ -386,14 +386,10 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
   const definitions: Tool[] = [
     {
       name: "create_entity",
-      description: "Registers a new entity (like a file, function, concept) in the knowledge graph for a specific project.",
-      inputSchema: { 
-        type: "object", 
+      description: "Registers a new entity (like a file, function, concept) in the knowledge graph for the active project.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           name: {
             type: "string",
             description: "The primary name or identifier of the entity (e.g., 'src/components/Button.tsx', 'calculateTotal', 'UserAuthenticationFeature')."
@@ -408,26 +404,22 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
           },
           observations: {
             type: "string",
-            description: "Optional single string containing initial observations about this entity. Separate multiple observations with newlines (\\n)."
+            description: "Optional single string containing initial observations about this entity. Separate multiple observations with newlines (\\\\n)."
           },
           parentId: {
             type: "string",
             description: "Optional ID of the parent entity."
           }
-        }, 
-        required: ["project_id", "name", "type", "description"] 
+        },
+        required: ["name", "type", "description"]
       }
     },
     {
       name: "create_relationship",
-      description: "Defines a relationship between two existing entities within a specific project.",
-      inputSchema: { 
-        type: "object", 
+      description: "Defines a relationship between two existing entities within the active project.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           source_id: {
             type: "string",
             description: "The unique ID of the source entity."
@@ -444,20 +436,16 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
             type: "string",
             description: "An optional description for the relationship."
           }
-        }, 
-        required: ["project_id", "source_id", "target_id", "type"] 
+        },
+        required: ["source_id", "target_id", "type"]
       }
     },
     {
       name: "add_observation",
-      description: "Adds a specific textual observation to an existing entity within a specific project.",
-      inputSchema: { 
-        type: "object", 
+      description: "Adds a specific textual observation to an existing entity within the active project.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           entity_id: {
             type: "string",
             description: "The unique ID of the entity to add the observation to."
@@ -466,56 +454,43 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
             type: "string",
             description: "The textual observation to add."
           }
-        }, 
-        required: ["project_id", "entity_id", "observation"] 
+        },
+        required: ["entity_id", "observation"]
       }
     },
     {
       name: "get_entity",
-      description: "Retrieves details for a specific entity within a project.",
-      inputSchema: { 
-        type: "object", 
+      description: "Retrieves details for a specific entity within the active project.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           entity_id: {
             type: "string",
             description: "The unique ID of the entity to retrieve."
           }
-        }, 
-        required: ["project_id", "entity_id"] 
+        },
+        required: ["entity_id"]
       }
     },
     {
       name: "list_entities",
-      description: "Lists entities within a specific project, optionally filtered by type.",
-      inputSchema: { 
-        type: "object", 
+      description: "Lists entities within the active project, optionally filtered by type.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           type: {
             type: "string",
             description: "Optional filter to list entities only of a specific type."
           }
-        }, 
-        required: ["project_id"] 
+        }
       }
     },
     {
       name: "get_related_entities",
-      description: "Finds entities related to a specific entity within a project, optionally filtering by relationship type and direction.",
-      inputSchema: { 
-        type: "object", 
+      description: "Finds entities related to a specific entity within the active project, optionally filtering by relationship type and direction.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           entity_id: {
             type: "string",
             description: "The ID of the entity to find related entities for."
@@ -530,20 +505,16 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
             default: "both",
             description: "Direction of relationships to consider ('incoming', 'outgoing', 'both'). Default is 'both'."
           }
-        }, 
-        required: ["project_id", "entity_id"] 
+        },
+        required: ["entity_id"]
       }
     },
     {
       name: "get_relationships",
-      description: "Retrieves relationships connected to a specific entity within a project, optionally filtering by type and direction.",
-      inputSchema: { 
-        type: "object", 
+      description: "Retrieves relationships connected to a specific entity within the active project, optionally filtering by type and direction.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           entity_id: {
             type: "string",
             description: "The ID of the entity to get relationships for."
@@ -558,20 +529,16 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
             default: "both",
             description: "Direction of relationships to consider ('incoming', 'outgoing', 'both'). Default is 'both'."
           }
-        }, 
-        required: ["project_id", "entity_id"] 
+        },
+        required: ["entity_id"]
       }
     },
     {
       name: "update_entity_description",
-      description: "Updates the description of a specific entity within a project.",
-      inputSchema: { 
-        type: "object", 
+      description: "Updates the description of a specific entity within the active project.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           entity_id: {
             type: "string",
             description: "The unique ID of the entity to update."
@@ -580,33 +547,29 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
             type: "string",
             description: "The new description for the entity."
           }
-        }, 
-        required: ["project_id", "entity_id", "description"] 
+        },
+        required: ["entity_id", "description"]
       }
     },
     {
       name: "delete_entity",
-      description: "Deletes a specific entity and its associated observations and relationships within a project.",
-      inputSchema: { 
-        type: "object", 
+      description: "Deletes a specific entity and its associated observations and relationships within the active project.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           entity_id: {
             type: "string",
             description: "The unique ID of the entity to delete."
           }
-        }, 
-        required: ["project_id", "entity_id"] 
+        },
+        required: ["entity_id"]
       }
     },
     {
       name: "delete_relationship",
       description: "Deletes a specific relationship between entities within a project.",
-      inputSchema: { 
-        type: "object", 
+      inputSchema: {
+        type: "object",
         properties: {
           project_id: {
             type: "string",
@@ -616,20 +579,16 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
             type: "string",
             description: "The unique ID of the relationship to delete."
           }
-        }, 
-        required: ["project_id", "relationship_id"] 
+        },
+        required: ["project_id", "relationship_id"]
       }
     },
     {
       name: "delete_observation",
-      description: "Deletes a specific observation associated with an entity within a project.",
-      inputSchema: { 
-        type: "object", 
+      description: "Deletes a specific observation associated with an entity within the active project.",
+      inputSchema: {
+        type: "object",
         properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
           entity_id: {
             type: "string",
             description: "The ID of the entity the observation belongs to."
@@ -638,8 +597,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
             type: "string",
             description: "The unique ID of the observation to delete."
           }
-        }, 
-        required: ["project_id", "entity_id", "observation_id"] 
+        },
+        required: ["entity_id", "observation_id"]
       }
     }
   ];

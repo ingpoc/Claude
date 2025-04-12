@@ -34,7 +34,7 @@ const sessionManager = new SessionManager();
 
 // --- Create Express App for UI API ---
 const app = express();
-const uiApiPort = process.env.UI_API_PORT || 3001; // Use env var or default
+const uiApiPort = process.env.UI_API_PORT || 3001; // Default port
 
 app.use(cors()); // Enable CORS for UI interaction
 app.use(express.json()); // Middleware to parse JSON bodies
@@ -401,29 +401,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     console.error(`[CallTool] Received request for: ${name} (Session Context: ${sessionManager.hasActiveProjectContext(currentSessionId) ? `Project ${sessionManager.getActiveProjectContext(currentSessionId)?.projectId}` : 'None'})`);
 
-    // --- Session Initialization Check --- 
-    if (name !== 'init_session' && !sessionManager.hasActiveProjectContext(currentSessionId)) {
-        console.error(`[CallTool] Rejecting tool call '${name}': Session not initialized.`);
-        // Throw standard MCP error for invalid request state
-        throw new McpError(-32001, `Session not initialized. Please call 'init_session' first with a codebase identifier.`);
+    let activeProjectId: string | null = null;
+
+    // --- Session Initialization Check and Project ID retrieval ---
+    if (name !== 'init_session') {
+        const context = sessionManager.getActiveProjectContext(currentSessionId);
+        if (!context) {
+            console.error(`[CallTool] Rejecting tool call '${name}': Session not initialized.`);
+            throw new McpError(-32001, `Session not initialized. Please call 'mcp_knowledge_graph_init_session' first with a codebase identifier (like a project ID, name, or path) to establish a context.`);
+        }
+        activeProjectId = context.projectId;
     }
-    // --- End Session Initialization Check ---
+    // --- End Check ---
 
     const handler = allToolHandlers[name];
     if (!handler) {
         console.error(`Method not found: ${name}`);
-        // Use McpError for standard error reporting
         throw new McpError(-32601, `Method not found: ${name}`);
     }
 
     const handlerArgs = args || {};
-    // Note: sessionId is not available via stdio transport explicitly, using SessionManager's default
+    // Combine original args with the retrieved project ID (if applicable)
+    const combinedArgs = activeProjectId ? { ...handlerArgs, project_id: activeProjectId } : handlerArgs;
 
     try {
-        // Pass the handlerArgs and the sessionManager (or just sessionID if needed) to the handler
-        // Adapting this based on previous tool handler structure assumption
-        // The handler itself should use the sessionManager instance it was created with
-        const result = await handler(handlerArgs); 
+        // Pass the combined arguments to the handler
+        const result = await handler(combinedArgs);
         console.error(`[CallTool] Tool ${name} executed successfully.`); // Log success
 
         // Check if the handler itself indicated an error (optional pattern)

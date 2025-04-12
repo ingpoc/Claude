@@ -1,0 +1,32 @@
+---
+description: Tests MCP server's new session initialization via Current Working Directory (CWD).
+globs: 
+alwaysApply: false
+---
+# MCP Server Test: New Chat Session Initialization (Updated)
+
+This rule outlines the steps to test how the MCP standalone server handles the initialization sequence typically triggered when a user starts a new chat session (like sending "hi"), using the mandatory codebase identifier.
+
+## Preconditions
+
+1.  **MCP Server Running:** The modified `standalone-server.js` (with logs redirected to stderr) must be running in the background. Verify using `ps aux | grep standalone-server | grep -v grep`.
+2.  **Cursor Connection Refreshed:** The user must have manually refreshed the MCP connection in the Cursor UI *after* the server was started or rebuilt.
+3.  **MCP Tools Available:** The necessary MCP tools (`mcp_knowledge_graph_init_session`, `mcp_knowledge_graph_list_projects`) must be available to the assistant.
+4.  **Workspace Path Known:** The assistant needs to know the path to the current workspace (e.g., `/Users/gurusharan/Documents/Cline/MCP/Claude`) to use as the `codebaseIdentifier`.
+
+## Test Steps
+
+1.  **Simulate Initialization (`init_session`)**:
+    *   Ask the assistant to call the `mcp_knowledge_graph_init_session` tool.
+    *   **Provide the path to the current workspace as the `codebaseIdentifier` argument.**
+
+2.  **Verify Basic Functionality (`list_projects`)**:
+    *   Ask the assistant to call the `mcp_knowledge_graph_list_projects` tool.
+
+## Verification
+
+1.  **Successful Tool Calls:** Both `mcp_knowledge_graph_init_session` and `mcp_knowledge_graph_list_projects` tool calls must complete successfully without interruptions or errors.
+2.  **No JSON Errors:** There should be no JSON parsing errors reported in the assistant's tool call responses or in the Cursor MCP logs (confirming log redirection is still working).
+3.  **`init_session` Response:** The text response from `mcp_knowledge_graph_init_session` should indicate success (e.g., "Project found..." or "New project created...") and include the correct `projectId` for the workspace.
+4.  **`list_projects` Response:** The response from `mcp_knowledge_graph_list_projects` should contain a valid list of projects stored in the system.
+5.  **(Optional) Server Logs:** Check the terminal where the server process is running (or its stderr log output). Verify that the expected log messages (e.g., `[InitSession] Identifier provided...`, `[ProjectManager] Searching...`, `[ProjectManager] Found...`, `[SessionManager] Set active context...`) are present and were written to stderr.

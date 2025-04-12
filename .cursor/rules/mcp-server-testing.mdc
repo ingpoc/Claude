@@ -1,0 +1,84 @@
+---
+description: Steps to setup, build, run, and check basic connectivity of the MCP standalone server.
+globs: 
+alwaysApply: false
+---
+ ---
+description: Steps for testing the MCP standalone server
+globs: []
+alwaysApply: false
+---
+
+# MCP Server Testing Procedure
+
+This rule outlines the steps to test the MCP standalone server, focusing on resolving potential port conflicts and verifying basic functionality.
+
+## 1. Check for Port Conflicts
+
+Before starting the server, check if the default port (originally 3001, potentially changed to 3002 or another) is already in use.
+
+```bash
+# Check for processes on the default port (e.g., 3001)
+sudo lsof -i :3001
+
+# If nothing is found, try:
+lsof -i :3001
+
+# Or check for lingering node processes related to the server
+ps aux | grep standalone-server | grep -v grep
+```
+
+## 2. Resolve Port Conflicts
+
+If a process is using the required port:
+
+**Option A: Kill the existing process (Requires sudo)**
+
+```bash
+sudo kill -9 $(sudo lsof -t -i:3001) 2>/dev/null || echo "No process found on port 3001"
+```
+*(Replace 3001 with the actual port if it was changed)*
+
+**Option B: Change the Server Port**
+
+1.  Edit `standalone-server.ts`:
+    ```typescript
+    // Find this line
+    const uiApiPort = process.env.UI_API_PORT || 3001; // Default
+    // Change it to a different port, e.g.:
+    const uiApiPort = process.env.UI_API_PORT || 3002;
+    ```
+2.  Rebuild the server (see next step).
+
+## 3. Build the Server
+
+Ensure the latest code changes are compiled.
+
+```bash
+npm run build:server
+```
+
+
+
+# 4. Refresh Cursor Connection
+
+**Important:** Before proceeding, manually refresh the MCP server connection within the Cursor UI. This ensures Cursor recognizes the newly started server.
+
+## 5. Test Basic MCP Functionality (via Assistant)
+
+Once the connection is refreshed in the UI, you can ask the assistant to test the server:
+
+1.  **Initialize Session:** Use the `mcp_knowledge_graph_init_session` tool. You can omit the `codebaseIdentifier` argument to use the current workspace.
+2.  **List Projects:** Use the `mcp_knowledge_graph_list_projects` tool to verify connection and basic project listing.
+
+## 6. Summarize Issues and Address (Optional)
+
+After completing the basic tests (Steps 1-5):
+
+1.  The assistant will summarize any potential issues or unexpected behaviors observed during the testing process.
+2.  The assistant will ask the user which, if any, of the identified issues should be investigated and potentially fixed.
+3.  If the user confirms an issue to work on, the assistant will:
+    a.  Attempt to locate the cause of the issue in the codebase.
+    b.  Propose and apply code edits to resolve the issue.
+    c.  After applying the fix, rebuild the server using `npm run build:server`.
+    d.  Inform the user about the outcome and potentially suggest re-running tests. 

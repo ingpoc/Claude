@@ -1211,55 +1211,47 @@ export async function editObservation(
     }
 }
 
-// --- NEW Function: Get Project Context Summary ---
-/**
- * Retrieves a summary of the project context from the knowledge graph.
- * Currently includes entity counts by type and names of recent entities.
- * The 'version' is expected to be managed externally (e.g., project creation time).
- * @param projectId The ID of the project.
- * @returns An object containing context details or null on error.
- */
+// Retrieve summarized context for a project (e.g., entity counts, recent items)
 export async function getProjectContext(projectId: string): Promise<{ version?: string; details: any } | null> {
-    console.log(`[KnowledgeGraph] Getting context summary for project: ${projectId}`);
+    // Use console.error for logging to avoid interfering with stdout
+    console.error(`[KnowledgeGraph] Getting context summary for project: ${projectId}`);
+
     try {
         // 1. Get entity counts by type
-        const countQuery = `MATCH (e:Entity) RETURN e.type, count(e) AS count`;
-        const countResult = await runQuery(projectId, countQuery);
-
+        const countQuery = `
+            MATCH (e:Entity)
+            RETURN e.type AS entityType, count(e) AS count
+        `;
+        const countResult = await runQuery<{ entityType: string, count: number }>(projectId, countQuery);
         let entityCounts: Record<string, number> = {};
-        if (countResult && countResult.rows) {
-             // Use type assertion as Kuzu types might not be perfectly aligned
-             entityCounts = (countResult.rows as any[]).reduce((acc, row) => {
-                // Assuming row structure is [type: string, count: number | bigint]
-                const type = row[0];
-                const count = typeof row[1] === 'bigint' ? Number(row[1]) : row[1]; // Handle potential BigInt
-                if (typeof type === 'string' && typeof count === 'number') {
-                   acc[type] = count;
-                }
-                return acc;
-            }, {} as Record<string, number>);
-            console.log(`[KnowledgeGraph] Entity counts:`, entityCounts);
-        } else {
-             console.warn(`[KnowledgeGraph] Could not retrieve entity counts for project ${projectId}.`);
+        if (countResult && typeof countResult.getAll === 'function') {
+            const rows = await countResult.getAll(); // Use await
+            rows.forEach((row: { entityType: string, count: number }) => {
+                entityCounts[row.entityType] = row.count;
+            });
         }
+        // Use console.error for logging
+        console.error(`[KnowledgeGraph] Entity counts:`, entityCounts);
 
-        // 2. Get names of the 5 most recently created entities (assuming an implicit creation order)
-        // KuzuDB doesn't directly support ORDER BY on internal ID or a creation timestamp unless added explicitly.
-        // This query fetches 5 entities arbitrarily for now.
-        // TODO: Enhance this if a reliable creation timestamp property is added to Entity nodes.
-        const recentQuery = `MATCH (e:Entity) RETURN e.name LIMIT 5`;
-        const recentResult = await runQuery(projectId, recentQuery);
-
+        // 2. Get names of recently updated entities (e.g., last 5)
+        // Assuming updatedAt is stored correctly as a string that can be ordered
+        // Or use createdAt if updatedAt isn't reliably set
+        const recentQuery = `
+            MATCH (e:Entity)
+            RETURN e.name AS entityName, e.updatedAt AS lastUpdated
+            ORDER BY e.updatedAt DESC
+            LIMIT 5
+        `;
+        const recentResult = await runQuery<{ entityName: string }>(projectId, recentQuery);
         let recentEntityNames: string[] = [];
-         if (recentResult && recentResult.rows) {
-             // Use type assertion
-             recentEntityNames = (recentResult.rows as any[]).map(row => row[0]).filter((name): name is string => typeof name === 'string');
-             console.log(`[KnowledgeGraph] Recent entity names:`, recentEntityNames);
-         } else {
-             console.warn(`[KnowledgeGraph] Could not retrieve recent entity names for project ${projectId}.`);
-         }
+        if (recentResult && typeof recentResult.getAll === 'function') {
+            const rows = await recentResult.getAll(); // Use await
+            recentEntityNames = rows.map((row: { entityName: string }) => row.entityName);
+        }
+        // Use console.error for logging
+        console.error(`[KnowledgeGraph] Recent entity names:`, recentEntityNames);
 
-        // 3. Combine details
+        // Construct the details object
         const details = {
             entityCounts,
             recentEntityNames,

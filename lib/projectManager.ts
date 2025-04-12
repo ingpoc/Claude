@@ -12,6 +12,7 @@ export interface ProjectMetadata {
   description?: string;
   createdAt: string;
   lastAccessed: string;
+  associatedPath?: string; // Path to the codebase directory
 }
 
 // Add a flag to track if schema was initialized for a given DB path
@@ -96,24 +97,16 @@ async function writeProjectsData(projects: ProjectMetadata[]): Promise<void> {
 
 // Get all projects - Updated to use helper
 export async function getProjects(): Promise<ProjectMetadata[]> {
-  // ensureProjectInfrastructure(); // No longer needed here, handled by readProjectsData
   return await readProjectsData();
-  /* Original code:
-  try {
-    const data = fs.readFileSync(PROJECTS_FILE, 'utf8');
-    const { projects } = JSON.parse(data);
-    return projects;
-  } catch (error) {
-    console.error('Error reading projects metadata:', error);
-    return [];
-  }
-  */
 }
 
-// Create a new project - Updated to use helpers
-export async function createProject(name: string, description: string = ""): Promise<ProjectMetadata | null> {
+// Create a new project - MODIFIED to accept and store associatedPath
+export async function createProject(
+  name: string, 
+  description: string = "", 
+  associatedPath?: string // Added optional parameter
+): Promise<ProjectMetadata | null> {
   try {
-    // Use read helper
     const projects = await readProjectsData(); 
     
     // Check if project with same name already exists (case-insensitive)
@@ -121,24 +114,29 @@ export async function createProject(name: string, description: string = ""): Pro
       console.error(`Project with name '${name}' already exists (case-insensitive).`);
       return null;
     }
+
+    // Check if project with same path already exists (if path provided)
+    if (associatedPath && projects.some(p => p.associatedPath === associatedPath)) {
+        console.error(`Project with associated path '${associatedPath}' already exists.`);
+        return null;
+    }
     
     // Create new project object
     const newProject: ProjectMetadata = {
       id: `project_${uuidv4()}`,
       name,
       description,
-      createdAt: new Date().toISOString(), // Keep for versioning
-      lastAccessed: new Date().toISOString()
+      createdAt: new Date().toISOString(), 
+      lastAccessed: new Date().toISOString(),
+      associatedPath: associatedPath // Store the path
     };
     
-    // Add to projects metadata and use write helper
     projects.push(newProject);
     await writeProjectsData(projects);
     
-    // Initialize database connection/schema
     await getDbConnection(newProject.id);
 
-    console.log(`[ProjectManager] Project created: ${newProject.id} (${newProject.name})`);    
+    console.error(`[ProjectManager] Project created: ${newProject.id} (${newProject.name}) Path: ${newProject.associatedPath || 'N/A'}`);    
     return newProject;
   } catch (error) {
     console.error('Error creating project:', error);
@@ -148,11 +146,10 @@ export async function createProject(name: string, description: string = ""): Pro
 
 // Get a specific project by ID - Updated to use helper
 export async function getProject(projectId: string): Promise<ProjectMetadata | null> {
-  const projects = await readProjectsData(); // Use helper
+  const projects = await readProjectsData();
   const project = projects.find(p => p.id === projectId);
   
   if (project) {
-    // Update last accessed time (fire and forget is okay here)
     updateProjectAccess(projectId).catch(err => console.error("[ProjectManager] Background update access failed", err));
     return project;
   }
@@ -160,40 +157,84 @@ export async function getProject(projectId: string): Promise<ProjectMetadata | n
   return null;
 }
 
-// --- NEW Function: Get Project by Name or ID --- 
+// --- NEW Function: Get Project by Path ---
 /**
- * Finds a project by its ID or name (case-insensitive).
+ * Finds a project by its associated filesystem path.
  * Updates lastAccessed time if found.
- * @param identifier Project ID or Name
+ * @param filePath The absolute path associated with the project
  * @returns ProjectMetadata or null if not found
  */
-export async function getProjectByNameOrId(identifier: string): Promise<ProjectMetadata | null> {
-    console.log(`[ProjectManager] Searching for project by identifier: ${identifier}`);
-    const projects = await readProjectsData(); // Use helper
-    let foundProject: ProjectMetadata | undefined;
-
-    // Try finding by ID first (exact match)
-    foundProject = projects.find(p => p.id === identifier);
-
-    // If not found by ID, try finding by name (case-insensitive)
-    if (!foundProject) {
-        const lowerCaseIdentifier = identifier.toLowerCase();
-        foundProject = projects.find(p => p.name.toLowerCase() === lowerCaseIdentifier);
-    }
+export async function getProjectByPath(filePath: string): Promise<ProjectMetadata | null> {
+    console.error(`[ProjectManager] Searching for project by path: ${filePath}`);
+    const projects = await readProjectsData();
+    const foundProject = projects.find(p => p.associatedPath === filePath);
 
     if (foundProject) {
-        console.log(`[ProjectManager] Found project: ${foundProject.id} (${foundProject.name})`);
-        // Update last accessed time in the background
+        console.error(`[ProjectManager] Found project by path: ${foundProject.id} (${foundProject.name})`);
         updateProjectAccess(foundProject.id).catch(err => {
              console.error(`[ProjectManager] Background update access failed for ${foundProject?.id}:`, err);
         });
         return foundProject;
     }
 
-    console.log(`[ProjectManager] Project not found for identifier: ${identifier}`);
+    console.error(`[ProjectManager] Project not found for path: ${filePath}`);
     return null;
 }
 // --- End of NEW Function ---
+
+// --- MODIFIED Function: Get Project by Name, ID, or Path ---
+/**
+ * Finds a project by its ID, name (case-insensitive), or associated path.
+ * Updates lastAccessed time if found.
+ * Priority: Path > ID > Name
+ * @param identifier Project ID, Name, or Filesystem Path
+ * @returns ProjectMetadata or null if not found
+ */
+export async function getProjectByNameOrId(identifier: string): Promise<ProjectMetadata | null> {
+    console.error(`[ProjectManager] Searching for project by identifier: ${identifier}`);
+    const projects = await readProjectsData(); 
+    let foundProject: ProjectMetadata | undefined;
+
+    // 1. Try finding by Path first (if identifier looks like a path)
+    // Basic check: starts with '/' or a drive letter like 'C:'
+    if (identifier.startsWith('/') || /^[a-zA-Z]:/.test(identifier)) {
+        console.error(`[ProjectManager] Identifier looks like a path. Trying path lookup first.`);
+        foundProject = projects.find(p => p.associatedPath === identifier);
+        if (foundProject) {
+            console.error(`[ProjectManager] Found project by path: ${foundProject.id} (${foundProject.name})`);
+            updateProjectAccess(foundProject.id).catch(err => console.error(`[PM] BG update access failed:`, err));
+            return foundProject;
+        } else {
+             console.error(`[ProjectManager] Identifier looked like path, but no match found.`);
+        }
+    }
+
+    // 2. Try finding by ID (exact match)
+    if (!foundProject) {
+        foundProject = projects.find(p => p.id === identifier);
+        if (foundProject) {
+             console.error(`[ProjectManager] Found project by ID: ${foundProject.id} (${foundProject.name})`);
+             updateProjectAccess(foundProject.id).catch(err => console.error(`[PM] BG update access failed:`, err));
+             return foundProject;
+        }
+    }
+
+    // 3. If not found by path or ID, try finding by name (case-insensitive)
+    if (!foundProject) {
+        const lowerCaseIdentifier = identifier.toLowerCase();
+        foundProject = projects.find(p => p.name.toLowerCase() === lowerCaseIdentifier);
+        if (foundProject) {
+             console.error(`[ProjectManager] Found project by Name: ${foundProject.id} (${foundProject.name})`);
+             updateProjectAccess(foundProject.id).catch(err => console.error(`[PM] BG update access failed:`, err));
+             return foundProject;
+        }
+    }
+    
+    // If still not found
+    console.error(`[ProjectManager] Project not found for identifier: ${identifier}`);
+    return null;
+}
+// --- End of MODIFIED Function ---
 
 // Update project's last accessed time - Updated to use helpers
 async function updateProjectAccess(projectId: string): Promise<boolean> {
@@ -202,7 +243,7 @@ async function updateProjectAccess(projectId: string): Promise<boolean> {
     const projectIndex = projects.findIndex(p => p.id === projectId);
     
     if (projectIndex === -1) {
-        console.warn(`[ProjectManager] Attempted to update access for non-existent project ID: ${projectId}`);
+        console.error(`[ProjectManager] Attempted to update access for non-existent project ID: ${projectId}`);
         return false;
     }
     
@@ -325,13 +366,13 @@ export async function deleteProject(projectId: string): Promise<boolean> {
     const projectDirPath = path.join(PROJECTS_DIR, projectId);
     if (fs.existsSync(projectDirPath)) {
       fs.rmSync(projectDirPath, { recursive: true, force: true });
-      console.log(`Deleted project database directory: ${projectDirPath}`);
+      console.error(`Deleted project database directory: ${projectDirPath}`);
     }
 
     // Remove from connection cache if present
     delete connectionCache[projectId];
 
-    console.log(`Project deleted successfully: ${projectId}`);
+    console.error(`Project deleted successfully: ${projectId}`);
     return true;
   } catch (error) {
     console.error(`Error deleting project ${projectId}:`, error);
