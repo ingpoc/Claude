@@ -1,6 +1,0 @@
----
-description: When agent has to build knowledge context of codebase or make observations
-globs: 
-alwaysApply: false
----
-Use knowledge-graph mcp for testing the flow, which AI would use to build context of codebase across sessions.
