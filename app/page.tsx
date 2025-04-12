@@ -1,6 +1,5 @@
 import React from 'react';
-import { Search, Crown, Users, Library, Workflow } from 'lucide-react';
-import { Input } from "../components/ui/input";
+import { Users, Library, Workflow } from 'lucide-react';
 import { Button } from "../components/ui/button";
 import ProjectCard from "../components/ProjectCard";
 import StatCard from "../components/StatCard";
@@ -43,7 +42,7 @@ export default async function DashboardPage() {
             Let's look at your knowledge graph overview.
           </p>
         </div>
-        <div className="flex items-center gap-4 w-full md:w-auto">
+        {/* <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search entities..." className="pl-9" />
@@ -51,7 +50,7 @@ export default async function DashboardPage() {
           <Button>
             <Crown className="mr-2 h-4 w-4" /> Upgrade
           </Button>
-        </div>
+        </div> */}
       </div>
 
       {/* Main Content Grid - Updated Layout */}
