@@ -51,7 +51,9 @@ export interface Relationship {
 // import { SessionManager } from "../../lib/mcp/SessionManager"; // No longer needed directly here
 
 // Define the base URL for the UI API
-const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || 'http://localhost:3001';
+// For server-side actions, this needs to be the address of the Next.js server itself,
+// so that fetch can resolve relative paths correctly and then be proxied.
+const API_BASE_URL = process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL || 'http://localhost:4000';
 
 // Helper function for API calls
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {

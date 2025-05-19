@@ -4,6 +4,14 @@ const nextConfig = {
   images: {
     domains: ['placeholder.com'],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/ui/:path*',
+        destination: 'http://localhost:3155/api/ui/:path*', // Proxy to Standalone API server on port 3155
+      },
+    ]
+  },
   webpack: (config, { isServer }) => {
     // Fixes problem with database drivers that include native node addons, like KuzuDB:
     // Exclude kuzu's native module from Webpack bundling on the server.

@@ -5,7 +5,8 @@
   "main": "standalone-server.js",
   "scripts": {
     "start": "node dist/standalone-server.js",
-    "start-nextjs": "next dev",
+    "start-nextjs": "next dev -p 4000",
+    "start:all": "concurrently \"npm:start\" \"npm:start-nextjs\"",
     "build": "next build",
     "build:server": "tsc --project tsconfig.json",
     "lint": "next lint"
@@ -44,6 +45,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "concurrently": "^9.1.2",
     "eslint": "^8.0.0",
     "eslint-config-next": "14.2.4",
     "typescript": "latest"

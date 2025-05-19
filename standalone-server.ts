@@ -34,7 +34,7 @@ const sessionManager = new SessionManager();
 
 // --- Create Express App for UI API ---
 const app = express();
-const uiApiPort = process.env.UI_API_PORT || 3001; // Default port
+const uiApiPort = process.env.UI_API_PORT || 3155; // Default port changed to 3155
 
 app.use(cors()); // Enable CORS for UI interaction
 app.use(express.json()); // Middleware to parse JSON bodies
