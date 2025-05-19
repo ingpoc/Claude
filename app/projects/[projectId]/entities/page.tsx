@@ -93,7 +93,7 @@ function EntitiesPageContent() {
     // console.log('Entity creation result:', newEntity);
     // console.log(`Current entities count: ${entities.length}`);
     setIsAddEntityModalOpen(false);
-  }, [addEntity, entities.length]);
+  }, [addEntity]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading project data...</div>;

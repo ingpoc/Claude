@@ -4,7 +4,7 @@
   "description": "MCP Knowledge Graph Server",
   "main": "standalone-server.js",
   "scripts": {
-    "start": "node standalone-server.js",
+    "start": "node dist/standalone-server.js",
     "start-nextjs": "next dev",
     "build": "next build",
     "build:server": "tsc --project tsconfig.json",

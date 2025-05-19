@@ -39,7 +39,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Hi, User!</h1>
           <p className="text-muted-foreground">
-            Let's look at your knowledge graph overview.
+            Let&apos;s look at your knowledge graph overview.
           </p>
         </div>
         {/* <div className="flex items-center gap-4 w-full md:w-auto">

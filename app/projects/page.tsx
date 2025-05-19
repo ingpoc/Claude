@@ -40,7 +40,8 @@ export default function ProjectsPage() {
 
   const handleCreateProject = async (name: string, description: string) => {
     try {
-      const response = await fetch('/api/ui/projects', {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_BASE_URL}/api/ui/projects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

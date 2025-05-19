@@ -17,27 +17,44 @@ This project implements a standalone MCP (Model Context Protocol) server focused
 # Install dependencies
 npm install
 
-# Build the necessary files
+# Build the necessary server and application files
 npm run build
-# (Or potentially run a setup script if provided, e.g., ./setup.js)
 ```
 
-## Running the Server
+## Running the Project
 
-### Standalone Mode (Recommended for Direct Integration)
+To fully run the project, including the backend MCP server and the frontend UI, you'll typically need to run two separate processes.
 
-This mode runs a dedicated server process, ideal for direct use with applications that launch and communicate with external tools via stdio or a specific network port.
+### 1. Running the Backend MCP Server
+
+This server handles the knowledge graph logic and provides an API.
 
 ```bash
 # Ensure you have built the project first (npm run build)
+# This command starts the standalone server (typically on port 3001)
+npm start
+```
+Alternatively, you can run the compiled server file directly:
+```bash
 node dist/standalone-server.js
 ```
+Check the console output for the specific port (e.g., 3001). This server is what external applications or the frontend UI will interact with for knowledge graph operations.
 
-This will start an Express server (check console output for the specific port, e.g., 3001 or similar). This is the process the host application will manage based on its configuration.
+### 2. Running the Frontend UI (Next.js Application)
 
-### NextJS API Route (For Web UI/Integration)
+This provides a web interface for interacting with the knowledge graph.
 
-The code includes compatibility to be run within a NextJS application, typically for providing a backend to a web-based UI for visualizing or managing the graph. See `app/api/mcp/route.ts` for the implementation. Running the NextJS app (`npm run dev`) would expose this.
+```bash
+# This command starts the Next.js development server (typically on port 3000)
+npm run start-nextjs
+```
+Alternatively, you can use the standard Next.js dev command:
+```bash
+npm run dev
+```
+Once started, you can access the UI in your browser, usually at `http://localhost:3000`. The frontend will communicate with the backend MCP server (started in step 1) for its data.
+
+**Note:** Both the backend server and the frontend UI need to be running concurrently for the full application to work as intended.
 
 ## Configuration
 
