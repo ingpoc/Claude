@@ -1,0 +1,39 @@
+---
+description: This rule outlines a workflow to enhance the MCP (MModel Context Platform) server and its associated dashboard UI
+globs: 
+alwaysApply: false
+---
+# Workflow to Improve MCP Server and Dashboard UI
+
+The end goal of this rule should be to improve this MCP server for better managing memory of AI system across chat sessions and across host applications which use it. Any feature improvement should ultimately help in improving the MCP server.
+
+1.  **Check MCP Server Status and Start if Necessary:**
+    *   Verify if the `browser-tools` MCP server is running on port 3025
+    *   If not, start it using the command: `npx @agentdeskai/browser-tools-server@latest`
+    
+
+2.  **Run MCP Server Dashboard:**
+    *   Verify if nextjs server is running on port 4000
+    *   Start the MCP server dashboard using the command: `npm run start-nextjs`.
+    *   The dashboard should be accessible at `localhost:4000`.
+
+3.  **Initialize Session:**
+    *   Initialize a session with `mcp-knowledge-graph` using the available tools with Claude Project.
+
+4.  **Verify Dashboard UI:**
+    *   Ensure the browser is running the dashboard UI.
+    *   If not, prompt the user to start the dashboard UI.
+
+5.  **UI Analysis:**
+    *   Using `browser-tools`, take a screenshot of the current dashboard UI.
+    *   Analyze the screenshot to identify areas for UI/UX improvement.
+
+6.  **Feature Improvement Analysis:**
+    *   Analyze the codebase to identify potential new features or improvements to existing features.
+    *   Consider how these changes can enhance memory management for the AI system across sessions and applications.
+
+7.  **Provide Analysis:**
+    *   Present a concise analysis to the user, detailing suggested UI improvements and feature enhancements.
+
+7.  **Change Analysis:**
+    *   On making changes to UI or feature enhancement always check the changes in dashboard by taking scrrenshot and think if it satisfies users requirement. If not then continue making changes.

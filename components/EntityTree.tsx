@@ -101,26 +101,27 @@ const EntityTree: React.FC<EntityTreeProps> = ({
   };
 
   // Get icon based on entity type
-  const getEntityIcon = (type: string) => {
+  const getEntityIcon = (type: string, selected: boolean = false) => {
+    const base = selected ? "text-white" : "";
     switch(type.toLowerCase()) {
       case 'component':
-        return <Box size={16} className="text-blue-400" />;
+        return <Box size={20} className={cn("text-blue-400", base)} />;
       case 'page':
-        return <Layout size={16} className="text-orange-400" />;
+        return <Layout size={20} className={cn("text-orange-400", base)} />;
       case 'domain':
-        return <Folder size={16} className="text-purple-400" />;
+        return <Folder size={20} className={cn("text-purple-400", base)} />;
       case 'utility':
-        return <Settings size={16} className="text-green-400" />;
+        return <Settings size={20} className={cn("text-green-400", base)} />;
       case 'config':
-        return <FileJson size={16} className="text-cyan-400" />;
+        return <FileJson size={20} className={cn("text-cyan-400", base)} />;
       case 'class':
-        return <Code size={16} className="text-pink-400" />;
+        return <Code size={20} className={cn("text-pink-400", base)} />;
       case 'function':
-        return <FileCode size={16} className="text-yellow-400" />;
+        return <FileCode size={20} className={cn("text-yellow-400", base)} />;
       case 'api':
-        return <Globe size={16} className="text-red-400" />;
+        return <Globe size={20} className={cn("text-red-400", base)} />;
       default:
-        return <Database size={16} className="text-muted-foreground" />;
+        return <Database size={20} className={cn("text-muted-foreground", base)} />;
     }
   };
   
@@ -153,10 +154,10 @@ const EntityTree: React.FC<EntityTreeProps> = ({
             <div key={domain.id}>
               <div 
                 className={cn(
-                  "flex items-center p-2 rounded cursor-pointer text-sm",
+                  "flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer text-sm transition-all duration-150",
                   selectedEntityId === domain.id 
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "hover:bg-muted text-foreground"
+                    ? "bg-primary text-white shadow-md"
+                    : "hover:bg-primary/5 text-foreground"
                 )}
               >
                 <div 
@@ -164,11 +165,11 @@ const EntityTree: React.FC<EntityTreeProps> = ({
                   onClick={() => toggleGroup(domain.id)}
                 >
                   {expandedGroups[domain.id] ? (
-                    <ChevronDown size={16} className="text-muted-foreground mr-2" />
+                    <ChevronDown size={18} className={cn("mr-2", selectedEntityId === domain.id ? "text-white" : "text-muted-foreground")} />
                   ) : (
-                    <ChevronRight size={16} className="text-muted-foreground mr-2" />
+                    <ChevronRight size={18} className={cn("mr-2", selectedEntityId === domain.id ? "text-white" : "text-muted-foreground")} />
                   )}
-                  {getEntityIcon('domain')}
+                  {getEntityIcon('domain', selectedEntityId === domain.id)}
                   <span 
                     className="ml-2"
                     onClick={(e) => {
@@ -189,14 +190,14 @@ const EntityTree: React.FC<EntityTreeProps> = ({
                       <div 
                         key={childEntity.id}
                         className={cn(
-                          "flex items-center p-2 rounded cursor-pointer text-sm",
+                          "flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer text-sm transition-all duration-150",
                           selectedEntityId === childEntity.id 
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "hover:bg-muted text-foreground"
+                            ? "bg-primary text-white shadow-md"
+                            : "hover:bg-primary/5 text-foreground"
                         )}
                         onClick={() => onSelectEntity(childEntity.id)}
                       >
-                        {getEntityIcon(childEntity.type)}
+                        {getEntityIcon(childEntity.type, selectedEntityId === childEntity.id)}
                         <span className="ml-2">{childEntity.name}</span>
                       </div>
                     ))}
@@ -222,13 +223,13 @@ const EntityTree: React.FC<EntityTreeProps> = ({
         return (
           <div key={groupName}>
             <div 
-              className="flex items-center p-2 rounded hover:bg-muted cursor-pointer text-sm text-foreground"
+              className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-primary/5 cursor-pointer text-sm text-foreground transition-all duration-150"
               onClick={() => toggleGroup(groupName)}
             >
               {expandedGroups[groupName] ? (
-                <ChevronDown size={16} className="text-muted-foreground mr-2" />
+                <ChevronDown size={18} className="mr-2 text-muted-foreground" />
               ) : (
-                <ChevronRight size={16} className="text-muted-foreground mr-2" />
+                <ChevronRight size={18} className="mr-2 text-muted-foreground" />
               )}
               {getEntityIcon(groupName.toLowerCase())}
               <span className="ml-2 capitalize font-medium">{groupName.toLowerCase()}s</span>
@@ -241,14 +242,14 @@ const EntityTree: React.FC<EntityTreeProps> = ({
                   <div 
                     key={entity.id}
                     className={cn(
-                      "flex items-center p-2 rounded cursor-pointer text-sm",
+                      "flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer text-sm transition-all duration-150",
                       selectedEntityId === entity.id 
-                        ? "bg-primary/10 text-primary font-medium"
-                        : "hover:bg-muted text-foreground"
+                        ? "bg-primary text-white shadow-md"
+                        : "hover:bg-primary/5 text-foreground"
                     )}
                     onClick={() => onSelectEntity(entity.id)}
                   >
-                    {getEntityIcon(entity.type)}
+                    {getEntityIcon(entity.type, selectedEntityId === entity.id)}
                     <span className="ml-2">{entity.name}</span>
                   </div>
                 ))}

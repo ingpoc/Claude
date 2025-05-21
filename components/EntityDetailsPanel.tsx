@@ -188,7 +188,7 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
   return (
     <div className="h-full flex flex-col border-l bg-card">
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b bg-card px-5 py-3">
+      <div className="sticky top-0 z-10 border-b-2 border-slate-200 bg-card px-6 py-4">
         <div className="flex justify-between items-start mb-1">
           <div className="flex items-center gap-3">
             <Badge variant="outline" className={cn("border font-mono text-xs", getEntityTypeColorClass(entity.type))}>
@@ -221,7 +221,7 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
           
           {/* Description & Observations Section */}
           <AccordionItem value="description">
-            <AccordionTrigger className="text-sm font-medium">
+            <AccordionTrigger className="text-sm font-medium px-1 hover:bg-slate-100 rounded-sm">
               <div className="flex items-center gap-2">
                 <Info size={16} /> Description & Observations
               </div>
@@ -233,7 +233,7 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
                 <div className="space-y-3">
                   <h4 className="text-xs font-medium text-muted-foreground uppercase">Observations</h4>
                   {entity.observations.map(obs => (
-                    <div key={obs.id} className="text-sm border rounded-md p-3 bg-background">
+                    <div key={obs.id} className="text-sm border rounded-lg p-4 bg-white shadow-md">
                       {editingObservationId === obs.id ? (
                         <div className="space-y-2">
                           <Textarea 
@@ -282,16 +282,16 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
 
           {/* Relationships Section */}
           <AccordionItem value="relationships">
-            <AccordionTrigger className="text-sm font-medium">
+            <AccordionTrigger className="text-sm font-medium px-1 hover:bg-slate-100 rounded-sm">
               <div className="flex items-center gap-2">
                  <Link2 size={16} /> Relationships ({relationships.length})
               </div>
             </AccordionTrigger>
             <AccordionContent className="pt-1 pb-4 px-2">
               {relationships.length > 0 ? (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {relationships.map(({ entity: relatedEntity, relationship }) => (
-                    <li key={`${relationship.id}-${relatedEntity.id}`} className="text-sm flex items-center justify-between p-2 rounded hover:bg-muted/50">
+                    <li key={`${relationship.id}-${relatedEntity.id}`} className="text-sm flex items-center justify-between border rounded-lg p-4 bg-white shadow-md">
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="font-normal">
                           {getRelationshipLabel(relationship.type)}
@@ -318,7 +318,7 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
 
           {/* Metadata Section */}
           <AccordionItem value="metadata">
-            <AccordionTrigger className="text-sm font-medium">
+            <AccordionTrigger className="text-sm font-medium px-1 hover:bg-slate-100 rounded-sm">
                <div className="flex items-center gap-2">
                  <Hash size={16} /> Metadata
               </div>

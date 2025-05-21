@@ -66,7 +66,7 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
   return (
     <div className="w-64 bg-card border-r h-full flex flex-col overflow-hidden">
       {/* Project Info */}
-      <div className="p-4 border-b">
+      <div className="p-5 border-b-2 border-slate-200">
         <div className="flex items-center mb-2">
           <Badge variant="outline" className="border-green-600 bg-green-500/10 text-green-700 text-xs px-1.5 py-0.5">
              <span className="w-1.5 h-1.5 rounded-full bg-green-600 mr-1.5"></span>

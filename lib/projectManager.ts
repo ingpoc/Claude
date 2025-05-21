@@ -23,18 +23,32 @@ const connectionCache: Record<string, { db: kuzu.Database, conn: kuzu.Connection
 
 // Determine Project Root: Prioritize ENV variable, fallback for non-Next.js context
 const getProjectRoot = () => {
-  // Check if running in Next.js context AND the variable is set
+  // 1. Prioritize server-specific environment variable
+  if (process.env.PROJECT_ROOT_DIR) {
+    // console.log("[ProjectManager] Using PROJECT_ROOT_DIR env var:", process.env.PROJECT_ROOT_DIR);
+    return process.env.PROJECT_ROOT_DIR;
+  }
+  // 2. Try client-public environment variable (useful if this code somehow runs client-side or for consistency)
   if (process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR) {
     // console.log("[ProjectManager] Using NEXT_PUBLIC_PROJECT_ROOT_DIR env var:", process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR);
     return process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR;
+  } 
+  // 3. Fallback for other contexts (like the standalone server run from dist or if Next.js __dirname is reliable)
+  //    If __dirname is something like /path/to/project/dist/lib or .next/server/lib, adjust accordingly.
+  //    For Next.js, __dirname in a server component/API route in `.next/server/app/...` might need `../../..` to reach project root.
+  //    For standalone server in `dist/lib`, `../../` is correct.
+  //    Let's assume if we are in .next/server, __dirname will be deep enough.
+  let fallbackPath;
+  if (__dirname.includes('.next' + path.sep + 'server')) {
+    // Likely running within Next.js server build context
+    fallbackPath = path.resolve(__dirname, '..', '..', '..'); // Adjust if layout is different
+    // console.log(`[ProjectManager] In Next.js server context. Fallback path relative to __dirname (${__dirname}): ${fallbackPath}`);
   } else {
-    // Fallback for other contexts (like the standalone server run from dist)
-    // If __dirname is something like /path/to/project/dist/lib due to compilation,
-    // going up two levels should get to /path/to/project.
-    const fallbackPath = path.resolve(__dirname, '..', '..');
-    // console.log(`[ProjectManager] NEXT_PUBLIC_PROJECT_ROOT_DIR not set or not in Next.js context. Falling back to path relative to __dirname (${__dirname}): ${fallbackPath}`);
-    return fallbackPath;
+    // Likely standalone server context (e.g., from dist/lib) or other
+    fallbackPath = path.resolve(__dirname, '..', '..');
+    // console.log(`[ProjectManager] Not in Next.js server context or PROJECT_ROOT_DIR not set. Fallback path relative to __dirname (${__dirname}): ${fallbackPath}`);
   }
+  return fallbackPath;
 };
 
 const PROJECT_ROOT = getProjectRoot();

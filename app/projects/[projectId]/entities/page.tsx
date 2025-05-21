@@ -100,7 +100,7 @@ function EntitiesPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground flex flex-col">
+    <main className="min-h-screen bg-slate-100 text-foreground flex flex-col">
       <div className="flex flex-1 overflow-hidden">
         <ProjectSidebar 
           projectName={projectName} 
@@ -137,8 +137,8 @@ function EntitiesPageContent() {
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full flex-1 p-8">
-                    <div className="w-20 h-20 rounded-full bg-muted/60 flex items-center justify-center mb-6 relative overflow-hidden">
-                      <FolderSearch size={40} className="text-muted-foreground" />
+                    <div className="w-20 h-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mb-6 relative overflow-hidden">
+                      <FolderSearch size={48} className="text-muted-foreground" />
                     </div>
                     
                     <h3 className="text-xl font-semibold mb-3 text-foreground">Select an Entity to View Details</h3>
@@ -147,7 +147,7 @@ function EntitiesPageContent() {
                       Explore the knowledge graph by selecting an entity from the sidebar. You can view relationships, properties, and metadata for each entity.
                     </p>
                     
-                    <div className="bg-card border rounded-lg p-5 max-w-md w-full text-left">
+                    <div className="bg-card border border-slate-200 rounded-lg p-6 shadow-md max-w-md w-full text-left">
                       <h4 className="text-sm font-medium text-foreground mb-3">Quick Tips:</h4>
                       
                       <div className="space-y-3">

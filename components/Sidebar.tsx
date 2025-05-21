@@ -49,12 +49,12 @@ export function Sidebar({ className }: SidebarProps) {
                 <TooltipTrigger asChild>
                   <Link href={item.href}>
                     <Button
-                      variant={isActive ? 'secondary' : 'ghost'} // Use secondary variant for active, ghost otherwise
+                      variant={'ghost'} // Use ghost for all, control active state with className
                       size="icon" // Render button as an icon
                       className={cn(
                         'rounded-lg',
                          // Apply specific styles for active state
-                         isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+                         isActive ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                       )}
                       aria-label={item.label} // Accessibility label
                     >
