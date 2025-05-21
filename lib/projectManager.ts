@@ -29,7 +29,9 @@ const getProjectRoot = () => {
     return process.env.NEXT_PUBLIC_PROJECT_ROOT_DIR;
   } else {
     // Fallback for other contexts (like the standalone server run from dist)
-    const fallbackPath = path.resolve(__dirname, '..');
+    // If __dirname is something like /path/to/project/dist/lib due to compilation,
+    // going up two levels should get to /path/to/project.
+    const fallbackPath = path.resolve(__dirname, '..', '..');
     // console.log(`[ProjectManager] NEXT_PUBLIC_PROJECT_ROOT_DIR not set or not in Next.js context. Falling back to path relative to __dirname (${__dirname}): ${fallbackPath}`);
     return fallbackPath;
   }

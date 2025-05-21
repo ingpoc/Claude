@@ -51,9 +51,24 @@ export interface Relationship {
 // import { SessionManager } from "../../lib/mcp/SessionManager"; // No longer needed directly here
 
 // Define the base URL for the UI API
-// For server-side actions, this needs to be the address of the Next.js server itself,
+const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
+// For server-side actions, this needs to be the address of the Next.js server itself in dev,
 // so that fetch can resolve relative paths correctly and then be proxied.
-const API_BASE_URL = process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL || 'http://localhost:4000';
+// In production, when served by the standalone server, it will be the same origin,
+// but fetch on server side needs the full URL.
+let API_BASE_URL;
+
+if (IS_DEVELOPMENT) {
+  // In development, Server Actions run in the Next.js dev server (e.g., localhost:4000).
+  // They need to hit their own server endpoint, which then proxies to the API server (e.g., localhost:3155).
+  API_BASE_URL = process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL || 'http://localhost:4000';
+} else {
+  // In production, Server Actions run within the standalone-server.ts Node.js environment.
+  // They need to hit the API endpoints served by that same standalone server.
+  // The standalone server listens on UI_API_PORT (which we now default to 4000 in prod).
+  const port = process.env.UI_API_PORT || 4000; // Default to 4000 for production
+  API_BASE_URL = `http://localhost:${port}`;
+}
 
 // Helper function for API calls
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {

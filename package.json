@@ -1,15 +1,27 @@
 {
-  "name": "mcp-knowledge-graph",
+  "name": "@gurusharan3107/mcp-knowledge-graph",
   "version": "0.1.0",
   "description": "MCP Knowledge Graph Server",
-  "main": "standalone-server.js",
+  "main": "dist/standalone-server.js",
+  "bin": {
+    "mcp-knowledge-graph": "./dist/standalone-server.js"
+  },
+  "files": [
+    "dist",
+    ".next",
+    "public",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "start": "node dist/standalone-server.js",
+    "start:prod": "UI_API_PORT=4000 NODE_ENV=production node dist/standalone-server.js",
     "start-nextjs": "next dev -p 4000",
     "start:all": "concurrently \"npm:start\" \"npm:start-nextjs\"",
     "build": "next build",
     "build:server": "tsc --project tsconfig.json",
-    "lint": "next lint"
+    "lint": "next lint",
+    "preparepackage": "npm run build:server && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",

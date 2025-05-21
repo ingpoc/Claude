@@ -13,52 +13,147 @@ This project implements a standalone MCP (Model Context Protocol) server focused
 
 ## Installation
 
-```bash
-# Install dependencies
-npm install
+1.  **Clone the repository (if you haven't already):**
+    ```bash
+    git clone <your-repository-url>
+    cd mcp-knowledge-graph
+    ```
 
-# Build the necessary server and application files
-npm run build
-```
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Prepare the application (builds server and Next.js app):**
+    This step compiles the TypeScript server code to JavaScript (in `dist/`) and builds the Next.js application for production (in `.next/`).
+    ```bash
+    npm run preparepackage
+    ```
 
 ## Running the Project
 
-To fully run the project, including the backend MCP server and the frontend UI, you'll typically need to run two separate processes.
+You can run this project in several ways, depending on whether you're doing local development and testing, or integrating it as a service launched by a host application (like an AI client).
 
-### 1. Running the Backend MCP Server
+### 1. Local Development & Testing (Using npm Scripts)
 
-This server handles the knowledge graph logic and provides an API.
+This mode is ideal for actively developing the UI and/or the API.
 
+**A. Full Stack (UI & API with Hot-Reloading):**
+
+This is the most common local development setup. It starts two services:
+*   **Next.js Development Server (UI):** Serves the frontend from `app/` with hot-reloading.
+    *   Runs on: `http://localhost:4000` (by default, via `npm run start-nextjs` which uses `next dev -p 4000`).
+*   **API Server & MCP SDK (`standalone-server.ts`):** Handles backend API logic and the MCP stdio service.
+    *   Runs on: `http://localhost:3155` (by default, when `NODE_ENV` is `development`).
+
+The Next.js development server (port 4000) is configured to proxy API requests (`/api/ui/*`) to this API server (port 3155).
+
+**To start everything for local development:**
 ```bash
-# Ensure you have built the project first (npm run build)
-# This command starts the standalone server (typically on port 3001)
-npm start
+# Ensure environment variables are NOT overriding to production
+# (e.g., unset NODE_ENV or ensure it's 'development')
+npm run start:all
 ```
-Alternatively, you can run the compiled server file directly:
+Access the UI in your browser at `http://localhost:4000`. The API backend will be at `http://localhost:3155`.
+
+**B. Running API/MCP Server or Next.js UI Separately:**
+
+*   **API Server & MCP SDK only:**
+    ```bash
+    # This will run based on NODE_ENV.
+    # If NODE_ENV=development (or not set), it listens on UI_API_PORT (default 3155).
+    # If NODE_ENV=production, it tries to serve the built Next.js app on UI_API_PORT (default 4000).
+    npm run start 
+    ```
+*   **Next.js UI Development Server only:**
+    ```bash
+    npm run start-nextjs # Runs 'next dev -p 4000'
+    ```
+
+### 2. Running via a Host Application (e.g., Claude Desktop, Cursor)
+
+When this server is launched by an external host application (like Claude via its `claude_desktop_config.json`), the host application manages the lifecycle of the `standalone-server.js` process.
+
+**Prerequisite:** Always ensure your project is built, especially for production mode.
 ```bash
-node dist/standalone-server.js
+npm run preparepackage
 ```
-Check the console output for the specific port (e.g., 3001). This server is what external applications or the frontend UI will interact with for knowledge graph operations.
+This command compiles your TypeScript server to `dist/` and creates a production build of the Next.js app in `.next/`.
 
-### 2. Running the Frontend UI (Next.js Application)
+**A. Production Mode (Recommended for Host Application):**
 
-This provides a web interface for interacting with the knowledge graph.
+In this mode, the single `dist/standalone-server.js` process will:
+*   Serve the optimized Next.js UI.
+*   Handle all API requests.
+*   Run the MCP SDK server (for stdio communication with the host).
 
-```bash
-# This command starts the Next.js development server (typically on port 3000)
-npm run start-nextjs
+**Host Application Configuration (`claude_desktop_config.json` example):**
+```json
+{
+  "mcpServers": {
+    "mcp-knowledge-graph": {
+      "command": "node",
+      "args": [
+        // Absolute path to the built standalone server
+        "/path/to/your/mcp-knowledge-graph/dist/standalone-server.js"
+      ],
+      "cwd": "/path/to/your/mcp-knowledge-graph", // Absolute path to project root
+      "env": {
+        "NODE_ENV": "production",
+        "UI_API_PORT": "4000" // Port for combined UI and API
+      }
+    }
+    // ... other MCP server configurations ...
+  }
+}
 ```
-Alternatively, you can use the standard Next.js dev command:
-```bash
-npm run dev
-```
-Once started, you can access the UI in your browser, usually at `http://localhost:3000`. The frontend will communicate with the backend MCP server (started in step 1) for its data.
+*   Set `NODE_ENV` to `"production"`.
+*   Set `UI_API_PORT` to the desired port for the combined UI and API (e.g., `4000`).
+*   Ensure `cwd` points to your project's root directory.
+The host application will launch this server. Access the UI at the `UI_API_PORT` (e.g., `http://localhost:4000`).
 
-**Note:** Both the backend server and the frontend UI need to be running concurrently for the full application to work as intended.
+**B. Development Mode (for Debugging Backend with Host Application):**
+
+This setup is useful if you want the host application to manage your backend/MCP server (running `standalone-server.js`) while you actively develop the UI with hot-reloading separately.
+
+**Host Application Configuration (`claude_desktop_config.json` example):**
+```json
+{
+  "mcpServers": {
+    "mcp-knowledge-graph": {
+      "command": "node",
+      "args": [
+        // Absolute path to the built standalone server
+        "/path/to/your/mcp-knowledge-graph/dist/standalone-server.js"
+      ],
+      "cwd": "/path/to/your/mcp-knowledge-graph", // Absolute path to project root
+      "env": {
+        "NODE_ENV": "development",
+        "UI_API_PORT": "3155" // Port for the API server (UI runs separately)
+      }
+    }
+    // ... other MCP server configurations ...
+  }
+}
+```
+*   Set `NODE_ENV` to `"development"`.
+*   Set `UI_API_PORT` to the port your API backend should use (e.g., `3155`).
+*   The host application will launch `standalone-server.js`, which will *only* run the API and MCP SDK server on this port (e.g., 3155). It will **not** serve the Next.js UI.
+
+*   **To view the UI:** You **must manually start** the Next.js development server in a separate terminal:
+    ```bash
+    cd /path/to/your/mcp-knowledge-graph
+    npm run start-nextjs 
+    ```
+    This will typically run the UI on `http://localhost:4000`, which will then proxy API calls to the server managed by the host application (at `http://localhost:3155`).
+
+### MCP SDK Server (Stdio)
+
+In all the above scenarios where `standalone-server.js` (or `standalone-server.ts`) is run, it also initializes and runs the MCP SDK server. This server communicates over stdio by default and is intended for programmatic interaction by MCP-compatible clients (like the host application).
 
 ## Configuration
 
-### Host Application Configuration
+### Host Application Configuration (General Notes)
 
 To integrate this server with an MCP-compatible host application, you typically need to configure the host to launch the standalone server. The specific configuration method depends on the host application. Below is a *generic example* inspired by common patterns:
 
@@ -72,8 +167,13 @@ To integrate this server with an MCP-compatible host application, you typically 
         "/path/to/your/mcp-knowledge-graph/dist/standalone-server.js"
         // Optional: Additional arguments for the server can be added here
       ],
-      // Optional: Specify communication method (e.g., port, stdio) if needed by the host
-      "port": 3001 // Example if communicating via network port
+      // Set the Current Working Directory to the project root
+      "cwd": "/path/to/your/mcp-knowledge-graph",
+      // Define environment variables for the server process
+      "env": {
+        "NODE_ENV": "production", // Or "development"
+        "UI_API_PORT": "4000"     // Adjust port as needed (e.g., 3155 for dev API)
+      }
     }
     // ... potentially other MCP server configurations ...
   }

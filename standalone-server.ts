@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-// Reintroduce Express imports
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import next from 'next'; // Import next
+import path from 'path'; // Import path
 
 // Import SDK components
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -29,19 +30,32 @@ import * as knowledgeGraph from './lib/knowledgeGraph';
 
 // Removed MCP protocol message interfaces (handled by SDK)
 
-// Instantiate Session Manager (if needed by tool info functions)
+// Instantiate Session Manager
 const sessionManager = new SessionManager();
 
 // --- Create Express App for UI API ---
 const app = express();
-const uiApiPort = process.env.UI_API_PORT || 3155; // Default port changed to 3155
+const dev = process.env.NODE_ENV !== 'production';
 
-app.use(cors()); // Enable CORS for UI interaction
-app.use(express.json()); // Middleware to parse JSON bodies
+let resolvedUiApiPort;
+if (dev) {
+  // Part of 'npm run start:all', this is the API server for the Next.js dev server
+  resolvedUiApiPort = process.env.UI_API_PORT || 3155; 
+} else {
+  // 'npm run start:prod', this server handles both UI and API
+  resolvedUiApiPort = process.env.UI_API_PORT || 4000; 
+}
+
+const uiApiPort = resolvedUiApiPort;
+
+// --- Next.js Setup ---
+const nextApp = next({ dev, dir: path.resolve(__dirname, '..') });
+const nextHandler = nextApp.getRequestHandler();
+
+app.use(cors()); 
+app.use(express.json());
 
 // --- Define UI API Routes ---
-
-// Helper function for error handling
 const handleApiError = (res: Response, error: unknown, message: string) => {
     console.error(message, error);
     res.status(500).json({ error: message, details: error instanceof Error ? error.message : String(error) });
@@ -67,7 +81,6 @@ app.post('/api/ui/projects', async (req: Request, res: Response) => {
         if (newProject) {
             res.status(201).json(newProject);
         } else {
-            // Handle case where project creation failed (e.g., duplicate name)
              res.status(409).json({ error: `Project with name '${name}' might already exist or another creation error occurred.` });
         }
     } catch (error) {
@@ -94,7 +107,7 @@ app.delete('/api/ui/projects/:projectId', async (req: Request, res: Response) =>
         const { projectId } = req.params;
         const deleted = await projectManager.deleteProject(projectId);
         if (deleted) {
-            res.status(204).send(); // No content
+            res.status(204).send();
         } else {
             res.status(404).json({ error: 'Project not found or deletion failed' });
         }
@@ -103,12 +116,10 @@ app.delete('/api/ui/projects/:projectId', async (req: Request, res: Response) =>
     }
 });
 
-
 // == Entity Routes ==
 app.get('/api/ui/projects/:projectId/entities', async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
-        // Add any query param handling if needed (e.g., filtering by type)
         const entities = await knowledgeGraph.getAllEntities(projectId);
         res.json(entities);
     } catch (error) {
@@ -120,7 +131,6 @@ app.post('/api/ui/projects/:projectId/entities', async (req: Request, res: Respo
     try {
         const { projectId } = req.params;
         const { name, type, description, observations, parentId } = req.body;
-        // Basic validation
         if (!name || !type) {
              return res.status(400).json({ error: 'Entity name and type are required' });
         }
@@ -146,25 +156,16 @@ app.get('/api/ui/projects/:projectId/entities/:entityId', async (req: Request, r
 });
 
 app.put('/api/ui/projects/:projectId/entities/:entityId', async (req: Request, res: Response) => {
-    // Uncomment and implement the route for updating an entity
     try {
         const { projectId, entityId } = req.params;
-        // Body should contain only the fields to update
-        // Exclude id, handle observations separately if needed by backend function
         const updates = req.body;
-
-        // Basic validation: ensure body is not empty
         if (Object.keys(updates).length === 0) {
             return res.status(400).json({ error: 'Request body cannot be empty for update' });
         }
-
-        // Call the backend function
         const updatedEntity = await knowledgeGraph.updateEntity(projectId, entityId, updates);
-
         if (updatedEntity) {
             res.json(updatedEntity);
         } else {
-            // updateEntity returns null if entity not found or error occurred
             res.status(404).json({ error: `Entity ${entityId} not found or update failed.` });
         }
     } catch (error) {
@@ -191,17 +192,13 @@ app.post('/api/ui/projects/:projectId/entities/:entityId/observations', async (r
     try {
         const { projectId, entityId } = req.params;
         const { text } = req.body;
-
         if (!text) {
             return res.status(400).json({ error: 'Observation text is required' });
         }
-
         const result = await knowledgeGraph.addObservation(projectId, entityId, text);
-
         if (result && result.observation_id) {
-            res.status(201).json(result); // Return { observation_id: ... }
+            res.status(201).json(result);
         } else {
-            // Assuming null means entity not found or other error
             res.status(404).json({ error: `Failed to add observation to entity ${entityId}. Entity may not exist.` });
         }
     } catch (error) {
@@ -210,18 +207,13 @@ app.post('/api/ui/projects/:projectId/entities/:entityId/observations', async (r
 });
 
 app.delete('/api/ui/projects/:projectId/entities/:entityId/observations/:observationId', async (req: Request, res: Response) => {
-    // --- BEGIN ADDED LOGGING ---
     console.log(`[API DELETE /obs] Received request: projectId=${req.params.projectId}, entityId=${req.params.entityId}, observationId=${req.params.observationId}`);
-    // --- END ADDED LOGGING ---
     try {
         const { projectId, entityId, observationId } = req.params;
-
         const deleted = await knowledgeGraph.deleteObservation(projectId, entityId, observationId);
-
         if (deleted) {
-            res.status(204).send(); // No content on successful deletion
+            res.status(204).send(); 
         } else {
-            // False could mean entity not found, observation not found, or other error
             res.status(404).json({ error: `Observation ${observationId} not found on entity ${entityId}, or entity not found.` });
         }
     } catch (error) {
@@ -229,29 +221,19 @@ app.delete('/api/ui/projects/:projectId/entities/:entityId/observations/:observa
     }
 });
 
-// PUT /api/ui/projects/:projectId/entities/:entityId/observations/:observationId - Edit an observation
 app.put('/api/ui/projects/:projectId/entities/:entityId/observations/:observationId', async (req: Request, res: Response) => {
-    // --- BEGIN ADDED LOGGING ---
     console.log(`[API PUT /obs] Received request: projectId=${req.params.projectId}, entityId=${req.params.entityId}, observationId=${req.params.observationId}`);
     console.log(`[API PUT /obs] Request body:`, req.body);
-    // --- END ADDED LOGGING ---
     try {
         const { projectId, entityId, observationId } = req.params;
         const { text } = req.body;
-
         if (typeof text !== 'string' || text.trim() === '') {
              return res.status(400).json({ error: 'Observation text cannot be empty' });
         }
-
-        // We need to import `editObservation` from `lib/knowledgeGraph`
-        // Assuming it returns the updated observation or null/throws on error
         const updatedObservation = await knowledgeGraph.editObservation(projectId, entityId, observationId, text);
-
         if (updatedObservation) {
-            // Return the updated observation (or just status 200/204 if preferred)
              res.status(200).json(updatedObservation); 
         } else {
-            // Could be entity not found, observation not found, or other DB error
             res.status(404).json({ error: `Failed to update observation ${observationId}. Entity or observation may not exist.` });
         }
     } catch (error) {
@@ -263,23 +245,18 @@ app.put('/api/ui/projects/:projectId/entities/:entityId/observations/:observatio
 app.get('/api/ui/projects/:projectId/entities/:entityId/related', async (req: Request, res: Response) => {
     try {
         const { projectId, entityId } = req.params;
-        // Extract query parameters for filtering
         const { type, direction } = req.query;
-
-        // Validate direction if provided
         const validDirections = ['incoming', 'outgoing', 'both'];
-        let validatedDirection: 'incoming' | 'outgoing' | 'both' = 'both'; // Default
+        let validatedDirection: 'incoming' | 'outgoing' | 'both' = 'both';
         if (direction && typeof direction === 'string' && validDirections.includes(direction)) {
             validatedDirection = direction as 'incoming' | 'outgoing' | 'both';
         }
-
         const relatedEntities = await knowledgeGraph.getRelatedEntities(
             projectId,
             entityId,
-            type as string | undefined, // Pass type string directly
+            type as string | undefined,
             validatedDirection
         );
-
         res.json(relatedEntities);
     } catch (error) {
         handleApiError(res, error, `Failed to get related entities for ${req.params.entityId}`);
@@ -290,10 +267,9 @@ app.get('/api/ui/projects/:projectId/entities/:entityId/related', async (req: Re
 app.get('/api/ui/projects/:projectId/relationships', async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
-        const { sourceId, targetId, type } = req.query; // Allow optional filtering
+        const { sourceId, targetId, type } = req.query;
         const relationships = await knowledgeGraph.getRelationships(
             projectId,
-            // Pass filters as an object
             {
                  fromId: sourceId as string | undefined,
                  toId: targetId as string | undefined,
@@ -323,11 +299,7 @@ app.post('/api/ui/projects/:projectId/relationships', async (req: Request, res: 
 app.delete('/api/ui/projects/:projectId/relationships/:relationshipId', async (req: Request, res: Response) => {
     try {
         const { projectId, relationshipId } = req.params;
-         // Note: knowledgeGraph.ts might need a deleteRelationship function by ID
-         // Assuming deleteRelationship function exists or needs modification.
-         // For now, let's assume it exists and takes projectId and relationshipId
-         // If it doesn't exist, this route will fail until it's implemented in knowledgeGraph.ts
-         const deleted = await knowledgeGraph.deleteRelationship(projectId, relationshipId); // Adjust if function signature differs
+         const deleted = await knowledgeGraph.deleteRelationship(projectId, relationshipId);
          if (deleted) {
              res.status(204).send();
          } else {
@@ -338,39 +310,33 @@ app.delete('/api/ui/projects/:projectId/relationships/:relationshipId', async (r
      }
  });
 
-
 // == Graph Data Route ==
 app.get('/api/ui/projects/:projectId/graph', async (req: Request, res: Response) => {
-    // Uncomment and implement the route for getting graph data
      try {
         const { projectId } = req.params;
         const graphData = await knowledgeGraph.getGraphData(projectId);
-        res.json(graphData); // Returns { nodes: [], links: [] }
+        res.json(graphData);
     } catch (error) {
         handleApiError(res, error, `Failed to get graph data for project ${req.params.projectId}`);
     }
 });
 
 // --- Create MCP SDK Server instance ---
-const server = new Server({
+const mcpServer = new Server({ // Renamed to mcpServer to avoid conflict with Express 'Server' type
     name: "standalone-mcp-server",
     version: "1.0.0",
 }, {
     capabilities: {
-        tools: {}, // Indicate tool capability
-        // Add declarations for resources and prompts
+        tools: {}, 
         resources: {},
         prompts: {},
     },
 });
 
-// --- Get Tool Definitions and Handlers ---
-// Pass sessionManager if the get...Info functions require it
 const kgToolInfo = getKnowledgeGraphToolInfo(sessionManager);
 const projectToolInfo = getProjectToolInfo(sessionManager);
 const initSessionToolInfo = getInitSessionToolInfo(sessionManager);
 
-// Combine tool definitions and handlers
 const allToolDefinitions = [
     ...kgToolInfo.definitions,
     ...projectToolInfo.definitions,
@@ -382,28 +348,18 @@ const allToolHandlers = {
     ...initSessionToolInfo.handlers
 };
 
-// --- Register SDK Handlers ---
-
-// Handler for listTools request
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-    // Log that tools are being listed (use console.error for stderr)
+mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
     console.error(`Listing ${allToolDefinitions.length} tools.`);
     return {
         tools: allToolDefinitions,
     };
 });
 
-// Handler for callTool request
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    // Use the SessionManager's default ID for stdio context
-    const currentSessionId = undefined; // Explicitly undefined for stdio context
-
+    const currentSessionId = undefined; 
     console.error(`[CallTool] Received request for: ${name} (Session Context: ${sessionManager.hasActiveProjectContext(currentSessionId) ? `Project ${sessionManager.getActiveProjectContext(currentSessionId)?.projectId}` : 'None'})`);
-
     let activeProjectId: string | null = null;
-
-    // --- Session Initialization Check and Project ID retrieval ---
     if (name !== 'init_session') {
         const context = sessionManager.getActiveProjectContext(currentSessionId);
         if (!context) {
@@ -412,33 +368,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         activeProjectId = context.projectId;
     }
-    // --- End Check ---
-
     const handler = allToolHandlers[name];
     if (!handler) {
         console.error(`Method not found: ${name}`);
         throw new McpError(-32601, `Method not found: ${name}`);
     }
-
     const handlerArgs = args || {};
-    // Combine original args with the retrieved project ID (if applicable)
     const combinedArgs = activeProjectId ? { ...handlerArgs, project_id: activeProjectId } : handlerArgs;
-
     try {
-        // Pass the combined arguments to the handler
         const result = await handler(combinedArgs);
-        console.error(`[CallTool] Tool ${name} executed successfully.`); // Log success
-
-        // Check if the handler itself indicated an error (optional pattern)
+        console.error(`[CallTool] Tool ${name} executed successfully.`);
         if (result?.isError) {
              console.warn(`[CallTool] Handler for ${name} indicated an error:`, result.content);
-             // Consider throwing McpError here for consistency if possible
         }
-
-        return result; // Directly return the { content: [...] } object
+        return result;
     } catch (error) {
         console.error(`[CallTool] Error executing tool ${name}:`, error);
-        // If the error is already an McpError, rethrow it, otherwise wrap it
         if (error instanceof McpError) {
             throw error;
         }
@@ -446,44 +391,46 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 });
 
-// --- Add Dummy Handlers for listResources and listPrompts ---
-
-// Handler for listResources (return empty list)
-// Replace 'ListResourcesRequestSchema' if the actual schema name differs
-server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    // console.error("Received listResources request (returning empty)."); // Optional: remove for less noise
+mcpServer.setRequestHandler(ListResourcesRequestSchema, async () => {
     return {
         resources: [],
     };
 });
 
-// Handler for listPrompts (return empty list)
-// Replace 'ListPromptsRequestSchema' if the actual schema name differs
-server.setRequestHandler(ListPromptsRequestSchema, async () => {
-    // console.error("Received listPrompts request (returning empty)."); // Optional: remove for less noise
+mcpServer.setRequestHandler(ListPromptsRequestSchema, async () => {
     return {
         prompts: [],
     };
 });
 
-// --- Main function to connect server ---
 async function main() {
-    // Start the Express server for UI API
-    app.listen(uiApiPort, () => {
-        console.error(`🚀 UI API Server listening on port ${uiApiPort}`);
-    });
+    try {
+        await nextApp.prepare(); 
 
-    // Connect the MCP SDK server via Stdio
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    // Log to stderr as stdout is used for MCP communication
-    console.error("🚀 MCP Server (SDK/Stdio) is running.");
+        // Catch-all for Next.js pages - THIS MUST BE LAST for Express routing
+        app.all('*', (req: Request, res: Response) => {
+            return nextHandler(req, res);
+        });
+        
+        // Start the Express server (which now also serves Next.js pages)
+        app.listen(uiApiPort, () => {
+            console.error(`🚀 HTTP Server (UI & API) listening on port ${uiApiPort}`);
+            if (!dev) {
+                console.error(`Production UI available at http://localhost:${uiApiPort}`);
+            }
+        });
+
+        const transport = new StdioServerTransport();
+        await mcpServer.connect(transport); // Use mcpServer
+        console.error("🚀 MCP Server (SDK/Stdio) is running.");
+
+    } catch (ex) {
+        console.error("❌ Fatal error during server startup:", ex);
+        process.exit(1);
+    }
 }
 
-// --- Start the server ---
 main().catch((error) => {
-    console.error("❌ Fatal error:", error);
+    console.error("❌ Fatal error in main:", error); // Added more specific error logging
     process.exit(1);
-});
-
-// Removed app.listen() // This comment is now inaccurate as we added app.listen above 
+}); 
