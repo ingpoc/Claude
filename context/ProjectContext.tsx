@@ -2,7 +2,7 @@
 
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 // Explicitly import only types from lib
-import type { Entity, Relationship } from '../lib/knowledgeGraph'; 
+import type { Entity, Relationship } from '../lib/services'; 
 import {
     createEntity,
     createRelationship,

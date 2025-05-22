@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, FolderIcon, FileIcon, Code, GitBranch, Search, PlusSquare } from 'lucide-react';
 import Link from 'next/link';
-import type { Entity } from '../../lib/knowledgeGraph';
+import type { Entity } from '../../lib/services';
 import EntityTree from '../../components/EntityTree';
 import { cn } from '../../lib/utils';
 import { Input } from '../ui/input';

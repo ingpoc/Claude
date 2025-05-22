@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Link2, ArrowRight, Info, Clock, Hash, FilePlus, Edit, Trash2, Save, XCircle } from 'lucide-react';
-import type { Entity, Relationship, Observation } from '../lib/knowledgeGraph'; // Reverted path
+import type { Entity, Relationship, Observation } from '../lib/services';
 import { RelationshipTypes } from '../lib/constants'; // Reverted path
 import { useProject } from '../context/ProjectContext'; // Reverted path
 import { cn } from "../lib/utils"; // Reverted path

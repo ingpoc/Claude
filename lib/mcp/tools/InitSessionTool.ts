@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js'; // Use Tool type
 import { SessionManager } from '../SessionManager'; // Adjust path if needed
 import * as projectManager from '../../projectManager'; // Corrected path
-import * as knowledgeGraph from '../../knowledgeGraph'; // Corrected path
+import { knowledgeGraphService } from '../../services';
 import path from 'path'; // Import path for basename
 import { McpError } from "@modelcontextprotocol/sdk/types.js"; // Corrected Import
 
@@ -93,8 +93,16 @@ const handleInitSession = (sessionManager: SessionManager): InitSessionHandler =
 
             // --- Retrieve Context and Update Session ---
             console.error(`[InitSession] Using project: ${project.id} (${project.name})`);
-            const graphContext = await knowledgeGraph.getProjectContext(project.id);
-            version = graphContext?.version || project.createdAt || new Date().toISOString(); // Use existing version or creation time
+                    // Note: getProjectContext is not available in new service architecture
+        const graphData = await knowledgeGraphService.getGraphData(project.id);
+        const graphContext = { 
+          version: project.createdAt || new Date().toISOString(),
+          details: { 
+            entities: graphData.nodes.length, 
+            relationships: graphData.links.length 
+          } 
+        };
+        version = graphContext.version; // Use existing version or creation time
             // Only overwrite contextSummary if it wasn't set during creation
             if (contextSummary === null) {
                  contextSummary = graphContext?.details || {}; 

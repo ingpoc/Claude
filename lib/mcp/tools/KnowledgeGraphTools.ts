@@ -3,23 +3,15 @@ import { z } from 'zod';
 // import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SessionManager } from '../SessionManager'; // Keep for now if handlers use it, though projectId source will change
 
-// Import the knowledge graph backend (assuming these work with projectId directly)
+// Import the knowledge graph service
 import {
-  createEntity as createEntityDb, // Renamed to avoid conflict
-  createRelationship as createRelationshipDb, // Renamed
-  addObservation as addObservationDb, // Renamed
-  deleteEntity as deleteEntityDb, // Renamed
-  deleteRelationship as deleteRelationshipDb, // Renamed
-  deleteObservation as deleteObservationDb, // Renamed
-  getEntity as getEntityDb, // Renamed
-  getRelationships as getRelationshipsDb, // Renamed
-  getRelatedEntities as getRelatedEntitiesDb, // Renamed
-  updateEntityDescription as updateEntityDescriptionDb, // Renamed
-  getAllEntities as listEntitiesDb,
+  knowledgeGraphService,
   type Entity,
-  type Relationship, // Assuming this type exists
-  type Observation // Assuming this type exists
-} from "../../knowledgeGraph";
+  type Relationship,
+  type Observation,
+  type CreateEntityRequest,
+  type CreateRelationshipRequest
+} from "../../services";
 
 // Import Tool type from SDK
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -126,14 +118,13 @@ const createEntityHandler = async (args: ToolArgs<typeof createEntitySchemaDef>)
         : [];
 
     // Project ID now comes from args
-    const entity = await createEntityDb(
-      args.project_id,
-      args.name,
-      args.type,
-      args.description,
-      observationsArray, // Pass the parsed array
-      args.parentId
-    );
+    const entity = await knowledgeGraphService.createEntity(args.project_id, {
+      name: args.name,
+      type: args.type,
+      description: args.description,
+      observationsText: observationsArray,
+      parentId: args.parentId
+    });
 
     if (!entity) {
       return {
@@ -153,13 +144,12 @@ const createEntityHandler = async (args: ToolArgs<typeof createEntitySchemaDef>)
 
 const createRelationshipHandler = async (args: ToolArgs<typeof createRelationshipSchemaDef>) => {
   try {
-    const rel = await createRelationshipDb(
-      args.project_id,
-      args.source_id,
-      args.target_id,
-      args.type,
-      args.description
-    );
+    const rel = await knowledgeGraphService.createRelationship(args.project_id, {
+      fromEntityId: args.source_id,
+      toEntityId: args.target_id,
+      type: args.type,
+      description: args.description
+    });
 
     if (!rel) {
       return {
@@ -180,7 +170,7 @@ const createRelationshipHandler = async (args: ToolArgs<typeof createRelationshi
 
 const addObservationHandler = async (args: ToolArgs<typeof addObservationSchemaDef>) => {
   try {
-    const result = await addObservationDb(
+    const result = await knowledgeGraphService.addObservation(
       args.project_id,
       args.entity_id,
       args.observation
@@ -204,214 +194,202 @@ const addObservationHandler = async (args: ToolArgs<typeof addObservationSchemaD
 };
 
 const getEntityHandler = async (args: ToolArgs<typeof getEntitySchemaDef>) => {
-    try {
-      const entity = await getEntityDb(args.project_id, args.entity_id);
-      if (!entity) {
-        return {
-          content: [{ type: "text" as const, text: `Error: Entity not found (ID: ${args.entity_id}).` }],
-          isError: true
-        };
-      }
-      return { content: [{ type: "text" as const, text: JSON.stringify(entity) }] };
-    } catch (error) {
-      console.error("Error in getEntityHandler:", error);
+  try {
+    const entity = await knowledgeGraphService.getEntity(args.project_id, args.entity_id);
+    
+    if (!entity) {
       return {
-        content: [{ type: "text" as const, text: `Error getting entity: ${error instanceof Error ? error.message : String(error)}` }],
+        content: [{ type: "text" as const, text: "Error: Entity not found." }],
         isError: true
       };
     }
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(entity) }] };
+  } catch (error) {
+    console.error("Error in getEntityHandler:", error);
+    return {
+      content: [{ type: "text" as const, text: `Error retrieving entity: ${error instanceof Error ? error.message : String(error)}` }],
+      isError: true
+    };
+  }
 };
 
 const listEntitiesHandler = async (args: ToolArgs<typeof listEntitiesSchemaDef>) => {
-    try {
-      // Call with only project_id
-      let entities = await listEntitiesDb(args.project_id);
-
-      // Filter by type if provided
-      if (args.type) {
-        entities = entities.filter((entity: any) => entity.type === args.type);
-      }
-
-      return { content: [{ type: "text" as const, text: JSON.stringify(entities) }] };
-    } catch (error) {
-      console.error("Error in listEntitiesHandler:", error);
-      return {
-        content: [{ type: "text" as const, text: `Error listing entities: ${error instanceof Error ? error.message : String(error)}` }],
-        isError: true
-      };
+  try {
+    let entities = await knowledgeGraphService.getAllEntities(args.project_id, args.type);
+    
+    if (args.type) {
+      entities = entities.filter(entity => entity.type === args.type);
     }
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(entities) }] };
+  } catch (error) {
+    console.error("Error in listEntitiesHandler:", error);
+    return {
+      content: [{ type: "text" as const, text: `Error listing entities: ${error instanceof Error ? error.message : String(error)}` }],
+      isError: true
+    };
+  }
 };
 
 const getRelatedEntitiesHandler = async (args: ToolArgs<typeof getRelatedEntitiesSchemaDef>) => {
-    try {
-      const relatedEntities = await getRelatedEntitiesDb(
-        args.project_id,
-        args.entity_id
-      );
-      return { content: [{ type: "text" as const, text: JSON.stringify(relatedEntities) }] };
-    } catch (error) {
-      console.error("Error in getRelatedEntitiesHandler:", error);
-      return {
-        content: [{ type: "text" as const, text: `Error getting related entities: ${error instanceof Error ? error.message : String(error)}` }],
-        isError: true
-      };
-    }
+  try {
+    const relatedEntities = await knowledgeGraphService.getRelatedEntities(
+      args.project_id,
+      args.entity_id,
+      args.relationship_type,
+      args.direction
+    );
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(relatedEntities) }] };
+  } catch (error) {
+    console.error("Error in getRelatedEntitiesHandler:", error);
+    return {
+      content: [{ type: "text" as const, text: `Error getting related entities: ${error instanceof Error ? error.message : String(error)}` }],
+      isError: true
+    };
+  }
 };
 
 const getRelationshipsHandler = async (args: ToolArgs<typeof getRelationshipsSchemaDef>) => {
-    try {
-      let relationships: any[]; // Use appropriate Relationship type if available
+  try {
+    // Create filter object
+    const filter: { fromId?: string, toId?: string, type?: string } = {};
 
-      if (args.direction === 'both') {
-        // Fetch all (or filtered by type) and filter direction manually
-        const filter: { type?: string } = {};
-        if (args.relationship_type) {
-          filter.type = args.relationship_type;
-        }
-        const allRelationships = await getRelationshipsDb(args.project_id, filter);
-        relationships = allRelationships.filter((rel: any) => 
-            rel.source_id === args.entity_id || rel.target_id === args.entity_id
-        );
-      } else {
-        // Fetch filtered by direction and optionally type
-        const filter: { fromId?: string; toId?: string; type?: string } = {};
-        if (args.direction === 'outgoing') {
-          filter.fromId = args.entity_id;
-        } else { // direction === 'incoming'
-          filter.toId = args.entity_id;
-        }
-        if (args.relationship_type) {
-          filter.type = args.relationship_type;
-        }
-        relationships = await getRelationshipsDb(args.project_id, filter);
+    if (args.direction === 'outgoing') {
+      filter.fromId = args.entity_id;
+    } else if (args.direction === 'incoming') {
+      filter.toId = args.entity_id;
+    } else {
+      // For 'both', we need to get relationships where the entity is either source or target
+      const allRelationships = await knowledgeGraphService.getRelationships(args.project_id, filter);
+      let relationships = allRelationships.filter(rel => 
+        rel.from === args.entity_id || rel.to === args.entity_id
+      );
+      
+      if (args.relationship_type) {
+        relationships = relationships.filter(rel => rel.type === args.relationship_type);
       }
-
+      
       return { content: [{ type: "text" as const, text: JSON.stringify(relationships) }] };
-    } catch (error) {
-      console.error("Error in getRelationshipsHandler:", error);
-      return {
-        content: [{ type: "text" as const, text: `Error getting relationships: ${error instanceof Error ? error.message : String(error)}` }],
-        isError: true
-      };
     }
+
+    if (args.relationship_type) {
+      filter.type = args.relationship_type;
+    }
+
+    let relationships = await knowledgeGraphService.getRelationships(args.project_id, filter);
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(relationships) }] };
+  } catch (error) {
+    console.error("Error in getRelationshipsHandler:", error);
+    return {
+      content: [{ type: "text" as const, text: `Error getting relationships: ${error instanceof Error ? error.message : String(error)}` }],
+      isError: true
+    };
+  }
 };
 
 const updateEntityDescriptionHandler = async (args: ToolArgs<typeof updateEntityDescriptionSchemaDef>) => {
-    try {
-      const success = await updateEntityDescriptionDb(
-          args.project_id,
-          args.entity_id,
-          args.description
-      );
-      if (!success) {
-           return {
-                content: [{ type: "text" as const, text: `Error: Failed to update description for entity ${args.entity_id}.`}],
-                isError: true
-            };
-      }
-      return { content: [{ type: "text" as const, text: `Description updated successfully for entity ${args.entity_id}.` }] };
-    } catch (error) {
-      console.error("Error in updateEntityDescriptionHandler:", error);
+  try {
+    const success = await knowledgeGraphService.updateEntity(
+      args.project_id,
+      args.entity_id,
+      { description: args.description }
+    );
+
+    if (!success) {
       return {
-        content: [{ type: "text" as const, text: `Error updating entity description: ${error instanceof Error ? error.message : String(error)}` }],
+        content: [{ type: "text" as const, text: "Error: Failed to update entity description." }],
         isError: true
       };
     }
+
+    return { content: [{ type: "text" as const, text: "Entity description updated successfully." }] };
+  } catch (error) {
+    console.error("Error in updateEntityDescriptionHandler:", error);
+    return {
+      content: [{ type: "text" as const, text: `Error updating entity description: ${error instanceof Error ? error.message : String(error)}` }],
+      isError: true
+    };
+  }
 };
 
 const deleteEntityHandler = async (args: ToolArgs<typeof deleteEntitySchemaDef>) => {
-    try {
-        const success = await deleteEntityDb(args.project_id, args.entity_id);
-         if (!success) {
-            return {
-                content: [{ type: "text" as const, text: `Error: Failed to delete entity ${args.entity_id}.`}],
-                isError: true
-            };
-        }
-        return { content: [{ type: "text" as const, text: `Entity ${args.entity_id} deleted successfully.` }] };
-    } catch (error) {
-        console.error("Error in deleteEntityHandler:", error);
-         return {
-            content: [{ type: "text" as const, text: `Error deleting entity: ${error instanceof Error ? error.message : String(error)}` }],
-            isError: true
-        };
+  try {
+    const success = await knowledgeGraphService.deleteEntity(args.project_id, args.entity_id);
+
+    if (!success) {
+      return {
+        content: [{ type: "text" as const, text: "Error: Failed to delete entity." }],
+        isError: true
+      };
     }
+
+    return { content: [{ type: "text" as const, text: "Entity deleted successfully." }] };
+  } catch (error) {
+    console.error("Error in deleteEntityHandler:", error);
+    return {
+      content: [{ type: "text" as const, text: `Error deleting entity: ${error instanceof Error ? error.message : String(error)}` }],
+      isError: true
+    };
+  }
 };
 
 const deleteRelationshipHandler = async (args: ToolArgs<typeof deleteRelationshipSchemaDef>) => {
-    try {
-        const success = await deleteRelationshipDb(args.project_id, args.relationship_id);
-         if (!success) {
-            return {
-                content: [{ type: "text" as const, text: `Error: Failed to delete relationship ${args.relationship_id}.`}],
-                isError: true
-            };
-        }
-        return { content: [{ type: "text" as const, text: `Relationship ${args.relationship_id} deleted successfully.` }] };
-    } catch (error) {
-        console.error("Error in deleteRelationshipHandler:", error);
-         return {
-            content: [{ type: "text" as const, text: `Error deleting relationship: ${error instanceof Error ? error.message : String(error)}` }],
-            isError: true
-        };
+  try {
+    const success = await knowledgeGraphService.deleteRelationship(args.project_id, args.relationship_id);
+
+    if (!success) {
+      return {
+        content: [{ type: "text" as const, text: "Error: Failed to delete relationship." }],
+        isError: true
+      };
     }
+
+    return { content: [{ type: "text" as const, text: "Relationship deleted successfully." }] };
+  } catch (error) {
+    console.error("Error in deleteRelationshipHandler:", error);
+    return {
+      content: [{ type: "text" as const, text: `Error deleting relationship: ${error instanceof Error ? error.message : String(error)}` }],
+      isError: true
+    };
+  }
 };
 
 const deleteObservationHandler = async (args: ToolArgs<typeof deleteObservationSchemaDef>) => {
-     try {
-        const success = await deleteObservationDb(args.project_id, args.entity_id, args.observation_id);
-         if (!success) {
-            return {
-                content: [{ type: "text" as const, text: `Error: Failed to delete observation ${args.observation_id}.`}],
-                isError: true
-            };
-        }
-        return { content: [{ type: "text" as const, text: `Observation ${args.observation_id} deleted successfully.` }] };
-    } catch (error) {
-        console.error("Error in deleteObservationHandler:", error);
-         return {
-            content: [{ type: "text" as const, text: `Error deleting observation: ${error instanceof Error ? error.message : String(error)}` }],
-            isError: true
-        };
+  try {
+    const success = await knowledgeGraphService.deleteObservation(args.project_id, args.entity_id, args.observation_id);
+
+    if (!success) {
+      return {
+        content: [{ type: "text" as const, text: "Error: Failed to delete observation." }],
+        isError: true
+      };
     }
+
+    return { content: [{ type: "text" as const, text: "Observation deleted successfully." }] };
+  } catch (error) {
+    console.error("Error in deleteObservationHandler:", error);
+    return {
+      content: [{ type: "text" as const, text: `Error deleting observation: ${error instanceof Error ? error.message : String(error)}` }],
+      isError: true
+    };
+  }
 };
 
+// --- Export Tool Information ---
 
-// --- Assemble Definitions and Handlers ---
-
-// Function to export tool definitions and handlers
-// Note: sessionManager is passed but not used currently, as project_id comes from args
+// This function now returns an array of Tools instead of registering them
 export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
-
-  const definitions: Tool[] = [
+  const tools: Tool[] = [
     {
       name: "create_entity",
       description: "Registers a new entity (like a file, function, concept) in the knowledge graph for the active project.",
       inputSchema: {
         type: "object",
-        properties: {
-          name: {
-            type: "string",
-            description: "The primary name or identifier of the entity (e.g., 'src/components/Button.tsx', 'calculateTotal', 'UserAuthenticationFeature')."
-          },
-          type: {
-            type: "string",
-            description: "The classification of the entity (e.g., 'file', 'function', 'class', 'variable', 'module', 'concept', 'feature', 'requirement')."
-          },
-          description: {
-            type: "string",
-            description: "A brief description of the entity's purpose or role."
-          },
-          observations: {
-            type: "string",
-            description: "Optional single string containing initial observations about this entity. Separate multiple observations with newlines (\\\\n)."
-          },
-          parentId: {
-            type: "string",
-            description: "Optional ID of the parent entity."
-          }
-        },
-        required: ["name", "type", "description"]
+        properties: createEntitySchemaDef,
+        required: ["project_id", "name", "type", "description"]
       }
     },
     {
@@ -419,25 +397,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Defines a relationship between two existing entities within the active project.",
       inputSchema: {
         type: "object",
-        properties: {
-          source_id: {
-            type: "string",
-            description: "The unique ID of the source entity."
-          },
-          target_id: {
-            type: "string",
-            description: "The unique ID of the target entity."
-          },
-          type: {
-            type: "string",
-            description: "The type of relationship (e.g., 'calls', 'contains', 'implements', 'related_to')."
-          },
-          description: {
-            type: "string",
-            description: "An optional description for the relationship."
-          }
-        },
-        required: ["source_id", "target_id", "type"]
+        properties: createRelationshipSchemaDef,
+        required: ["project_id", "source_id", "target_id", "type"]
       }
     },
     {
@@ -445,17 +406,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Adds a specific textual observation to an existing entity within the active project.",
       inputSchema: {
         type: "object",
-        properties: {
-          entity_id: {
-            type: "string",
-            description: "The unique ID of the entity to add the observation to."
-          },
-          observation: {
-            type: "string",
-            description: "The textual observation to add."
-          }
-        },
-        required: ["entity_id", "observation"]
+        properties: addObservationSchemaDef,
+        required: ["project_id", "entity_id", "observation"]
       }
     },
     {
@@ -463,13 +415,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Retrieves details for a specific entity within the active project.",
       inputSchema: {
         type: "object",
-        properties: {
-          entity_id: {
-            type: "string",
-            description: "The unique ID of the entity to retrieve."
-          }
-        },
-        required: ["entity_id"]
+        properties: getEntitySchemaDef,
+        required: ["project_id", "entity_id"]
       }
     },
     {
@@ -477,12 +424,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Lists entities within the active project, optionally filtered by type.",
       inputSchema: {
         type: "object",
-        properties: {
-          type: {
-            type: "string",
-            description: "Optional filter to list entities only of a specific type."
-          }
-        }
+        properties: listEntitiesSchemaDef,
+        required: ["project_id"]
       }
     },
     {
@@ -490,23 +433,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Finds entities related to a specific entity within the active project, optionally filtering by relationship type and direction.",
       inputSchema: {
         type: "object",
-        properties: {
-          entity_id: {
-            type: "string",
-            description: "The ID of the entity to find related entities for."
-          },
-          relationship_type: {
-            type: "string",
-            description: "Optional filter by relationship type."
-          },
-          direction: {
-            type: "string",
-            enum: ["incoming", "outgoing", "both"],
-            default: "both",
-            description: "Direction of relationships to consider ('incoming', 'outgoing', 'both'). Default is 'both'."
-          }
-        },
-        required: ["entity_id"]
+        properties: getRelatedEntitiesSchemaDef,
+        required: ["project_id", "entity_id"]
       }
     },
     {
@@ -514,23 +442,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Retrieves relationships connected to a specific entity within the active project, optionally filtering by type and direction.",
       inputSchema: {
         type: "object",
-        properties: {
-          entity_id: {
-            type: "string",
-            description: "The ID of the entity to get relationships for."
-          },
-          relationship_type: {
-            type: "string",
-            description: "Optional filter by relationship type."
-          },
-          direction: {
-            type: "string",
-            enum: ["incoming", "outgoing", "both"],
-            default: "both",
-            description: "Direction of relationships to consider ('incoming', 'outgoing', 'both'). Default is 'both'."
-          }
-        },
-        required: ["entity_id"]
+        properties: getRelationshipsSchemaDef,
+        required: ["project_id", "entity_id"]
       }
     },
     {
@@ -538,17 +451,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Updates the description of a specific entity within the active project.",
       inputSchema: {
         type: "object",
-        properties: {
-          entity_id: {
-            type: "string",
-            description: "The unique ID of the entity to update."
-          },
-          description: {
-            type: "string",
-            description: "The new description for the entity."
-          }
-        },
-        required: ["entity_id", "description"]
+        properties: updateEntityDescriptionSchemaDef,
+        required: ["project_id", "entity_id", "description"]
       }
     },
     {
@@ -556,13 +460,8 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Deletes a specific entity and its associated observations and relationships within the active project.",
       inputSchema: {
         type: "object",
-        properties: {
-          entity_id: {
-            type: "string",
-            description: "The unique ID of the entity to delete."
-          }
-        },
-        required: ["entity_id"]
+        properties: deleteEntitySchemaDef,
+        required: ["project_id", "entity_id"]
       }
     },
     {
@@ -570,16 +469,7 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Deletes a specific relationship between entities within a project.",
       inputSchema: {
         type: "object",
-        properties: {
-          project_id: {
-            type: "string",
-            description: "The ID of the project context for this operation."
-          },
-          relationship_id: {
-            type: "string",
-            description: "The unique ID of the relationship to delete."
-          }
-        },
+        properties: deleteRelationshipSchemaDef,
         required: ["project_id", "relationship_id"]
       }
     },
@@ -588,36 +478,29 @@ export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
       description: "Deletes a specific observation associated with an entity within the active project.",
       inputSchema: {
         type: "object",
-        properties: {
-          entity_id: {
-            type: "string",
-            description: "The ID of the entity the observation belongs to."
-          },
-          observation_id: {
-            type: "string",
-            description: "The unique ID of the observation to delete."
-          }
-        },
-        required: ["entity_id", "observation_id"]
+        properties: deleteObservationSchemaDef,
+        required: ["project_id", "entity_id", "observation_id"]
       }
     }
   ];
 
-  const handlers = {
-    create_entity: createEntityHandler,
-    create_relationship: createRelationshipHandler,
-    add_observation: addObservationHandler,
-    get_entity: getEntityHandler,
-    list_entities: listEntitiesHandler,
-    get_related_entities: getRelatedEntitiesHandler,
-    get_relationships: getRelationshipsHandler,
-    update_entity_description: updateEntityDescriptionHandler,
-    delete_entity: deleteEntityHandler,
-    delete_relationship: deleteRelationshipHandler,
-    delete_observation: deleteObservationHandler,
+  // Return tool information with handlers
+  return {
+    tools,
+    handlers: {
+      "create_entity": createEntityHandler,
+      "create_relationship": createRelationshipHandler,
+      "add_observation": addObservationHandler,
+      "get_entity": getEntityHandler,
+      "list_entities": listEntitiesHandler,
+      "get_related_entities": getRelatedEntitiesHandler,
+      "get_relationships": getRelationshipsHandler,
+      "update_entity_description": updateEntityDescriptionHandler,
+      "delete_entity": deleteEntityHandler,
+      "delete_relationship": deleteRelationshipHandler,
+      "delete_observation": deleteObservationHandler
+    }
   };
-
-  return { definitions, handlers };
 }
 
 // Removed the old registerKnowledgeGraphTools function 

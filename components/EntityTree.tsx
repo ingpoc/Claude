@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Box, File, Folder, Database, Settings, Layout, Code, FileCode, Globe, FileJson } from 'lucide-react';
-import { Entity } from '../lib/knowledgeGraph';
+import { Entity } from '../lib/services';
 import { cn } from '../lib/utils';
 
 interface EntityTreeProps {

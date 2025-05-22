@@ -26,9 +26,8 @@ import { getInitSessionToolInfo } from './lib/mcp/tools/InitSessionTool';
 
 // Import project and graph functions needed for UI API
 import * as projectManager from './lib/projectManager';
-import * as knowledgeGraph from './lib/knowledgeGraph';
-
-// Removed MCP protocol message interfaces (handled by SDK)
+import { knowledgeGraphService } from './lib/services/KnowledgeGraphService';
+import { logger } from './lib/services/Logger';
 
 // Instantiate Session Manager
 const sessionManager = new SessionManager();
@@ -37,13 +36,13 @@ const sessionManager = new SessionManager();
 const app = express();
 const dev = process.env.NODE_ENV !== 'production';
 
-let resolvedUiApiPort;
+let resolvedUiApiPort: number;
 if (dev) {
   // Part of 'npm run start:all', this is the API server for the Next.js dev server
-  resolvedUiApiPort = process.env.UI_API_PORT || 3155; 
+  resolvedUiApiPort = parseInt(process.env.UI_API_PORT || '3155', 10); 
 } else {
   // 'npm run start:prod', this server handles both UI and API
-  resolvedUiApiPort = process.env.UI_API_PORT || 4000; 
+  resolvedUiApiPort = parseInt(process.env.UI_API_PORT || '4000', 10); 
 }
 
 const uiApiPort = resolvedUiApiPort;
@@ -57,7 +56,7 @@ app.use(express.json());
 
 // --- Define UI API Routes ---
 const handleApiError = (res: Response, error: unknown, message: string) => {
-    console.error(message, error);
+    logger.error(message, error);
     res.status(500).json({ error: message, details: error instanceof Error ? error.message : String(error) });
 };
 
@@ -120,8 +119,24 @@ app.delete('/api/ui/projects/:projectId', async (req: Request, res: Response) =>
 app.get('/api/ui/projects/:projectId/entities', async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
-        const entities = await knowledgeGraph.getAllEntities(projectId);
-        res.json(entities);
+        const { page, limit, type } = req.query;
+        
+        // If pagination parameters are provided, use paginated endpoint
+        if (page && limit) {
+            const paginationOptions = {
+                page: parseInt(page as string, 10),
+                limit: parseInt(limit as string, 10)
+            };
+            const result = await knowledgeGraphService.getEntitiesPaginated(
+                projectId, 
+                paginationOptions, 
+                type as string | undefined
+            );
+            res.json(result);
+        } else {
+            const entities = await knowledgeGraphService.getAllEntities(projectId, type as string | undefined);
+            res.json(entities);
+        }
     } catch (error) {
         handleApiError(res, error, `Failed to list entities for project ${req.params.projectId}`);
     }
@@ -134,7 +149,9 @@ app.post('/api/ui/projects/:projectId/entities', async (req: Request, res: Respo
         if (!name || !type) {
              return res.status(400).json({ error: 'Entity name and type are required' });
         }
-        const newEntity = await knowledgeGraph.createEntity(projectId, name, type, description, observations, parentId);
+        const newEntity = await knowledgeGraphService.createEntity(projectId, {
+            name, type, description, observationsText: observations, parentId
+        });
         res.status(201).json(newEntity);
     } catch (error) {
         handleApiError(res, error, `Failed to create entity for project ${req.params.projectId}`);
@@ -144,7 +161,7 @@ app.post('/api/ui/projects/:projectId/entities', async (req: Request, res: Respo
 app.get('/api/ui/projects/:projectId/entities/:entityId', async (req: Request, res: Response) => {
      try {
         const { projectId, entityId } = req.params;
-        const entity = await knowledgeGraph.getEntity(projectId, entityId);
+        const entity = await knowledgeGraphService.getEntity(projectId, entityId);
         if (entity) {
             res.json(entity);
         } else {
@@ -162,7 +179,7 @@ app.put('/api/ui/projects/:projectId/entities/:entityId', async (req: Request, r
         if (Object.keys(updates).length === 0) {
             return res.status(400).json({ error: 'Request body cannot be empty for update' });
         }
-        const updatedEntity = await knowledgeGraph.updateEntity(projectId, entityId, updates);
+        const updatedEntity = await knowledgeGraphService.updateEntity(projectId, entityId, updates);
         if (updatedEntity) {
             res.json(updatedEntity);
         } else {
@@ -176,7 +193,7 @@ app.put('/api/ui/projects/:projectId/entities/:entityId', async (req: Request, r
 app.delete('/api/ui/projects/:projectId/entities/:entityId', async (req: Request, res: Response) => {
     try {
         const { projectId, entityId } = req.params;
-        const deleted = await knowledgeGraph.deleteEntity(projectId, entityId);
+        const deleted = await knowledgeGraphService.deleteEntity(projectId, entityId);
          if (deleted) {
             res.status(204).send();
         } else {
@@ -195,7 +212,7 @@ app.post('/api/ui/projects/:projectId/entities/:entityId/observations', async (r
         if (!text) {
             return res.status(400).json({ error: 'Observation text is required' });
         }
-        const result = await knowledgeGraph.addObservation(projectId, entityId, text);
+        const result = await knowledgeGraphService.addObservation(projectId, entityId, text);
         if (result && result.observation_id) {
             res.status(201).json(result);
         } else {
@@ -207,10 +224,9 @@ app.post('/api/ui/projects/:projectId/entities/:entityId/observations', async (r
 });
 
 app.delete('/api/ui/projects/:projectId/entities/:entityId/observations/:observationId', async (req: Request, res: Response) => {
-    console.log(`[API DELETE /obs] Received request: projectId=${req.params.projectId}, entityId=${req.params.entityId}, observationId=${req.params.observationId}`);
     try {
         const { projectId, entityId, observationId } = req.params;
-        const deleted = await knowledgeGraph.deleteObservation(projectId, entityId, observationId);
+        const deleted = await knowledgeGraphService.deleteObservation(projectId, entityId, observationId);
         if (deleted) {
             res.status(204).send(); 
         } else {
@@ -221,23 +237,27 @@ app.delete('/api/ui/projects/:projectId/entities/:entityId/observations/:observa
     }
 });
 
-app.put('/api/ui/projects/:projectId/entities/:entityId/observations/:observationId', async (req: Request, res: Response) => {
-    console.log(`[API PUT /obs] Received request: projectId=${req.params.projectId}, entityId=${req.params.entityId}, observationId=${req.params.observationId}`);
-    console.log(`[API PUT /obs] Request body:`, req.body);
+// == Search Route ==
+app.get('/api/ui/projects/:projectId/search', async (req: Request, res: Response) => {
     try {
-        const { projectId, entityId, observationId } = req.params;
-        const { text } = req.body;
-        if (typeof text !== 'string' || text.trim() === '') {
-             return res.status(400).json({ error: 'Observation text cannot be empty' });
+        const { projectId } = req.params;
+        const { q, type, limit } = req.query;
+        
+        if (!q || typeof q !== 'string') {
+            return res.status(400).json({ error: 'Search query (q) is required' });
         }
-        const updatedObservation = await knowledgeGraph.editObservation(projectId, entityId, observationId, text);
-        if (updatedObservation) {
-             res.status(200).json(updatedObservation); 
-        } else {
-            res.status(404).json({ error: `Failed to update observation ${observationId}. Entity or observation may not exist.` });
-        }
+        
+        const searchLimit = limit ? parseInt(limit as string, 10) : 50;
+        const results = await knowledgeGraphService.searchEntities(
+            projectId, 
+            q, 
+            type as string | undefined, 
+            searchLimit
+        );
+        
+        res.json({ query: q, results, total: results.length });
     } catch (error) {
-        handleApiError(res, error, `Failed to update observation ${req.params.observationId}`);
+        handleApiError(res, error, `Failed to search entities in project ${req.params.projectId}`);
     }
 });
 
@@ -251,7 +271,7 @@ app.get('/api/ui/projects/:projectId/entities/:entityId/related', async (req: Re
         if (direction && typeof direction === 'string' && validDirections.includes(direction)) {
             validatedDirection = direction as 'incoming' | 'outgoing' | 'both';
         }
-        const relatedEntities = await knowledgeGraph.getRelatedEntities(
+        const relatedEntities = await knowledgeGraphService.getRelatedEntities(
             projectId,
             entityId,
             type as string | undefined,
@@ -268,7 +288,7 @@ app.get('/api/ui/projects/:projectId/relationships', async (req: Request, res: R
     try {
         const { projectId } = req.params;
         const { sourceId, targetId, type } = req.query;
-        const relationships = await knowledgeGraph.getRelationships(
+        const relationships = await knowledgeGraphService.getRelationships(
             projectId,
             {
                  fromId: sourceId as string | undefined,
@@ -289,7 +309,11 @@ app.post('/api/ui/projects/:projectId/relationships', async (req: Request, res: 
         if (!sourceId || !targetId || !type) {
             return res.status(400).json({ error: 'sourceId, targetId, and type are required' });
         }
-        const newRelationship = await knowledgeGraph.createRelationship(projectId, sourceId, targetId, type);
+        const newRelationship = await knowledgeGraphService.createRelationship(projectId, {
+            fromEntityId: sourceId,
+            toEntityId: targetId,
+            type
+        });
         res.status(201).json(newRelationship);
     } catch (error) {
         handleApiError(res, error, `Failed to create relationship for project ${req.params.projectId}`);
@@ -299,7 +323,7 @@ app.post('/api/ui/projects/:projectId/relationships', async (req: Request, res: 
 app.delete('/api/ui/projects/:projectId/relationships/:relationshipId', async (req: Request, res: Response) => {
     try {
         const { projectId, relationshipId } = req.params;
-         const deleted = await knowledgeGraph.deleteRelationship(projectId, relationshipId);
+         const deleted = await knowledgeGraphService.deleteRelationship(projectId, relationshipId);
          if (deleted) {
              res.status(204).send();
          } else {
@@ -314,15 +338,46 @@ app.delete('/api/ui/projects/:projectId/relationships/:relationshipId', async (r
 app.get('/api/ui/projects/:projectId/graph', async (req: Request, res: Response) => {
      try {
         const { projectId } = req.params;
-        const graphData = await knowledgeGraph.getGraphData(projectId);
+        const graphData = await knowledgeGraphService.getGraphData(projectId);
         res.json(graphData);
     } catch (error) {
         handleApiError(res, error, `Failed to get graph data for project ${req.params.projectId}`);
     }
 });
 
+// == Metrics Route ==
+app.get('/api/ui/projects/:projectId/metrics', async (req: Request, res: Response) => {
+    try {
+        const { projectId } = req.params;
+        const metrics = await knowledgeGraphService.getGraphMetrics(projectId);
+        res.json(metrics);
+    } catch (error) {
+        handleApiError(res, error, `Failed to get metrics for project ${req.params.projectId}`);
+    }
+});
+
+// == Cache Management Routes ==
+app.delete('/api/ui/projects/:projectId/cache', async (req: Request, res: Response) => {
+    try {
+        const { projectId } = req.params;
+        knowledgeGraphService.clearProjectCache(projectId);
+        res.status(204).send();
+    } catch (error) {
+        handleApiError(res, error, `Failed to clear cache for project ${req.params.projectId}`);
+    }
+});
+
+app.get('/api/ui/cache/stats', async (req: Request, res: Response) => {
+    try {
+        const stats = knowledgeGraphService.getCacheStats();
+        res.json(stats);
+    } catch (error) {
+        handleApiError(res, error, 'Failed to get cache statistics');
+    }
+});
+
 // --- Create MCP SDK Server instance ---
-const mcpServer = new Server({ // Renamed to mcpServer to avoid conflict with Express 'Server' type
+const mcpServer = new Server({
     name: "standalone-mcp-server",
     version: "1.0.0",
 }, {
@@ -338,99 +393,111 @@ const projectToolInfo = getProjectToolInfo(sessionManager);
 const initSessionToolInfo = getInitSessionToolInfo(sessionManager);
 
 const allToolDefinitions = [
-    ...kgToolInfo.definitions,
+    ...kgToolInfo.tools,
     ...projectToolInfo.definitions,
     ...initSessionToolInfo.definitions
 ];
-const allToolHandlers = {
+
+const allToolCallHandlers = {
     ...kgToolInfo.handlers,
     ...projectToolInfo.handlers,
     ...initSessionToolInfo.handlers
 };
 
-mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
-    console.error(`Listing ${allToolDefinitions.length} tools.`);
-    return {
-        tools: allToolDefinitions,
-    };
-});
+// Register list_tools handler
+mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: allToolDefinitions,
+}));
 
+// Register call_tool handler
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    const currentSessionId = undefined; 
-    console.error(`[CallTool] Received request for: ${name} (Session Context: ${sessionManager.hasActiveProjectContext(currentSessionId) ? `Project ${sessionManager.getActiveProjectContext(currentSessionId)?.projectId}` : 'None'})`);
-    let activeProjectId: string | null = null;
-    if (name !== 'init_session') {
-        const context = sessionManager.getActiveProjectContext(currentSessionId);
-        if (!context) {
-            console.error(`[CallTool] Rejecting tool call '${name}': Session not initialized.`);
-            throw new McpError(-32001, `Session not initialized. Please call 'mcp_knowledge_graph_init_session' first with a codebase identifier (like a project ID, name, or path) to establish a context.`);
-        }
-        activeProjectId = context.projectId;
-    }
-    const handler = allToolHandlers[name];
+    
+    const handler = allToolCallHandlers[name];
     if (!handler) {
-        console.error(`Method not found: ${name}`);
-        throw new McpError(-32601, `Method not found: ${name}`);
+        throw new McpError(-1, `Unknown tool: ${name}`); 
     }
-    const handlerArgs = args || {};
-    const combinedArgs = activeProjectId ? { ...handlerArgs, project_id: activeProjectId } : handlerArgs;
+    
     try {
-        const result = await handler(combinedArgs);
-        console.error(`[CallTool] Tool ${name} executed successfully.`);
-        if (result?.isError) {
-             console.warn(`[CallTool] Handler for ${name} indicated an error:`, result.content);
-        }
+        const result = await handler(args || {});
         return result;
     } catch (error) {
-        console.error(`[CallTool] Error executing tool ${name}:`, error);
-        if (error instanceof McpError) {
-            throw error;
-        }
-        throw new McpError(-32000, error instanceof Error ? error.message : `Internal server error executing tool: ${name}`);
+        logger.error('Tool execution failed', error, { toolName: name });
+        throw new McpError(
+            -1,
+            `Failed to execute tool ${name}: ${error instanceof Error ? error.message : String(error)}`
+        );
     }
 });
 
-mcpServer.setRequestHandler(ListResourcesRequestSchema, async () => {
-    return {
-        resources: [],
-    };
-});
+// Register list_resources handler (empty for now)
+mcpServer.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: [],
+}));
 
-mcpServer.setRequestHandler(ListPromptsRequestSchema, async () => {
-    return {
-        prompts: [],
-    };
-});
+// Register list_prompts handler (empty for now)
+mcpServer.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: [],
+}));
 
+// Entry point function
 async function main() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    logger.info('Starting MCP Knowledge Graph Server', {
+        environment: process.env.NODE_ENV || 'development',
+        port: uiApiPort,
+        production: isProduction
+    });
+
     try {
-        await nextApp.prepare(); 
+        // Prepare Next.js
+        await nextApp.prepare();
+        logger.info('Next.js application prepared');
 
-        // Catch-all for Next.js pages - THIS MUST BE LAST for Express routing
-        app.all('*', (req: Request, res: Response) => {
-            return nextHandler(req, res);
-        });
-        
-        // Start the Express server (which now also serves Next.js pages)
-        app.listen(uiApiPort, () => {
-            console.error(`🚀 HTTP Server (UI & API) listening on port ${uiApiPort}`);
-            if (!dev) {
-                console.error(`Production UI available at http://localhost:${uiApiPort}`);
-            }
-        });
+        if (isProduction) {
+            // Production mode: Serve both UI and API from this single server
+            logger.info('Running in production mode - serving UI and API');
+            
+            // Serve Next.js static files and pages
+            app.all('*', (req, res) => {
+                return nextHandler(req, res);
+            });
+        } else {
+            // Development mode: Only serve API (UI runs separately via `npm run start-nextjs`)
+            logger.info('Running in development mode - serving API only');
+        }
 
+                 // Start Express server
+         app.listen(uiApiPort, () => {
+             logger.info('Express server started', { port: uiApiPort });
+         });
+
+        // Start MCP server
         const transport = new StdioServerTransport();
-        await mcpServer.connect(transport); // Use mcpServer
-        console.error("🚀 MCP Server (SDK/Stdio) is running.");
+        await mcpServer.connect(transport);
+        logger.info('MCP server connected via stdio');
 
-    } catch (ex) {
-        console.error("❌ Fatal error during server startup:", ex);
+    } catch (error) {
+        logger.error('Failed to start server', error);
         process.exit(1);
     }
 }
 
-main().catch((error) => {
-    console.error("❌ Fatal error in main:", error); // Added more specific error logging
-    process.exit(1);
-}); 
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+    logger.info('Received SIGINT, shutting down gracefully');
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    logger.info('Received SIGTERM, shutting down gracefully');
+    process.exit(0);
+});
+
+if (require.main === module) {
+    main().catch((error) => {
+        logger.error('Server startup failed', error);
+        process.exit(1);
+    });
+} 

@@ -19,7 +19,7 @@ import {
     type Entity,
     type Relationship,
     deleteObservation as deleteObservationDb,
-} from "../../lib/knowledgeGraph";
+} from "../../lib/services";
 */
 
 // Import types if they are defined separately, otherwise define inline or fetch from API schema if available
@@ -81,8 +81,8 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
                 'Content-Type': 'application/json',
                 ...options.headers,
             },
-            // Add cache: 'no-store' to ensure fresh data for Server Actions
-            cache: 'no-store',
+            // Use default caching for static generation, override in specific calls if needed
+            next: { revalidate: 60 }, // Revalidate every 60 seconds
         });
 
         if (!response.ok) {
