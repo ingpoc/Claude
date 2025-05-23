@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card';
 import { Badge } from './badge';
 import { Button } from './button';
@@ -46,16 +46,14 @@ export function PerformanceMonitor({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMetrics = async () => {
-    if (isLoading) return;
-
+  const fetchMetrics = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/ui/cache/stats');
+      const response = await fetch(`/api/ui/cache/stats${projectId ? `?projectId=${projectId}` : ''}`);
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`Failed to fetch metrics: ${response.statusText}`);
       }
 
       const cacheStats = await response.json();
@@ -68,14 +66,14 @@ export function PerformanceMonitor({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [projectId]);
 
   useEffect(() => {
     fetchMetrics();
     
     const interval = setInterval(fetchMetrics, refreshInterval);
     return () => clearInterval(interval);
-  }, [refreshInterval]);
+  }, [refreshInterval, fetchMetrics]);
 
   const formatPercentage = (value: number) => `${(value * 100).toFixed(1)}%`;
   const formatNumber = (value: number) => value.toLocaleString();

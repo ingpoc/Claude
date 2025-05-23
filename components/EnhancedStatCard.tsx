@@ -15,7 +15,7 @@ interface EnhancedStatCardProps {
   className?: string;
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: number;
-  color?: 'blue' | 'green' | 'purple' | 'orange';
+  color?: 'slate' | 'emerald' | 'indigo' | 'amber';
   delay?: number;
 }
 
@@ -28,7 +28,7 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
   className,
   trend = 'neutral',
   trendValue,
-  color = 'blue',
+  color = 'slate',
   delay = 0
 }) => {
   // Map icon names to components
@@ -46,29 +46,29 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
   const valueRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<HTMLDivElement>(null);
 
-  // Color mappings for gradients
+  // Sophisticated color mappings with muted tones
   const colorMappings = {
-    blue: 'from-blue-500/10 to-blue-600/5 border-blue-200/20',
-    green: 'from-green-500/10 to-green-600/5 border-green-200/20',
-    purple: 'from-purple-500/10 to-purple-600/5 border-purple-200/20',
-    orange: 'from-orange-500/10 to-orange-600/5 border-orange-200/20'
+    slate: 'from-slate-50 to-slate-100/50 border-slate-200',
+    emerald: 'from-emerald-50 to-emerald-100/50 border-emerald-200',
+    indigo: 'from-indigo-50 to-indigo-100/50 border-indigo-200',
+    amber: 'from-amber-50 to-amber-100/50 border-amber-200'
   };
 
   const iconColors = {
-    blue: 'text-blue-500',
-    green: 'text-green-500',
-    purple: 'text-purple-500',
-    orange: 'text-orange-500'
+    slate: 'text-slate-600',
+    emerald: 'text-emerald-600',
+    indigo: 'text-indigo-600',
+    amber: 'text-amber-600'
   };
 
   useEffect(() => {
     if (!cardRef.current || !valueRef.current) return;
 
     // Initial state
-    gsap.set(cardRef.current, { opacity: 0, y: 30, scale: 0.95 });
+    gsap.set(cardRef.current, { opacity: 0, y: 20, scale: 0.98 });
     gsap.set(valueRef.current, { opacity: 0 });
     if (iconRef.current) {
-      gsap.set(iconRef.current, { opacity: 0, scale: 0.8, rotation: -10 });
+      gsap.set(iconRef.current, { opacity: 0, scale: 0.9, rotation: -5 });
     }
 
     // Entrance animation
@@ -78,20 +78,20 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
       opacity: 1,
       y: 0,
       scale: 1,
-      duration: 0.6,
-      ease: "back.out(1.2)"
+      duration: 0.5,
+      ease: "power2.out"
     })
     .to(valueRef.current, {
       opacity: 1,
-      duration: 0.4
+      duration: 0.3
     }, "-=0.2")
     .to(iconRef.current, {
       opacity: 1,
       scale: 1,
       rotation: 0,
-      duration: 0.5,
-      ease: "elastic.out(1, 0.5)"
-    }, "-=0.3");
+      duration: 0.4,
+      ease: "back.out(1.2)"
+    }, "-=0.2");
 
     // Animate number counting
     const numericValue = typeof value === 'number' ? value : parseInt(value.toString().replace(/\D/g, ''));
@@ -100,8 +100,8 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
         { innerHTML: 0 },
         {
           innerHTML: numericValue,
-          duration: 1.5,
-          delay: delay + 0.3,
+          duration: 1.2,
+          delay: delay + 0.2,
           ease: "power2.out",
           snap: { innerHTML: 1 },
           onUpdate: function() {
@@ -114,20 +114,20 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
       );
     }
 
-    // Hover animations
+    // Subtle hover animations
     const handleMouseEnter = () => {
       gsap.to(cardRef.current, {
-        y: -5,
-        scale: 1.02,
-        duration: 0.3,
+        y: -2,
+        scale: 1.01,
+        duration: 0.2,
         ease: "power2.out"
       });
       
       if (iconRef.current) {
         gsap.to(iconRef.current, {
-          rotation: 10,
-          scale: 1.1,
-          duration: 0.3,
+          rotation: 5,
+          scale: 1.05,
+          duration: 0.2,
           ease: "power2.out"
         });
       }
@@ -137,7 +137,7 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
       gsap.to(cardRef.current, {
         y: 0,
         scale: 1,
-        duration: 0.3,
+        duration: 0.2,
         ease: "power2.out"
       });
       
@@ -145,7 +145,7 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
         gsap.to(iconRef.current, {
           rotation: 0,
           scale: 1,
-          duration: 0.3,
+          duration: 0.2,
           ease: "power2.out"
         });
       }
@@ -165,13 +165,13 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
     <Card 
       ref={cardRef}
       className={cn(
-        "relative overflow-hidden border transition-all duration-300 hover:shadow-lg bg-gradient-to-br",
+        "relative overflow-hidden border transition-all duration-200 hover:shadow-md bg-gradient-to-br",
         colorMappings[color],
         className
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-medium text-slate-600">
           {title}
         </CardTitle>
         {Icon && (
@@ -183,7 +183,7 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
       <CardContent>
         <div 
           ref={valueRef}
-          className="text-3xl font-bold tracking-tight"
+          className="text-2xl font-bold tracking-tight text-slate-900"
         >
           {typeof value === 'number' ? 0 : value}
         </div>
@@ -191,7 +191,7 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
         {(description || trend !== 'neutral') && (
           <div className="flex items-center justify-between mt-3">
             {description && (
-              <p className="text-xs text-muted-foreground flex-1">
+              <p className="text-xs text-slate-500 flex-1">
                 {description}
               </p>
             )}
@@ -199,7 +199,7 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
             {trend !== 'neutral' && trendValue && (
               <div className={cn(
                 "flex items-center text-xs font-medium",
-                trend === 'up' ? 'text-green-600' : 'text-red-600'
+                trend === 'up' ? "text-emerald-600" : "text-red-500"
               )}>
                 {trend === 'up' ? (
                   <TrendingUp className="h-3 w-3 mr-1" />
@@ -211,24 +211,6 @@ const EnhancedStatCard: React.FC<EnhancedStatCardProps> = ({
             )}
           </div>
         )}
-        
-        {/* Progress bar for visual appeal */}
-        <div className="mt-3">
-          <div className="w-full bg-black/5 rounded-full h-1.5">
-            <div 
-              className={cn(
-                "h-1.5 rounded-full transition-all duration-1000 delay-500",
-                color === 'blue' && 'bg-blue-500',
-                color === 'green' && 'bg-green-500',
-                color === 'purple' && 'bg-purple-500',
-                color === 'orange' && 'bg-orange-500'
-              )}
-              style={{ 
-                width: `${Math.min(Math.max((typeof value === 'number' ? value : 50) / 500 * 100, 20), 85)}%` 
-              }}
-            />
-          </div>
-        </div>
       </CardContent>
     </Card>
   );

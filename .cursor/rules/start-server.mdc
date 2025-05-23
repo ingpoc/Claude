@@ -37,7 +37,7 @@ npm run start:all
 
 ### Build Process
 1. **TypeScript Compilation**: `npm run build:server` (must pass without errors)
-2. **Dependencies**: Ensure [package.json](mdc:mcp:package.json) dependencies are installed
+2. **Dependencies**: Ensure [package.json](mcp:package.json) dependencies are installed
 3. **Environment**: Check `.env.local` configuration
 
 ### Pre-deployment Checklist

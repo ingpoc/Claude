@@ -24,4 +24,24 @@ export {
   type PaginationOptions, 
   type PaginatedResult, 
   type GraphMetrics 
-} from './KnowledgeGraphService'; 
+} from './KnowledgeGraphService';
+export {
+  conversationService,
+  type Conversation,
+  type ConversationEntityLink,
+  type CreateConversationRequest,
+  type ConversationFilter,
+  type ConversationSearchResult,
+  type Context
+} from './ConversationService';
+export {
+  contextService,
+  type SessionManager,
+  type ContextLoadOptions
+} from './ContextService';
+
+// Export conversation models from models
+export type {
+  ContextSession,
+  ConversationState
+} from '../models/Conversation'; 

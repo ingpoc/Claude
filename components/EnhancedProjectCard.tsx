@@ -50,18 +50,18 @@ const EnhancedProjectCard: React.FC<EnhancedProjectCardProps> = ({
   const statsRef = useRef<HTMLDivElement>(null);
 
   const statusConfig = {
-    active: { color: 'bg-green-500', label: 'Active', textColor: 'text-green-700' },
-    archived: { color: 'bg-gray-500', label: 'Archived', textColor: 'text-gray-700' },
-    new: { color: 'bg-blue-500', label: 'New', textColor: 'text-blue-700' }
+    active: { color: 'bg-emerald-500', label: 'Active', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' },
+    archived: { color: 'bg-slate-400', label: 'Archived', textColor: 'text-slate-600', bgColor: 'bg-slate-50' },
+    new: { color: 'bg-indigo-500', label: 'New', textColor: 'text-indigo-700', bgColor: 'bg-indigo-50' }
   };
 
   useEffect(() => {
     if (!cardRef.current || !contentRef.current || !statsRef.current) return;
 
     // Initial state
-    gsap.set(cardRef.current, { opacity: 0, y: 50, rotationY: -15, scale: 0.9 });
-    gsap.set(contentRef.current, { opacity: 0, y: 20 });
-    gsap.set(statsRef.current, { opacity: 0, y: 15 });
+    gsap.set(cardRef.current, { opacity: 0, y: 30, scale: 0.95 });
+    gsap.set(contentRef.current, { opacity: 0, y: 15 });
+    gsap.set(statsRef.current, { opacity: 0, y: 10 });
 
     // Entrance animation
     const tl = gsap.timeline({ delay });
@@ -69,31 +69,29 @@ const EnhancedProjectCard: React.FC<EnhancedProjectCardProps> = ({
     tl.to(cardRef.current, {
       opacity: 1,
       y: 0,
-      rotationY: 0,
       scale: 1,
-      duration: 0.8,
-      ease: "power3.out"
+      duration: 0.6,
+      ease: "power2.out"
     })
     .to(contentRef.current, {
       opacity: 1,
       y: 0,
-      duration: 0.5,
+      duration: 0.4,
       ease: "power2.out"
-    }, "-=0.4")
+    }, "-=0.3")
     .to(statsRef.current, {
       opacity: 1,
       y: 0,
-      duration: 0.4,
+      duration: 0.3,
       ease: "power2.out"
     }, "-=0.2");
 
-    // Hover animations
+    // Subtle hover animations
     const handleMouseEnter = () => {
       gsap.to(cardRef.current, {
-        y: -8,
-        scale: 1.02,
-        rotationY: 2,
-        duration: 0.4,
+        y: -4,
+        scale: 1.01,
+        duration: 0.3,
         ease: "power2.out"
       });
     };
@@ -102,8 +100,7 @@ const EnhancedProjectCard: React.FC<EnhancedProjectCardProps> = ({
       gsap.to(cardRef.current, {
         y: 0,
         scale: 1,
-        rotationY: 0,
-        duration: 0.4,
+        duration: 0.3,
         ease: "power2.out"
       });
     };
@@ -126,9 +123,8 @@ const EnhancedProjectCard: React.FC<EnhancedProjectCardProps> = ({
           ? "flex flex-col justify-between h-full" 
           : "flex flex-row items-center",
         "relative overflow-hidden",
-        "bg-gradient-to-br from-white to-gray-50/50 border border-gray-200/60",
-        "hover:shadow-xl hover:shadow-gray-200/40 transition-all duration-300",
-        "backdrop-blur-sm",
+        "bg-white border border-slate-200",
+        "hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300",
         className
       )}
     >
@@ -138,11 +134,12 @@ const EnhancedProjectCard: React.FC<EnhancedProjectCardProps> = ({
         variant === 'list' ? "right-4" : "right-4"
       )}>
         <Badge 
-          variant="secondary" 
+          variant="outline"
           className={cn(
-            "text-xs font-medium",
+            "text-xs font-medium border",
             statusConfig[status].textColor,
-            "bg-opacity-10"
+            statusConfig[status].bgColor,
+            "border-current border-opacity-20"
           )}
         >
           <div className={cn("w-2 h-2 rounded-full mr-1.5", statusConfig[status].color)} />
@@ -154,10 +151,10 @@ const EnhancedProjectCard: React.FC<EnhancedProjectCardProps> = ({
         <>
           <CardHeader className="pb-3">
             <div ref={contentRef}>
-              <CardTitle className="text-lg font-semibold text-gray-900 mb-2 pr-16">
+              <CardTitle className="text-lg font-semibold text-slate-900 mb-2 pr-16">
                 {name}
               </CardTitle>
-              <CardDescription className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
+              <CardDescription className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
                 {description || "No description provided."}
               </CardDescription>
             </div>
@@ -165,147 +162,124 @@ const EnhancedProjectCard: React.FC<EnhancedProjectCardProps> = ({
 
           <CardContent className="flex-1 pb-3">
             <div ref={statsRef} className="grid grid-cols-3 gap-3">
-              <div className="text-center p-2 bg-blue-50/50 rounded-lg">
+              <div className="text-center p-2 bg-slate-50 rounded-lg">
                 <div className="flex items-center justify-center mb-1">
-                  <Users className="h-3 w-3 text-blue-600 mr-1" />
-                  <span className="text-xs font-medium text-blue-700">Entities</span>
+                  <Users className="h-3 w-3 text-slate-600 mr-1" />
+                  <span className="text-xs font-medium text-slate-700">Entities</span>
                 </div>
-                <div className="text-lg font-bold text-blue-800">{entityCount}</div>
+                <div className="text-lg font-bold text-slate-900">{entityCount}</div>
               </div>
               
-              <div className="text-center p-2 bg-purple-50/50 rounded-lg">
+              <div className="text-center p-2 bg-slate-50 rounded-lg">
                 <div className="flex items-center justify-center mb-1">
-                  <GitBranch className="h-3 w-3 text-purple-600 mr-1" />
-                  <span className="text-xs font-medium text-purple-700">Links</span>
+                  <GitBranch className="h-3 w-3 text-slate-600 mr-1" />
+                  <span className="text-xs font-medium text-slate-700">Links</span>
                 </div>
-                <div className="text-lg font-bold text-purple-800">{relationshipCount}</div>
+                <div className="text-lg font-bold text-slate-900">{relationshipCount}</div>
               </div>
               
-              <div className="text-center p-2 bg-green-50/50 rounded-lg">
+              <div className="text-center p-2 bg-slate-50 rounded-lg">
                 <div className="flex items-center justify-center mb-1">
-                  <Activity className="h-3 w-3 text-green-600 mr-1" />
-                  <span className="text-xs font-medium text-green-700">Score</span>
+                  <Activity className="h-3 w-3 text-slate-600 mr-1" />
+                  <span className="text-xs font-medium text-slate-700">Score</span>
                 </div>
-                <div className="text-lg font-bold text-green-800">{activityScore}</div>
+                <div className="text-lg font-bold text-slate-900">{activityScore}</div>
               </div>
             </div>
 
             {/* Activity progress bar */}
             <div className="mt-4">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-500">Activity Level</span>
-                <span className="text-xs font-medium text-gray-700">{Math.min(activityScore, 100)}%</span>
+                <span className="text-xs text-slate-500">Activity Level</span>
+                <span className="text-xs font-medium text-slate-700">{Math.min(activityScore, 100)}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-1.5">
+              <div className="w-full bg-slate-200 rounded-full h-1.5">
                 <div 
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full transition-all duration-1000 delay-700"
+                  className="bg-gradient-to-r from-slate-400 to-slate-600 h-1.5 rounded-full transition-all duration-1000 delay-500"
                   style={{ width: `${Math.min(activityScore, 100)}%` }}
                 />
               </div>
             </div>
           </CardContent>
 
-          <CardFooter className="flex justify-between items-center pt-3 border-t border-gray-100">
-            <div className="text-xs text-gray-500 flex items-center">
-              <Calendar className="h-3 w-3 mr-1.5" />
-              Updated {lastUpdated}
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              {onDelete && (
-                <Button 
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    onDelete();
-                  }}
-                  title="Delete Project"
-                  aria-label="Delete Project"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
+          <CardFooter className="pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center text-xs text-slate-500">
+                <Calendar className="h-3 w-3 mr-1" />
+                Updated {lastUpdated}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {onDelete && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onDelete}
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 h-auto"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
+                
+                <Button asChild size="sm" className="bg-slate-900 hover:bg-slate-800 text-white">
+                  <Link href={`/projects/${id}`} className="flex items-center">
+                    View
+                    <ArrowRight className="ml-1 h-3 w-3" />
+                  </Link>
                 </Button>
-              )}
-
-              <Button 
-                asChild 
-                size="sm"
-                className="h-8 px-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
-              >
-                <Link href={`/projects/${id}/entities`} className="flex items-center">
-                  View 
-                  <ArrowRight className="h-3 w-3 ml-1.5" />
-                </Link>
-              </Button>
+              </div>
             </div>
           </CardFooter>
         </>
       ) : (
         // List variant layout
-        <div className="flex w-full items-center p-6 pr-20">
-          <div ref={contentRef} className="flex-1 min-w-0">
-            <div className="flex items-start justify-between mb-2">
-              <CardTitle className="text-lg font-semibold text-gray-900 truncate mr-4">
+        <div className="flex items-center justify-between w-full p-4">
+          <div ref={contentRef} className="flex-1 pr-4">
+            <div className="flex items-center justify-between mb-1">
+              <CardTitle className="text-base font-semibold text-slate-900">
                 {name}
               </CardTitle>
-              <div className="text-xs text-gray-500 flex items-center whitespace-nowrap">
-                <Calendar className="h-3 w-3 mr-1.5" />
-                {lastUpdated}
-              </div>
             </div>
-            <CardDescription className="text-sm text-gray-600 line-clamp-1 mb-3">
+            <CardDescription className="text-sm text-slate-600">
               {description || "No description provided."}
             </CardDescription>
-            
-            {/* Horizontal stats */}
-            <div ref={statsRef} className="flex items-center space-x-6">
-              <div className="flex items-center">
-                <Users className="h-3 w-3 text-blue-600 mr-1" />
-                <span className="text-xs text-gray-600 mr-1">Entities:</span>
-                <span className="text-sm font-semibold text-gray-900">{entityCount}</span>
-              </div>
-              <div className="flex items-center">
-                <GitBranch className="h-3 w-3 text-purple-600 mr-1" />
-                <span className="text-xs text-gray-600 mr-1">Links:</span>
-                <span className="text-sm font-semibold text-gray-900">{relationshipCount}</span>
-              </div>
-              <div className="flex items-center">
-                <Activity className="h-3 w-3 text-green-600 mr-1" />
-                <span className="text-xs text-gray-600 mr-1">Score:</span>
-                <span className="text-sm font-semibold text-gray-900">{activityScore}</span>
-              </div>
+            <div className="flex items-center mt-2 text-xs text-slate-500">
+              <Calendar className="h-3 w-3 mr-1" />
+              Updated {lastUpdated}
             </div>
           </div>
           
-          {/* Actions */}
-          <div className="flex items-center space-x-2 ml-4">
+          <div ref={statsRef} className="flex items-center gap-4 mr-4">
+            <div className="text-center">
+              <div className="text-sm font-bold text-slate-900">{entityCount}</div>
+              <div className="text-xs text-slate-500">Entities</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm font-bold text-slate-900">{relationshipCount}</div>
+              <div className="text-xs text-slate-500">Links</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm font-bold text-slate-900">{activityScore}</div>
+              <div className="text-xs text-slate-500">Score</div>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
             {onDelete && (
-              <Button 
+              <Button
                 variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  onDelete();
-                }}
-                title="Delete Project"
-                aria-label="Delete Project"
+                size="sm"
+                onClick={onDelete}
+                className="text-red-500 hover:text-red-600 hover:bg-red-50"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
-
-            <Button 
-              asChild 
-              size="sm"
-              className="h-8 px-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
-            >
-              <Link href={`/projects/${id}/entities`} className="flex items-center">
-                View 
-                <ArrowRight className="h-3 w-3 ml-1.5" />
+            
+            <Button asChild size="sm" className="bg-slate-900 hover:bg-slate-800 text-white">
+              <Link href={`/projects/${id}`} className="flex items-center">
+                View
+                <ArrowRight className="ml-1 h-4 w-4" />
               </Link>
             </Button>
           </div>
