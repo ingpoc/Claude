@@ -1,0 +1,203 @@
+---
+description: Development Workflow & Quality Assurance
+globs: 
+alwaysApply: false
+---
+# Development Workflow & Quality Assurance
+
+## 🔄 Development Lifecycle
+
+### Pre-commit Workflow
+1. **Code Quality Checks**
+   - TypeScript compilation: `npm run build:server`
+   - Lint validation: `npm run lint`
+   - Service layer testing
+
+2. **Database Integrity**
+   - Verify schema initialization in [lib/projectManager.ts](mdc:mcp:lib/projectManager.ts)
+   - Test entity and relationship operations
+   - Check connection cleanup behavior
+
+3. **Integration Testing**
+   - Port cleanup and server restart
+   - End-to-end API testing
+   - Frontend integration verification
+
+### Code Review Checklist
+- [ ] Proper error handling with null checks
+- [ ] Correct KuzuDB API method usage (`getNextSync()`)
+- [ ] Structured logging with appropriate levels
+- [ ] Transaction management for multi-step operations
+- [ ] Type safety and interface compliance
+
+## 📊 Logging & Debugging Framework
+
+### Log Level Strategy
+```typescript
+// DEBUG: Query execution, data structure analysis
+logger.debug('Processing entity record', {
+  recordType: typeof record,
+  recordKeys: record ? Object.keys(record) : 'undefined',
+  hasExpectedProperties: record && 'id' in record
+});
+
+// WARN: Validation failures, missing data, fallback scenarios
+logger.warn('Entity missing required properties', {
+  entityData,
+  availableKeys: Object.keys(entityData || {}),
+  expectedKeys: ['id', 'name', 'type']
+});
+
+// ERROR: Critical failures with full context
+logger.error('Database operation failed', error, {
+  operation: 'getEntities',
+  projectId,
+  queryParams: params
+});
+
+// INFO: Successful operations, lifecycle events
+logger.info('Entity created successfully', {
+  projectId,
+  entityId,
+  entityType
+});
+```
+
+### Debugging Database Operations
+```typescript
+// Enhanced debugging pattern for KuzuDB operations
+const debugQueryExecution = (projectId: string, query: string, params: any, result: any) => {
+  logger.debug('KuzuDB Operation Debug', {
+    projectId,
+    queryPreview: query.substring(0, 100) + '...',
+    parameterCount: Object.keys(params || {}).length,
+    hasResult: !!result,
+    resultHasNext: result ? (result as any).hasNext() : false,
+    timestamp: new Date().toISOString()
+  });
+};
+```
+
+## 🛡️ Error Handling Patterns
+
+### Defensive Programming Standards
+```typescript
+// 1. Always validate input parameters
+if (!projectId || !entityId) {
+  logger.error('Invalid parameters provided', { projectId, entityId });
+  return null;
+}
+
+// 2. Check database query results
+if (!result || !(result as any).hasNext()) {
+  logger.warn('No results found for query', { projectId, operation });
+  return [];
+}
+
+// 3. Validate data structure before access
+const record = (result as any).getNextSync();
+if (!record || typeof record !== 'object') {
+  logger.warn('Invalid record structure', { record, recordType: typeof record });
+  continue;
+}
+
+// 4. Handle parsing failures gracefully
+try {
+  const parsed = this.parseFromDB(data);
+  return parsed;
+} catch (error) {
+  logger.error('Parse operation failed', error, { data, operation: 'parseFromDB' });
+  return null;
+}
+```
+
+### Common Error Scenarios & Handling
+
+| Error Type | Detection | Handling Strategy |
+|------------|-----------|-------------------|
+| `undefined` property access | Null checks before access | Return `null` with warning log |
+| Empty query results | `hasNext()` validation | Return empty array, log at DEBUG level |
+| Connection failures | Try-catch in `executeQuery` | Retry with exponential backoff |
+| Parsing failures | Type validation | Skip record, continue processing |
+| Transaction failures | Transaction rollback | Log error, return failure status |
+
+## 🧪 Testing & Validation
+
+### Manual Testing Procedures
+```bash
+# 1. Entity Lifecycle Testing
+curl -X POST http://localhost:3155/api/ui/projects/{projectId}/entities \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test Entity","type":"Test","description":"Testing"}'
+
+curl http://localhost:3155/api/ui/projects/{projectId}/entities
+
+# 2. Relationship Testing  
+curl -X POST http://localhost:3155/api/ui/projects/{projectId}/relationships \
+  -H "Content-Type: application/json" \
+  -d '{"sourceId":"entity1","targetId":"entity2","type":"RELATED_TO"}'
+
+# 3. Error Handling Testing
+curl http://localhost:3155/api/ui/projects/invalid-project/entities
+```
+
+### Automated Testing Strategy
+- **Unit Tests**: Service layer methods with mocked dependencies
+- **Integration Tests**: Database operations with test project isolation
+- **Error Path Testing**: Validate error handling with malformed data
+- **Performance Tests**: Monitor query execution times and memory usage
+
+### Validation Commands
+```bash
+# Database State Verification
+curl -s http://localhost:3155/api/ui/projects/{projectId}/entities | jq '.length'
+curl -s http://localhost:3155/api/ui/projects/{projectId}/relationships | jq '.length'
+
+# Server Health Monitoring
+curl -s http://localhost:3155/health
+ps aux | grep node | grep -E "(3155|4000)"
+```
+
+## 🔍 Performance Monitoring
+
+### Key Metrics to Track
+- **Query Execution Time**: Log slow queries (> 100ms)
+- **Memory Usage**: Monitor heap growth during bulk operations  
+- **Connection Pool Health**: Track connection creation/cleanup
+- **Error Rates**: Monitor error frequency by operation type
+
+### Performance Debugging
+```typescript
+// Query performance monitoring
+const startTime = Date.now();
+const result = await databaseService.executeQuery(projectId, query, params);
+const executionTime = Date.now() - startTime;
+
+if (executionTime > 100) {
+  logger.warn('Slow query detected', {
+    projectId,
+    executionTime,
+    query: query.substring(0, 100) + '...'
+  });
+}
+```
+
+## 📁 File Organization & Dependencies
+
+### Service Layer Architecture
+- **Core Services**: [lib/services/](mdc:mcp:lib/services) - Business logic layer
+- **Database Layer**: [lib/services/DatabaseService.ts](mdc:mcp:lib/services/DatabaseService.ts) - Data access
+- **API Integration**: [app/actions/](mdc:mcp:app/actions) - Frontend integration
+- **Type Definitions**: [kuzu.d.ts](mdc:mcp:kuzu.d.ts) - External library types
+
+### Dependency Management
+- **Runtime Dependencies**: Track in [package.json](mdc:mcp:package.json)
+- **Type Safety**: Maintain accurate type definitions
+- **Version Compatibility**: Ensure KuzuDB v0.9.0 compatibility
+
+---
+**🎯 Quality Gates**:
+- Zero TypeScript compilation errors
+- All database operations include proper error handling
+- Structured logging for all critical operations
+- Comprehensive input validation

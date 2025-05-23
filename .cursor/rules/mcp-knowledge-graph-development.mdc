@@ -1,0 +1,117 @@
+---
+description: MCP Knowledge Graph Development Guidelines
+globs: 
+alwaysApply: false
+---
+# MCP Knowledge Graph Development - Overview
+
+## 📋 Project Architecture
+
+This project implements an MCP (Model Context Protocol) Knowledge Graph server with KuzuDB backend and Next.js frontend. Development follows a modular approach with clear separation of concerns.
+
+### 🔗 Related Development Rules
+- **[Server Infrastructure](mdc:.cursor/rules/server-infrastructure.mdc)** - Port management, build processes, deployment
+- **[Database Integration](mdc:.cursor/rules/kuzu-database-integration.mdc)** - KuzuDB API, schema management, query patterns  
+- **[Development Workflow](mdc:.cursor/rules/development-workflow.mdc)** - Error handling, logging, testing practices
+
+## 🏗️ System Components
+
+### Core Architecture
+```
+┌─── Frontend (Next.js) ──── Port 4000
+│    └── app/actions/ - Server Actions
+│    
+├─── API Server ─────────── Port 3155  
+│    └── standalone-server.ts
+│
+├─── Service Layer
+│    ├── EntityService - Entity CRUD operations
+│    ├── RelationshipService - Relationship management
+│    ├── KnowledgeGraphService - High-level graph operations
+│    └── DatabaseService - KuzuDB connection handling
+│
+└─── Database Layer
+     └── KuzuDB v0.9.0 - Graph database storage
+```
+
+### Key Files & Responsibilities
+- **[standalone-server.ts](mdc:mcp:standalone-server.ts)** - Main API server and MCP integration
+- **[lib/services/](mdc:mcp:lib/services)** - Business logic layer
+- **[lib/projectManager.ts](mdc:mcp:lib/projectManager.ts)** - Project isolation and schema management
+- **[kuzu.d.ts](mdc:mcp:kuzu.d.ts)** - KuzuDB type definitions
+- **[app/actions/knowledgeGraphActions.ts](mdc:mcp:app/actions/knowledgeGraphActions.ts)** - Frontend integration
+
+## 🚀 Quick Start Guide
+
+### Development Setup
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Start development servers
+npm run start:all
+```
+
+### Common Development Tasks
+```bash
+# Restart servers (after code changes)
+lsof -ti:3155,4000 | xargs kill -9
+npm run build:server
+npm run start:all
+
+# Check server health
+curl http://localhost:3155/health
+curl http://localhost:4000
+```
+
+## 🔧 Critical Development Notes
+
+### KuzuDB Integration
+- **API Version**: v0.9.0 with specific method requirements
+- **Key Pattern**: Always use `getNextSync()` for synchronous operations
+- **Error Prevention**: Implement comprehensive null checks before property access
+
+### Service Layer Best Practices
+- **Error Handling**: Use defensive programming patterns
+- **Logging**: Structured logging with appropriate levels (DEBUG/WARN/ERROR/INFO)
+- **Transactions**: Use `withTransaction()` for multi-step operations
+- **Validation**: Always validate input parameters and query results
+
+### Project Structure
+- **Multi-tenant**: Each project gets isolated database instance
+- **Schema Management**: Automatic initialization per project
+- **Connection Pooling**: Automatic cleanup with 30-second timeout
+
+## 🛡️ Quality Standards
+
+### Before Committing
+1. **Build Success**: `npm run build:server` must pass
+2. **Port Cleanup**: Kill existing processes
+3. **Service Testing**: Verify entity and relationship operations
+4. **Error Handling**: Ensure proper null checks and logging
+
+### Code Review Focus Areas
+- KuzuDB API method usage (`getNextSync()` vs `getNext()`)
+- Comprehensive error handling with context logging
+- Type safety and interface compliance
+- Transaction management for database operations
+
+## 📊 Monitoring & Debugging
+
+### Log Analysis
+- **DEBUG**: Query execution, record parsing, data structures
+- **WARN**: Missing data, validation failures, fallbacks
+- **ERROR**: Critical failures with full context
+- **INFO**: Successful operations, lifecycle events
+
+### Performance Metrics
+- Query execution time (alert on > 100ms)
+- Memory usage during bulk operations
+- Connection pool health
+- Error rates by operation type
+
+---
+**📚 For detailed information**, refer to the specialized rules:
+- **Server Management**: See [server-infrastructure.mdc](mdc:.cursor/rules/server-infrastructure.mdc)
+- **Database Operations**: See [kuzu-database-integration.mdc](mdc:.cursor/rules/kuzu-database-integration.mdc)
+- **Development Practices**: See [development-workflow.mdc](mdc:.cursor/rules/development-workflow.mdc)

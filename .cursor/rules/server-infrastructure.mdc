@@ -1,0 +1,80 @@
+---
+description: Server Infrastructure & Operations
+globs: 
+alwaysApply: false
+---
+# Server Infrastructure & Operations
+
+## 🚀 Port Management & Server Lifecycle
+
+### Critical Ports
+- **API Server**: Port 3155 ([standalone-server.ts](mdc:standalone-server.ts))
+- **Next.js Frontend**: Port 4000
+- **Always check for conflicts** before starting
+
+### Server Restart Procedure
+```bash
+# 1. Kill existing processes
+lsof -ti:3155 | xargs kill -9  # API Server
+lsof -ti:4000 | xargs kill -9  # Next.js
+
+# 2. Build server components
+npm run build:server
+
+# 3. Start both services
+npm run start:all
+```
+
+### Common Port Issues & Solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `EADDRINUSE: port 3155` | Existing API server process | `lsof -ti:3155 \| xargs kill -9` |
+| `EADDRINUSE: port 4000` | Existing Next.js process | `lsof -ti:4000 \| xargs kill -9` |
+| Server won't start | Build artifacts missing | Run `npm run build:server` first |
+
+## 🔧 Build & Deployment
+
+### Build Process
+1. **TypeScript Compilation**: `npm run build:server` (must pass without errors)
+2. **Dependencies**: Ensure [package.json](mdc:mcp:package.json) dependencies are installed
+3. **Environment**: Check `.env.local` configuration
+
+### Pre-deployment Checklist
+- [ ] Kill existing processes on target ports
+- [ ] Clean build artifacts: `rm -rf dist/`
+- [ ] Fresh TypeScript build: `npm run build:server`
+- [ ] Verify no compilation errors
+- [ ] Test server startup: `npm run start:all`
+
+### Production Considerations
+- **Process Management**: Use PM2 or similar for production
+- **Port Configuration**: Environment-specific port settings
+- **Health Checks**: Monitor server startup logs
+- **Graceful Shutdown**: Handle SIGINT/SIGTERM properly
+
+## 📊 Server Monitoring
+
+### Health Check Endpoints
+```bash
+# API Server status
+curl http://localhost:3155/health
+
+# Next.js frontend
+curl http://localhost:4000
+```
+
+### Log Monitoring
+- **API Server Logs**: Console output and structured logging
+- **Next.js Logs**: Build and runtime logs
+- **Process Monitoring**: Check for memory leaks and restart loops
+
+### Performance Metrics
+- **Startup Time**: Monitor server initialization duration
+- **Memory Usage**: Track heap usage over time
+- **Connection Health**: Monitor database connection pool
+
+---
+**⚡ Quick Commands**:
+- Restart: `lsof -ti:3155,4000 | xargs kill -9 && npm run build:server && npm run start:all`
+- Health Check: `curl -s http://localhost:3155/health && curl -s http://localhost:4000`

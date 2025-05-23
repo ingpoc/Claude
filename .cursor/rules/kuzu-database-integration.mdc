@@ -1,0 +1,185 @@
+---
+description: KuzuDB Database Integration
+globs: 
+alwaysApply: false
+---
+# KuzuDB Database Integration
+
+## 🔧 KuzuDB API (v0.9.0)
+
+### Critical API Methods
+- ✅ **Synchronous**: `hasNext()` and `getNextSync()` 
+- ❌ **Avoid**: `getNext()` (async method, causes undefined errors)
+- **Type Safety**: Keep [kuzu.d.ts](mdc:kuzu.d.ts) updated with correct API methods
+
+### Query Result Processing Pattern
+```typescript
+// Correct pattern for all database queries
+const results: T[] = [];
+try {
+  while ((queryResult as any).hasNext()) {
+    const record = (queryResult as any).getNextSync(); // Always use getNextSync!
+    
+    // Validate record structure before accessing
+    if (!record) {
+      logger.warn('Empty record returned from query');
+      continue;
+    }
+    
+    const data = record.e || record.r || record[0]; // Try multiple access patterns
+    if (!data) {
+      logger.warn('No data found in record', { record });
+      continue;
+    }
+    
+    const parsed = this.parseFromDB(data);
+    if (parsed) results.push(parsed);
+  }
+} catch (error) {
+  logger.error('Query result processing failed', error);
+}
+```
+
+### Connection Management
+- **File**: [lib/services/DatabaseService.ts](mdc:lib/services/DatabaseService.ts)
+- **Caching**: Automatic connection pooling with 30-second timeout
+- **Cleanup**: Stale connections automatically removed
+- **Transactions**: Use `withTransaction()` for multi-step operations
+
+## 🗄️ Schema & Project Management
+
+### Schema Initialization
+- **Handler**: [lib/projectManager.ts](mdc:lib/projectManager.ts) - `initializeSchema()`
+- **Entity Table**: Auto-created with full property schema
+- **Relationship Table**: Created with fallback for compatibility
+- **Multi-project**: Each project gets isolated database instance
+
+### Database Structure
+```cypher
+# Entity Node Table
+CREATE NODE TABLE IF NOT EXISTS Entity (
+  id STRING PRIMARY KEY,
+  name STRING,
+  type STRING,
+  description STRING,
+  observations STRING,
+  parentId STRING,
+  createdAt STRING,
+  updatedAt STRING
+)
+
+# Relationship Table
+CREATE REL TABLE IF NOT EXISTS Related (
+  FROM Entity TO Entity,
+  id STRING,
+  type STRING,
+  description STRING,
+  createdAt STRING
+)
+```
+
+### Project Isolation
+- **Database Path**: `.kuzu-db/project_{projectId}/graph.db`
+- **Schema Per Project**: Independent schema initialization
+- **Connection Caching**: Per-project connection pools
+
+## 🔍 Query Patterns & Best Practices
+
+### Entity Operations
+```typescript
+// Entity retrieval with proper error handling
+async getEntity(projectId: string, entityId: string): Promise<Entity | null> {
+  const query = 'MATCH (e:Entity {id: $id}) RETURN e';
+  const result = await databaseService.executeQuery(projectId, query, { id: entityId });
+  
+  if (!result || !(result as any).hasNext()) {
+    return null;
+  }
+  
+  const record = (result as any).getNextSync();
+  const entityData = record.e;
+  
+  return entityData ? this.parseEntityFromDB(entityData) : null;
+}
+```
+
+### Relationship Queries
+```typescript
+// Relationship queries with validation
+async getRelationships(projectId: string, filters: RelationshipFilter = {}): Promise<Relationship[]> {
+  let query = 'MATCH (from:Entity)-[r]->(to:Entity)';
+  const params: any = {};
+  
+  // Add filters dynamically
+  const conditions: string[] = [];
+  if (filters.fromId) {
+    conditions.push('from.id = $fromId');
+    params.fromId = filters.fromId;
+  }
+  
+  if (conditions.length > 0) {
+    query += ` WHERE ${conditions.join(' AND ')}`;
+  }
+  
+  query += ' RETURN r, from.id as fromId, to.id as toId';
+  
+  const result = await databaseService.executeQuery(projectId, query, params);
+  return this.processRelationshipResults(result);
+}
+```
+
+## 🛡️ Error Handling & Data Validation
+
+### Essential Null Checks
+```typescript
+// Always validate data before property access
+if (!entityData) {
+  logger.warn('Entity data is null or undefined');
+  return null;
+}
+
+if (!entityData.id || !entityData.name || !entityData.type) {
+  logger.warn('Entity missing required properties', { 
+    entityData,
+    availableKeys: Object.keys(entityData) 
+  });
+  return null;
+}
+```
+
+### Critical Service Files
+- **Entity Operations**: [lib/services/EntityService.ts](mdc:lib/services/EntityService.ts)
+- **Relationship Management**: [lib/services/RelationshipService.ts](mdc:lib/services/RelationshipService.ts)
+- **High-level Operations**: [lib/services/KnowledgeGraphService.ts](mdc:lib/services/KnowledgeGraphService.ts)
+
+## ⚡ Performance Optimization
+
+### Query Optimization
+- **Parameterized Queries**: Always use parameters to prevent injection
+- **Index Usage**: Ensure queries use primary key indexes when possible
+- **Batch Operations**: Use transactions for multiple related operations
+- **Connection Pooling**: Leverage automatic connection caching
+
+### Memory Management
+- **Large Data**: Store observations as JSON strings
+- **Pagination**: Implement for large result sets
+- **Connection Cleanup**: Monitor automatic cleanup logs
+
+### Debugging Database Issues
+```typescript
+// Enhanced logging for database debugging
+logger.debug('KuzuDB Query Debug', {
+  projectId,
+  query: query.substring(0, 100) + '...',
+  params,
+  hasResult: !!result,
+  resultType: typeof result
+});
+```
+
+---
+**💡 Key Reminders**:
+- Always use `getNextSync()` for synchronous operations
+- Validate all data before property access
+- Use transactions for multi-step operations
+- Monitor connection cleanup in logs
