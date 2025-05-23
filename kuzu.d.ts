@@ -1,28 +1,46 @@
-// Basic type declaration for the 'kuzu' module to satisfy TypeScript
-// This doesn't provide full type safety for the library's methods.
+// Type declaration for the 'kuzu' module based on KuzuDB 0.9.0 API documentation
 
 declare module 'kuzu' {
-    // Define the classes based on the library's usage
     export class Database {
         constructor(path: string, systemConfig?: Record<string, any>);
-        // Add other methods if needed, e.g., close()
+        close(): void;
     }
 
     export class Connection {
         constructor(database: Database, config?: Record<string, any>);
         query(query: string, params?: Record<string, any>): Promise<QueryResult>;
-        // Add other methods like prepare, execute, etc., if needed
+        prepare(query: string): Promise<PreparedStatement>;
+        execute(statement: PreparedStatement, params?: Record<string, any>): Promise<QueryResult>;
     }
 
     export class QueryResult {
-        // Add the getAll method signature
-        getAll(): Promise<Record<string, any>[]>; // Returns an array of result objects
-        // Keep previous methods if needed, or refine types further
-        // Define methods based on observed usage
-        next(): Promise<Record<string, any> | null>; // Simplified return type
-        getValue(columnName: string): any; // Simplified return type
-        // Add other methods like close, getColumnNames, etc., if needed
+        // Async methods
+        getNext(): Promise<Record<string, any> | null>;
+        getAll(): Promise<Record<string, any>[]>;
+        getColumnNames(): Promise<string[]>;
+        getColumnDataTypes(): Promise<string[]>;
+        
+        // Sync methods
+        hasNext(): boolean;
+        getNextSync(): Record<string, any> | null;
+        getAllSync(): Record<string, any>[];
+        getColumnNamesSync(): string[];
+        getColumnDataTypesSync(): string[];
+        getNumTuples(): number;
+        
+        // Utility methods
+        resetIterator(): void;
+        close(): void;
+        
+        // Callback-based methods
+        each(resultCallback: (row: Record<string, any>) => void, 
+             doneCallback: () => void, 
+             errorCallback: (error: Error) => void): void;
+        all(resultCallback: (rows: Record<string, any>[]) => void, 
+            errorCallback: (error: Error) => void): void;
     }
 
-    // Add any other exports if necessary
+    export class PreparedStatement {
+        // Add prepared statement methods if needed
+    }
 } 

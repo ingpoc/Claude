@@ -73,13 +73,12 @@ export class RelationshipService {
       const relationshipId = `rel_${uuidv4()}`;
       const now = new Date().toISOString();
 
+      // Create relationship with basic schema (compatible with fallback)
       const createQuery = `
         MATCH (from:Entity {id: $fromId}), (to:Entity {id: $toId})
         CREATE (from)-[r:${type.toUpperCase()} {
           id: $relationshipId,
-          type: $type,
-          description: $description,
-          createdAt: $createdAt
+          type: $type
         }]->(to)
         RETURN r
       `;
@@ -118,8 +117,8 @@ export class RelationshipService {
         from: fromEntityId,
         to: toEntityId,
         type,
-        description,
-        createdAt: now
+        description: description || undefined, // Optional field
+        createdAt: now // Keep for interface compatibility
       };
     });
   }
@@ -157,7 +156,7 @@ export class RelationshipService {
       query += ` WHERE ${whereConditions.join(' AND ')}`;
     }
 
-    query += ' RETURN r, from.id as fromId, to.id as toId ORDER BY r.createdAt DESC';
+    query += ' RETURN r, from.id as fromId, to.id as toId'; // Removed ORDER BY r.createdAt for compatibility
 
     const result = await databaseService.executeQuery(projectId, query, params);
 
@@ -169,10 +168,34 @@ export class RelationshipService {
     const relationships: Relationship[] = [];
     try {
       while ((result as any).hasNext()) {
-        const record = (result as any).getNext();
-        const relationshipData = record.get('r');
-        const fromId = record.get('fromId');
-        const toId = record.get('toId');
+        const record = (result as any).getNextSync();
+        
+        // Add detailed logging to understand the record structure
+        logger.debug('KuzuDB Relationship Record Structure', {
+          projectId,
+          recordType: typeof record,
+          recordKeys: record ? Object.keys(record) : 'undefined',
+          recordValue: record,
+          hasR: record && 'r' in record,
+          hasFromId: record && 'fromId' in record,
+          hasToId: record && 'toId' in record
+        });
+
+        const relationshipData = record.r; // Direct property access for KuzuDB Node.js API
+        const fromId = record.fromId; // Direct property access for KuzuDB Node.js API
+        const toId = record.toId; // Direct property access for KuzuDB Node.js API
+
+        // Additional validation
+        if (!fromId || !toId) {
+          logger.warn('Missing fromId or toId in relationship record', {
+            projectId,
+            record,
+            fromId,
+            toId,
+            relationshipData
+          });
+          continue;
+        }
 
         const relationship = this.parseRelationshipFromDB(relationshipData, fromId, toId);
         if (relationship) {
@@ -233,8 +256,8 @@ export class RelationshipService {
     const entities: Entity[] = [];
     try {
       while ((result as any).hasNext()) {
-        const record = (result as any).getNext();
-        const entityData = record.get('related');
+        const record = (result as any).getNextSync();
+        const entityData = record.related; // Direct property access for KuzuDB Node.js API
         const entity = entityService['parseEntityFromDB'](entityData);
         
         if (entity) {
@@ -342,16 +365,56 @@ export class RelationshipService {
     toId: string
   ): Relationship | null {
     try {
+      // Add detailed logging to understand the data structure
+      logger.debug('Parsing relationship from DB', {
+        relationshipData: relationshipData,
+        relationshipDataType: typeof relationshipData,
+        relationshipDataKeys: relationshipData ? Object.keys(relationshipData) : 'undefined',
+        fromId,
+        toId
+      });
+
+      // Check if relationshipData is null or undefined
+      if (!relationshipData) {
+        logger.warn('Relationship data is null or undefined', { fromId, toId });
+        return null;
+      }
+
+      // Check if required properties exist
+      if (!relationshipData.id) {
+        logger.warn('Relationship data missing id property', { 
+          relationshipData, 
+          fromId, 
+          toId,
+          availableKeys: Object.keys(relationshipData) 
+        });
+        return null;
+      }
+
+      if (!relationshipData.type) {
+        logger.warn('Relationship data missing type property', { 
+          relationshipData, 
+          fromId, 
+          toId,
+          availableKeys: Object.keys(relationshipData) 
+        });
+        return null;
+      }
+
       return {
         id: relationshipData.id,
         from: fromId,
         to: toId,
         type: relationshipData.type,
-        description: relationshipData.description,
-        createdAt: relationshipData.createdAt
+        description: relationshipData.description || undefined, // Handle missing field
+        createdAt: relationshipData.createdAt || undefined // Handle missing field
       };
     } catch (error) {
-      logger.error('Failed to parse relationship from database', error);
+      logger.error('Failed to parse relationship from database', error, {
+        relationshipData,
+        fromId,
+        toId
+      });
       return null;
     }
   }

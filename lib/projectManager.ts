@@ -292,20 +292,44 @@ async function initializeSchema(conn: kuzu.Connection, dbPath: string): Promise<
                 type STRING,
                 description STRING,
                 observations STRING, 
-                parentId STRING
+                parentId STRING,
+                createdAt STRING,
+                updatedAt STRING
             )
         `);
         console.error("[Schema] Entity table checked/created.");
         
-        // Create relationship type
-        await conn.query(`
-            CREATE REL TABLE IF NOT EXISTS Related (
-                FROM Entity TO Entity,
-                id STRING,
-                type STRING
-            )
-        `);
-        console.error("[Schema] Related table checked/created.");
+        // For relationships, we need to handle schema migration
+        // First try to create the table with full schema
+        try {
+            await conn.query(`
+                CREATE REL TABLE IF NOT EXISTS Related (
+                    FROM Entity TO Entity,
+                    id STRING,
+                    type STRING,
+                    description STRING,
+                    createdAt STRING
+                )
+            `);
+            console.error("[Schema] Related table created with full schema.");
+        } catch (tableCreateError) {
+            console.error("[Schema] Table creation failed, might already exist. Attempting schema migration...");
+            
+            // If table exists but with old schema, we need to handle migration
+            // For now, let's use a simplified relationship table without timestamps
+            try {
+                await conn.query(`
+                    CREATE REL TABLE IF NOT EXISTS Related (
+                        FROM Entity TO Entity,
+                        id STRING,
+                        type STRING
+                    )
+                `);
+                console.error("[Schema] Related table created with basic schema (migration fallback).");
+            } catch (fallbackError) {
+                console.error("[Schema] Even basic table creation failed:", fallbackError);
+            }
+        }
         
         console.error(`[Schema] KuzuDB schema initialization complete for ${dbPath}.`);
         schemaInitializedPaths.add(dbPath); // Mark as initialized

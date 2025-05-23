@@ -1,0 +1,291 @@
+---
+description: UI Design Guidelines: shadcn-ui + GSAP Interactive Components
+globs: 
+alwaysApply: false
+---
+# UI Design Guidelines: shadcn-ui + GSAP Interactive Components
+
+## Overview
+This rule outlines best practices for creating visually appealing and interactive UI components using shadcn-ui for design system consistency and GSAP for smooth animations. Based on the enhanced MCP Knowledge Graph dashboard implementation.
+
+## Design Philosophy
+- **Modern Aesthetics**: Use gradients, glassmorphism, and subtle shadows
+- **Micro-interactions**: Every interaction should feel smooth and intentional
+- **Progressive Enhancement**: Start with accessible base components, add animations
+- **Performance First**: Optimize animations for 60fps performance
+
+## Component Architecture
+
+### 1. Enhanced Component Pattern
+Follow this pattern for creating interactive components:
+
+```typescript
+"use client"; // Required for Next.js App Router
+
+import React, { useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { cn } from '../lib/utils';
+
+interface ComponentProps {
+  // Use string-based props instead of component references for Next.js compatibility
+  iconName?: string;
+  delay?: number;
+  color?: 'blue' | 'green' | 'purple' | 'orange';
+}
+
+const EnhancedComponent: React.FC<ComponentProps> = ({
+  iconName,
+  delay = 0,
+  color = 'blue'
+}) => {
+  const elementRef = useRef<HTMLDivElement>(null);
+  
+  // Icon mapping pattern for Next.js compatibility
+  const iconMap = {
+    Library: Library,
+    Users: Users,
+    // ... other icons
+  };
+  
+  const Icon = iconName ? iconMap[iconName as keyof typeof iconMap] : null;
+
+  useEffect(() => {
+    if (!elementRef.current) return;
+
+    // GSAP animation setup
+    gsap.set(elementRef.current, { opacity: 0, y: 30 });
+    
+    gsap.to(elementRef.current, {
+      opacity: 1,
+      y: 0,
+      duration: 0.6,
+      delay,
+      ease: "back.out(1.2)"
+    });
+
+    // Hover animations
+    const handleMouseEnter = () => {
+      gsap.to(elementRef.current, {
+        y: -5,
+        scale: 1.02,
+        duration: 0.3,
+        ease: "power2.out"
+      });
+    };
+
+    const handleMouseLeave = () => {
+      gsap.to(elementRef.current, {
+        y: 0,
+        scale: 1,
+        duration: 0.3,
+        ease: "power2.out"
+      });
+    };
+
+    const element = elementRef.current;
+    element.addEventListener('mouseenter', handleMouseEnter);
+    element.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      element.removeEventListener('mouseenter', handleMouseEnter);
+      element.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [delay]);
+
+  return (
+    <Card ref={elementRef} className={cn("enhanced-component", colorClasses[color])}>
+      {/* Component content */}
+    </Card>
+  );
+};
+```
+
+### 2. Color System & Gradients
+Use consistent color mappings across components:
+
+```typescript
+const colorMappings = {
+  blue: 'from-blue-500/10 to-blue-600/5 border-blue-200/20',
+  green: 'from-green-500/10 to-green-600/5 border-green-200/20',
+  purple: 'from-purple-500/10 to-purple-600/5 border-purple-200/20',
+  orange: 'from-orange-500/10 to-orange-600/5 border-orange-200/20'
+};
+
+const iconColors = {
+  blue: 'text-blue-500',
+  green: 'text-green-500',
+  purple: 'text-purple-500',
+  orange: 'text-orange-500'
+};
+```
+
+### 3. Animation Patterns
+
+#### Entrance Animations
+- **Staggered Entry**: Use delays (0, 0.1, 0.2, etc.) for sequential reveals
+- **Back Ease**: `ease: "back.out(1.2)"` for bouncy entrances
+- **Scale + Position**: Combine `scale: 0.95` with `y: 30` for depth
+
+#### Hover Interactions
+- **Subtle Lift**: `y: -5` to `y: -8` with slight scale increase
+- **Icon Rotation**: Small rotation (5-10 degrees) on icon hover
+- **Duration**: Keep hover animations short (0.3s) for responsiveness
+
+#### Number Counting
+```typescript
+gsap.fromTo(valueRef.current, 
+  { innerHTML: 0 },
+  {
+    innerHTML: targetValue,
+    duration: 1.5,
+    ease: "power2.out",
+    snap: { innerHTML: 1 },
+    onUpdate: function() {
+      const currentValue = Math.round(Number(this.targets()[0].innerHTML));
+      valueRef.current.innerHTML = currentValue.toLocaleString();
+    }
+  }
+);
+```
+
+## shadcn-ui Integration
+
+### Core Components to Use
+Reference [components/ui/card.tsx](mdc:components/ui/card.tsx), [components/ui/button.tsx](mdc:components/ui/button.tsx), [components/ui/badge.tsx](mdc:components/ui/badge.tsx) for base components.
+
+### Enhanced Card Pattern
+```typescript
+<Card className={cn(
+  "relative overflow-hidden border transition-all duration-300",
+  "hover:shadow-lg bg-gradient-to-br",
+  colorMappings[color],
+  className
+)}>
+  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+    <CardTitle className="text-sm font-medium text-muted-foreground">
+      {title}
+    </CardTitle>
+    {Icon && (
+      <div ref={iconRef}>
+        <Icon className={cn("h-5 w-5", iconColors[color])} />
+      </div>
+    )}
+  </CardHeader>
+  <CardContent>
+    {/* Enhanced content with progress bars, trends, etc. */}
+  </CardContent>
+</Card>
+```
+
+### Button Enhancements
+```typescript
+<Button 
+  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
+>
+  <Plus className="h-4 w-4 mr-2" />
+  Action Text
+</Button>
+```
+
+## Layout Patterns
+
+### Dashboard Grid System
+Reference [app/page.tsx](mdc:app/page.tsx) for the enhanced dashboard layout:
+
+```typescript
+<div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {/* Animated Header */}
+    <AnimatedDashboardHeader />
+    
+    {/* Statistics Grid */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {/* Enhanced stat cards with staggered delays */}
+    </div>
+    
+    {/* Main Content Grid */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2">
+        {/* Primary content area */}
+      </div>
+      <div className="lg:col-span-1">
+        {/* Sidebar content */}
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+## Next.js App Router Considerations
+
+### Client Components
+- Always add `"use client";` to components using React hooks or GSAP
+- Pass serializable props only (strings, numbers, booleans)
+- Use string-based icon mapping instead of component references
+
+### Server Actions Integration
+Reference [app/actions/knowledgeGraphActions.ts](mdc:app/actions/knowledgeGraphActions.ts) for proper server action patterns with caching strategies.
+
+### Build Optimization
+- Use `next: { revalidate: 60 }` for API calls instead of `cache: 'no-store'`
+- Provide fallback data for build-time rendering
+- Handle network errors gracefully
+
+## Component Examples
+
+### 1. Enhanced Stat Card
+See [components/EnhancedStatCard.tsx](mdc:components/EnhancedStatCard.tsx) for complete implementation with:
+- GSAP entrance animations
+- Number counting effects
+- Hover interactions
+- Progress visualization
+- Trend indicators
+
+### 2. Enhanced Project Card
+See [components/EnhancedProjectCard.tsx](mdc:components/EnhancedProjectCard.tsx) for:
+- 3D hover effects
+- Status badges
+- Mini statistics grid
+- Activity progress bars
+
+### 3. Animated Header
+See [components/AnimatedDashboardHeader.tsx](mdc:components/AnimatedDashboardHeader.tsx) for:
+- Floating background elements
+- Gradient text effects
+- Integrated search functionality
+- Glassmorphism design
+
+### 4. Activity Feed
+See [components/ActivityFeed.tsx](mdc:components/ActivityFeed.tsx) for:
+- Color-coded activity types
+- Staggered item animations
+- Real-time data presentation
+
+## Performance Guidelines
+
+### GSAP Optimization
+- Use `gsap.set()` for initial states before animations
+- Cleanup event listeners in useEffect return function
+- Use `ease: "power2.out"` for most transitions
+- Avoid animating layout properties; prefer transforms
+
+### CSS Optimization
+- Use Tailwind utility classes for consistency
+- Implement design tokens through CSS custom properties
+- Use backdrop-blur sparingly for performance
+- Optimize gradient usage with appropriate opacity levels
+
+## Accessibility Considerations
+- Maintain proper color contrast ratios
+- Provide reduced motion alternatives
+- Ensure keyboard navigation works with animations
+- Use semantic HTML structure with shadcn-ui components
+
+## Testing Patterns
+- Test component rendering without animations (prefer-reduced-motion)
+- Verify server-side rendering compatibility
+- Test responsive behavior across breakpoints
+- Validate animation performance on lower-end devices
+
+This rule ensures consistent, performant, and visually appealing UI components across the application while maintaining accessibility and Next.js compatibility.

@@ -129,8 +129,23 @@ export class EntityService {
     }
 
     try {
-      const record = (result as any).getNext();
-      const entityData = record.get('e');
+      const record = (result as any).getNextSync();
+      
+      // Debug: Log the record structure for single entity queries too
+      logger.debug('Single Entity Record Structure', { 
+        projectId, 
+        entityId,
+        recordKeys: Object.keys(record || {}),
+        recordType: typeof record,
+        recordValue: record 
+      });
+      
+      const entityData = record.e || record[0]; // Try both property access and array index
+      
+      if (!entityData) {
+        logger.warn('No entity data found in single entity record', { projectId, entityId, record });
+        return null;
+      }
       
       return this.parseEntityFromDB(entityData);
     } catch (error) {
@@ -161,8 +176,23 @@ export class EntityService {
     const entities: Entity[] = [];
     try {
       while ((result as any).hasNext()) {
-        const record = (result as any).getNext();
-        const entityData = record.get('e');
+        const record = (result as any).getNextSync();
+        
+        // Debug: Log the actual record structure
+        logger.debug('KuzuDB Record Structure', { 
+          projectId, 
+          recordKeys: Object.keys(record || {}),
+          recordType: typeof record,
+          recordValue: record 
+        });
+        
+        const entityData = record.e || record[0]; // Try both property access and array index
+        
+        if (!entityData) {
+          logger.warn('No entity data found in record', { projectId, record });
+          continue;
+        }
+        
         const entity = this.parseEntityFromDB(entityData);
         
         if (entity) {
@@ -242,8 +272,8 @@ export class EntityService {
       }
 
       try {
-        const record = (result as any).getNext();
-        const entityData = record.get('e');
+        const record = (result as any).getNextSync();
+        const entityData = record.e; // Direct property access for KuzuDB Node.js API
         const updatedEntity = this.parseEntityFromDB(entityData);
         
         logger.info('Entity updated successfully', { projectId, entityId });
