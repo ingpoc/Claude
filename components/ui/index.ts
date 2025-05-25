@@ -10,10 +10,21 @@ export { ProjectSidebar } from './ProjectSidebar';
 export { ContextDashboard } from './ContextDashboard';
 export { NaturalLanguageQuery } from './NaturalLanguageQuery';
 export { SmartSuggestionsPanel } from './SmartSuggestionsPanel';
+export { MigrationDashboard } from './MigrationDashboard';
 
 // Re-export other UI components if they exist
 export * from './button';
 export * from './card';
 export * from './badge';
 export * from './input';
-export * from './select'; 
+export * from './select';
+
+// Re-export shadcn/ui components
+export { Button } from './button';
+export { Card, CardContent, CardHeader, CardTitle } from './card';
+export { Input } from './input';
+export { Label } from './label';
+export { Badge } from './badge';
+export { Alert, AlertDescription } from './alert';
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs';
+export { Switch } from './switch'; 

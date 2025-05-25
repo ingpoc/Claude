@@ -7,6 +7,11 @@ out/
 
 # Production build files
 build/
+dist/
+
+# TypeScript build info
+*.tsbuildinfo
+tsconfig.tsbuildinfo
 
 # SSR cache directory
 .next/cache/
@@ -25,6 +30,7 @@ build/
 !.vscode/launch.json
 !.vscode/extensions.json
 .idea/
+.cursor/
 *.suo
 *.ntvs*
 *.njsproj
@@ -38,6 +44,12 @@ build/
 
 # macOS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Logs
 logs
@@ -69,5 +81,87 @@ lerna-debug.log*
 /dist
 /lib # If you compile your TypeScript/ES6+ to /lib
 
-# Database files
-.kuzu-db/
+# Database files - Qdrant vector database storage
+qdrant_storage/
+*.qdrant
+*.db
+*.sqlite
+*.sqlite3
+
+# MCP Server specific
+mcp-server.log
+*.mcp.log
+
+# Test files (keep test configs but ignore test outputs)
+test-*.ts
+!test-*.config.*
+!**/test-connection/**
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Webpack bundle analyzer
+bundle-analyzer-report.html
+
+# Local development certificates
+*.pem
+*.key
+*.crt
+
+# AI/ML model files (if any)
+*.model
+*.weights
+*.h5
+*.pkl
+*.joblib
+
+# Backup files
+*.bak
+*.backup
+*~

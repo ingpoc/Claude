@@ -1,12 +1,15 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { conversationService } from '../../services/ConversationService';
 import { contextService } from '../../services/ContextService';
+import { vectorEntityService } from '../../services/VectorEntityService';
+import { qdrantService } from '../../services/QdrantService';
 import { logger } from '../../services/Logger';
 import type { CreateConversationRequest } from '../../models/Conversation';
 
 /**
  * Context Intelligence Tools for MCP
  * Provides conversation memory, session management, and smart context loading
+ * Enhanced with vector search capabilities for semantic entity extraction
  */
 
 export const contextTools: Tool[] = [
@@ -52,7 +55,7 @@ export const contextTools: Tool[] = [
 
   {
     name: 'get_conversation_context',
-    description: 'Load relevant context for new conversation based on session and topic. Returns recent conversations, relevant entities, suggested actions, and knowledge gaps to make AI context-aware.',
+    description: 'Load relevant context for new conversations based on topic, session history, and semantic similarity. Uses vector search to find the most relevant past conversations and entities.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -66,19 +69,25 @@ export const contextTools: Tool[] = [
         },
         topic: {
           type: 'string',
-          description: 'Optional topic or focus area to filter relevant context'
+          description: 'Current topic or query to find relevant context for'
         },
         limit: {
           type: 'number',
-          description: 'Maximum number of recent conversations to include (default: 10)'
+          description: 'Maximum number of context items to return (default: 10)',
+          minimum: 1,
+          maximum: 50
         },
         include_suggestions: {
           type: 'boolean',
-          description: 'Whether to include suggested actions (default: true)'
+          description: 'Whether to include smart action suggestions (default: true)'
         },
         include_gaps: {
           type: 'boolean',
-          description: 'Whether to include knowledge gaps analysis (default: true)'
+          description: 'Whether to include knowledge gap detection (default: true)'
+        },
+        use_vector_search: {
+          type: 'boolean',
+          description: 'Whether to use vector search for semantic context loading (default: true)'
         }
       },
       required: ['projectId', 'sessionId']
@@ -87,72 +96,81 @@ export const contextTools: Tool[] = [
 
   {
     name: 'auto_extract_entities',
-    description: 'Automatically extract and identify entities mentioned in conversation text. Helps build knowledge graph connections from natural language.',
+    description: 'Automatically extract and identify entities mentioned in text using AI and vector similarity. Enhanced with semantic search to find existing similar entities.',
     inputSchema: {
       type: 'object',
       properties: {
-        text: {
-          type: 'string',
-          description: 'The text to analyze for entity mentions'
-        },
         projectId: {
           type: 'string',
-          description: 'Project ID to search for existing entities'
+          description: 'The project ID to search for entities in'
+        },
+        text: {
+          type: 'string',
+          description: 'The text to extract entities from'
         },
         confidence_threshold: {
           type: 'number',
-          description: 'Minimum confidence score for entity extraction (0.0-1.0, default: 0.5)'
+          description: 'Minimum confidence threshold for entity extraction (0.0 to 1.0, default: 0.5)',
+          minimum: 0.0,
+          maximum: 1.0
+        },
+        use_vector_search: {
+          type: 'boolean',
+          description: 'Whether to use vector search to find similar existing entities (default: true)'
+        },
+        create_missing: {
+          type: 'boolean',
+          description: 'Whether to suggest creating entities that don\'t exist but are mentioned (default: false)'
         }
       },
-      required: ['text', 'projectId']
+      required: ['projectId', 'text']
     }
   },
 
   {
     name: 'initialize_session',
-    description: 'Initialize or resume a context-aware session for intelligent conversation continuity. Enables the AI to pick up where previous conversations left off.',
+    description: 'Initialize or resume a context-aware session for a user in a project. Sets up session state for conversation memory and context intelligence.',
     inputSchema: {
       type: 'object',
       properties: {
         projectId: {
           type: 'string',
-          description: 'The project ID for the session'
+          description: 'The project ID to initialize session for'
         },
         userId: {
           type: 'string',
-          description: 'User identifier for the session'
+          description: 'The user ID (default: "default-user")'
         },
         sessionId: {
           type: 'string',
-          description: 'Optional specific session ID to resume (if not provided, creates new session)'
+          description: 'Optional: Specific session ID to resume. If not provided, creates new session'
         }
       },
-      required: ['projectId', 'userId']
+      required: ['projectId']
     }
   },
 
   {
     name: 'track_entity_interaction',
-    description: 'Track user interactions with entities to improve context intelligence. Helps the system understand user focus and suggest relevant actions.',
+    description: 'Track user interactions with entities to improve context intelligence and recommendations.',
     inputSchema: {
       type: 'object',
       properties: {
         sessionId: {
           type: 'string',
-          description: 'Current session ID'
+          description: 'The session ID tracking the interaction'
         },
         projectId: {
           type: 'string',
-          description: 'Project ID containing the entity'
+          description: 'The project ID containing the entity'
         },
         entityId: {
           type: 'string',
-          description: 'ID of the entity being interacted with'
+          description: 'The ID of the entity being interacted with'
         },
         interactionType: {
           type: 'string',
-          enum: ['view', 'edit', 'create', 'delete', 'relate'],
-          description: 'Type of interaction with the entity'
+          description: 'Type of interaction (e.g., "viewed", "edited", "created", "searched")'
         }
       },
       required: ['sessionId', 'projectId', 'entityId', 'interactionType']
@@ -161,34 +179,38 @@ export const contextTools: Tool[] = [
 
   {
     name: 'search_conversation_history',
-    description: 'Search through conversation history to find relevant past discussions. Enables AI to reference previous conversations and build on prior context.',
+    description: 'Search through conversation history using both text search and semantic similarity.',
     inputSchema: {
       type: 'object',
       properties: {
         projectId: {
           type: 'string',
-          description: 'Project ID to search within'
+          description: 'The project ID to search conversations in'
         },
         query: {
           type: 'string',
-          description: 'Search query to find relevant conversations'
+          description: 'Search query for finding relevant conversations'
         },
         sessionId: {
           type: 'string',
-          description: 'Optional: limit search to specific session'
+          description: 'Optional: Limit search to specific session'
         },
         dateFrom: {
           type: 'string',
-          description: 'Optional: search from this date (ISO format)'
+          description: 'Optional: Start date for search (ISO string)'
         },
         dateTo: {
           type: 'string',
-          description: 'Optional: search until this date (ISO format)'
+          description: 'Optional: End date for search (ISO string)'
         },
         entityIds: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Optional: limit search to conversations involving these entities'
+          description: 'Optional: Filter by conversations mentioning specific entities'
+        },
+        use_vector_search: {
+          type: 'boolean',
+          description: 'Whether to use semantic vector search (default: true)'
         }
       },
       required: ['projectId', 'query']
@@ -197,21 +219,21 @@ export const contextTools: Tool[] = [
 
   {
     name: 'update_session_state',
-    description: 'Update session state with current user goals, topics, and context. Helps maintain conversation continuity and context awareness.',
+    description: 'Update the current session state with new topics, goals, or workflow information.',
     inputSchema: {
       type: 'object',
       properties: {
         sessionId: {
           type: 'string',
-          description: 'Session ID to update'
+          description: 'The session ID to update'
         },
         projectId: {
           type: 'string',
-          description: 'Project ID for the session'
+          description: 'The project ID containing the session'
         },
         currentTopic: {
           type: 'string',
-          description: 'Current conversation topic or focus'
+          description: 'Current topic or focus of the conversation'
         },
         userGoals: {
           type: 'array',
@@ -221,10 +243,10 @@ export const contextTools: Tool[] = [
         pendingQuestions: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Questions that need to be answered'
+          description: 'Questions that need to be addressed'
         },
         workflowState: {
-          type: 'string',
+          type: 'object',
           description: 'Current workflow or process state'
         }
       },
@@ -234,29 +256,25 @@ export const contextTools: Tool[] = [
 
   {
     name: 'get_smart_suggestions',
-    description: 'Get AI-powered suggestions for next actions based on current context and conversation history. Helps guide users toward productive next steps.',
+    description: 'Get AI-powered suggestions for next actions, relevant entities, and knowledge gaps based on current context.',
     inputSchema: {
       type: 'object',
       properties: {
         sessionId: {
           type: 'string',
-          description: 'Session ID to generate suggestions for'
+          description: 'The session ID to generate suggestions for'
         },
         projectId: {
           type: 'string',
-          description: 'Project ID to analyze'
+          description: 'The project ID to analyze'
         },
         includeEntitySuggestions: {
           type: 'boolean',
-          description: 'Include suggestions for entity creation/editing (default: true)'
+          description: 'Whether to include entity-related suggestions (default: true)'
         },
-        includeRelationshipSuggestions: {
+        useVectorSimilarity: {
           type: 'boolean',
-          description: 'Include suggestions for relationship creation (default: true)'
-        },
-        includeWorkflowSuggestions: {
-          type: 'boolean',
-          description: 'Include workflow and process suggestions (default: true)'
+          description: 'Whether to use vector similarity for better suggestions (default: true)'
         }
       },
       required: ['sessionId', 'projectId']
@@ -265,21 +283,21 @@ export const contextTools: Tool[] = [
 
   {
     name: 'end_session',
-    description: 'Properly end a context session and save final state. Ensures conversation context is preserved for future sessions.',
+    description: 'Properly end a context session with optional summary for future reference.',
     inputSchema: {
       type: 'object',
       properties: {
         sessionId: {
           type: 'string',
-          description: 'Session ID to end'
+          description: 'The session ID to end'
         },
         projectId: {
           type: 'string',
-          description: 'Project ID for the session'
+          description: 'The project ID containing the session'
         },
         sessionSummary: {
           type: 'string',
-          description: 'Optional summary of what was accomplished in this session'
+          description: 'Optional: Summary of what was accomplished in this session'
         }
       },
       required: ['sessionId', 'projectId']
@@ -306,7 +324,20 @@ export async function handleAddConversationContext(args: any): Promise<any> {
 
     const conversation = await conversationService.createConversation(request);
     
-    logger.info('Conversation context added successfully', { 
+    // Store conversation in vector database for semantic search
+    await qdrantService.upsertConversation({
+      id: conversation.id,
+      payload: {
+        userId: 'default-user', // Default user for vector storage
+        projectId: conversation.projectId,
+        content: `${conversation.userMessage} ${conversation.aiResponse}`,
+        entities: conversation.extractedEntityIds,
+        timestamp: conversation.timestamp.toISOString(),
+        sessionId: conversation.sessionId
+      }
+    });
+    
+    logger.info('Conversation context added successfully with vector storage', { 
       conversationId: conversation.id,
       projectId: args.projectId,
       sessionId: args.sessionId 
@@ -315,7 +346,7 @@ export async function handleAddConversationContext(args: any): Promise<any> {
     return {
       success: true,
       conversationId: conversation.id,
-      message: 'Conversation context stored successfully',
+      message: 'Conversation context stored successfully with vector search capability',
       extractedEntities: conversation.extractedEntityIds.length,
       timestamp: conversation.timestamp
     };
@@ -334,12 +365,51 @@ export async function handleAddConversationContext(args: any): Promise<any> {
 
 export async function handleGetConversationContext(args: any): Promise<any> {
   try {
-    const context = await conversationService.getConversationContext(
-      args.projectId,
-      args.sessionId,
-      args.topic,
-      args.limit || 10
-    );
+    let context;
+    
+    if (args.use_vector_search !== false && args.topic) {
+      // Use vector search to find semantically relevant context
+      const vectorResults = await qdrantService.searchConversations(
+        args.topic,
+        args.projectId,
+        args.limit || 10
+      );
+      
+      // Get traditional context
+      context = await conversationService.getConversationContext(
+        args.projectId,
+        args.sessionId,
+        args.topic,
+        args.limit || 10
+      );
+      
+      // Enhance with vector search results
+      const vectorConversations = vectorResults.map(result => ({
+        id: result.id,
+        userMessage: result.payload.content.split(' ').slice(0, 50).join(' '), // Approximate user message
+        aiResponse: result.payload.content.split(' ').slice(50).join(' '), // Approximate AI response
+        timestamp: result.payload.timestamp,
+        intent: 'vector_search_result',
+        extractedEntityIds: result.payload.entities,
+        score: result.score
+      }));
+      
+      // Merge and deduplicate
+      const existingIds = new Set(context.recentConversations.map(c => c.id));
+      const newConversations = vectorConversations.filter(c => !existingIds.has(c.id));
+      
+      context.recentConversations = [...context.recentConversations, ...newConversations]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, args.limit || 10);
+    } else {
+      // Use traditional context loading
+      context = await conversationService.getConversationContext(
+        args.projectId,
+        args.sessionId,
+        args.topic,
+        args.limit || 10
+      );
+    }
 
     // Enhance with additional suggestions if requested
     if (args.include_suggestions !== false) {
@@ -349,11 +419,12 @@ export async function handleGetConversationContext(args: any): Promise<any> {
       }
     }
 
-    logger.info('Conversation context loaded', { 
+    logger.info('Conversation context loaded with vector enhancement', { 
       projectId: args.projectId,
       sessionId: args.sessionId,
       entitiesCount: context.relevantEntities.length,
-      conversationsCount: context.recentConversations.length
+      conversationsCount: context.recentConversations.length,
+      usedVectorSearch: args.use_vector_search !== false && !!args.topic
     });
 
     return {
@@ -367,13 +438,15 @@ export async function handleGetConversationContext(args: any): Promise<any> {
           aiResponse: c.aiResponse,
           timestamp: c.timestamp,
           intent: c.intent,
-          extractedEntities: c.extractedEntityIds
+          extractedEntities: c.extractedEntityIds,
+          score: c.score || undefined
         })),
         sessionSummary: context.sessionSummary,
         userIntent: context.userIntent,
         suggestedActions: context.suggestedActions,
         knowledgeGaps: args.include_gaps !== false ? context.knowledgeGaps : []
-      }
+      },
+      vectorSearchUsed: args.use_vector_search !== false && !!args.topic
     };
 
   } catch (error) {
@@ -390,33 +463,66 @@ export async function handleGetConversationContext(args: any): Promise<any> {
 
 export async function handleAutoExtractEntities(args: any): Promise<any> {
   try {
-    const mentions = await conversationService.autoExtractEntities(
-      args.text,
-      args.projectId
-    );
-
     const threshold = args.confidence_threshold || 0.5;
-    const filteredMentions = mentions.filter(m => m.confidence >= threshold);
+    
+    let extractedEntities = [];
+    let suggestions = [];
+    
+    if (args.use_vector_search !== false) {
+      // Use vector search to find similar entities
+      const vectorResults = await vectorEntityService.extractEntitiesFromText(
+        args.text,
+        args.projectId,
+        {
+          minConfidence: threshold
+        }
+      );
+      
+      extractedEntities = vectorResults.entities;
+      suggestions = vectorResults.suggestions;
+      
+      // If create_missing is true, suggest creating entities that don't exist
+      if (args.create_missing) {
+        // This would involve NLP to identify potential entities not in the vector database
+        // For now, we'll add this as a suggestion
+        suggestions.push('Consider creating entities for any important concepts not found in the existing knowledge graph');
+      }
+    } else {
+      // Fallback to traditional entity extraction
+      const mentions = await conversationService.autoExtractEntities(
+        args.text,
+        args.projectId
+      );
+      
+      extractedEntities = mentions.filter(m => m.confidence >= threshold);
+    }
 
-    logger.info('Auto-extracted entity mentions', { 
+    logger.info('Auto-extracted entity mentions with vector search', { 
       projectId: args.projectId,
-      totalMentions: mentions.length,
-      filteredMentions: filteredMentions.length,
-      threshold 
+      totalMentions: extractedEntities.length,
+      threshold,
+      usedVectorSearch: args.use_vector_search !== false
     });
 
     return {
       success: true,
-      entities: filteredMentions.map(mention => ({
-        entityId: mention.entityId,
-        text: mention.text,
-        confidence: mention.confidence,
+      entities: extractedEntities.map(mention => ({
+        entityId: mention.entityId || mention.id,
+        name: mention.name || mention.text,
+        type: mention.type,
+        description: mention.description,
+        confidence: mention.confidence || mention.score,
         startOffset: mention.startOffset,
         endOffset: mention.endOffset,
         context: mention.context
       })),
-      totalFound: mentions.length,
-      aboveThreshold: filteredMentions.length
+      suggestions,
+      totalFound: extractedEntities.length,
+      vectorSearchUsed: args.use_vector_search !== false,
+      metadata: {
+        threshold,
+        createMissing: args.create_missing || false
+      }
     };
 
   } catch (error) {

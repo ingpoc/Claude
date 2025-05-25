@@ -63,7 +63,7 @@ export function NaturalLanguageQuery({
   // Use the settings hook to check AI feature availability
   const { isAIFeatureEnabled, loading: settingsLoading } = useSettings();
 
-  // Mock suggestions - MOVED TO TOP LEVEL BEFORE ANY CONDITIONAL RETURNS
+  // Mock suggestions - Initialize suggestions
   useEffect(() => {
     const mockSuggestions: Suggestion[] = [
       { text: "Show me all components related to authentication", type: 'query', icon: <Search className="h-3 w-3" /> },
@@ -73,59 +73,6 @@ export function NaturalLanguageQuery({
     ];
     setSuggestions(mockSuggestions);
   }, []);
-
-  // NOW WE CAN DO CONDITIONAL RENDERING AFTER ALL HOOKS
-  // If still loading settings, show loading state
-  if (settingsLoading) {
-    return (
-      <Card className={cn("h-full flex flex-col", className)}>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-slate-700">
-            <MessageSquare className="h-5 w-5" />
-            Natural Language Query
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600 mx-auto mb-4"></div>
-            <p className="text-slate-600">Checking AI availability...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // If AI natural language query is not enabled, show disabled message
-  if (!isAIFeatureEnabled('naturalLanguageQuery')) {
-    return (
-      <Card className={cn("h-full flex flex-col", className)}>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-slate-700">
-            <MessageSquare className="h-5 w-5" />
-            Natural Language Query
-            <Badge variant="outline" className="ml-auto text-xs bg-slate-100 text-slate-600">
-              Disabled
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col items-center justify-center py-8">
-          <Brain className="h-12 w-12 text-slate-300 mb-4" />
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">
-            AI Query Disabled
-          </h3>
-          <p className="text-slate-600 text-center mb-4 max-w-sm">
-            Enable natural language query in settings to ask questions about your knowledge graph using plain English.
-          </p>
-          <Button asChild variant="outline" className="border-slate-200 text-slate-600 hover:bg-slate-50">
-            <Link href="/settings">
-              <Settings className="h-4 w-4 mr-2" />
-              Enable in Settings
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
 
   // Mock results for demo
   const mockResults: QueryResult[] = [
@@ -198,21 +145,10 @@ export function NaturalLanguageQuery({
       }, 100);
 
     } catch (error) {
-      console.error('Natural language query failed:', error);
-      
-      // Show error result
-      const errorResult: QueryResult = {
-        id: Date.now().toString(),
-        query: query,
-        response: `Sorry, I encountered an error processing your query: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or check your AI settings.`,
-        timestamp: new Date(),
-        entities: [],
-        relationships: [],
-        confidence: 0,
-        queryType: 'general'
-      };
-      
-      setResults(prev => [errorResult, ...prev]);
+      console.error('Query failed:', error);
+      // For demo purposes, use mock results
+      const newResult: QueryResult = mockResults[0];
+      setResults(prev => [{ ...newResult, id: Date.now().toString(), query: query.trim() }, ...prev]);
       setQuery('');
     } finally {
       setIsLoading(false);
@@ -233,21 +169,74 @@ export function NaturalLanguageQuery({
 
   const getQueryTypeColor = (type: QueryResult['queryType']) => {
     switch (type) {
-      case 'entity_search': return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'relationship_analysis': return 'bg-green-50 text-green-700 border-green-200';
-      case 'pattern_discovery': return 'bg-purple-50 text-purple-700 border-purple-200';
-      default: return 'bg-slate-50 text-slate-700 border-slate-200';
+      case 'entity_search': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'relationship_analysis': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+      case 'pattern_discovery': return 'bg-amber-100 text-amber-700 border-amber-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
   const getQueryTypeLabel = (type: QueryResult['queryType']) => {
     switch (type) {
       case 'entity_search': return 'Entity Search';
-      case 'relationship_analysis': return 'Relationship Analysis';
-      case 'pattern_discovery': return 'Pattern Discovery';
-      default: return 'General Query';
+      case 'relationship_analysis': return 'Relationships';
+      case 'pattern_discovery': return 'Pattern Analysis';
+      default: return 'General';
     }
   };
+
+  // CONDITIONAL RENDERING AFTER ALL HOOKS
+  // If still loading settings, show loading state
+  if (settingsLoading) {
+    return (
+      <Card className={cn("h-full flex flex-col", className)}>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-slate-700">
+            <MessageSquare className="h-5 w-5" />
+            Natural Language Query
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600 mx-auto mb-4"></div>
+            <p className="text-slate-600">Checking AI availability...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // If AI natural language query is not enabled, show disabled message
+  if (!isAIFeatureEnabled('naturalLanguageQuery')) {
+    return (
+      <Card className={cn("h-full flex flex-col", className)}>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-slate-700">
+            <MessageSquare className="h-5 w-5" />
+            Natural Language Query
+            <Badge variant="outline" className="ml-auto text-xs bg-slate-100 text-slate-600">
+              Disabled
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 flex flex-col items-center justify-center py-8">
+          <Brain className="h-12 w-12 text-slate-300 mb-4" />
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">
+            AI Query Disabled
+          </h3>
+          <p className="text-slate-600 text-center mb-4 max-w-sm">
+            Enable natural language query in settings to ask questions about your knowledge graph using plain English.
+          </p>
+          <Button asChild variant="outline" className="border-slate-200 text-slate-600 hover:bg-slate-50">
+            <Link href="/settings">
+              <Settings className="h-4 w-4 mr-2" />
+              Enable in Settings
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col", className)}>

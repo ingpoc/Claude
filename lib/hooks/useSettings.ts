@@ -23,7 +23,7 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
   // localStorage backup utilities
   const STORAGE_KEY = `settings_${userId}`;
   
-  const saveToLocalStorage = (settingsData: UserSettings) => {
+  const saveToLocalStorage = useCallback((settingsData: UserSettings) => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsData));
@@ -31,9 +31,9 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
         console.warn('Failed to save to localStorage:', err);
       }
     }
-  };
+  }, [STORAGE_KEY]);
 
-  const loadFromLocalStorage = (): UserSettings | null => {
+  const loadFromLocalStorage = useCallback((): UserSettings | null => {
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -51,68 +51,54 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
       }
     }
     return null;
-  };
+  }, [STORAGE_KEY]);
 
   const loadSettings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Try localStorage first for immediate loading
+      // Load from localStorage first for instant display
       const cachedSettings = loadFromLocalStorage();
       if (cachedSettings) {
         setSettings(cachedSettings);
-        setLoading(false); // Show cached data immediately
       }
-      
-      // Then call the actual backend API to get latest data
-      const response = await fetch(`/api/settings?userId=${userId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
 
+      // Then load from API
+      const response = await fetch(`/api/settings?userId=${encodeURIComponent(userId)}`);
+      
       if (!response.ok) {
         throw new Error(`Failed to load settings: ${response.statusText}`);
       }
 
       const data = await response.json();
       
-      if (data.success) {
+      if (data.success && data.data) {
         setSettings(data.data);
-        saveToLocalStorage(data.data); // Update localStorage cache
+        saveToLocalStorage(data.data);
       } else {
-        throw new Error(data.error || 'Failed to load settings');
-      }
-    } catch (err) {
-      console.error('Failed to load settings:', err);
-      
-      // If we have cached settings, use them and don't show error
-      const cachedSettings = loadFromLocalStorage();
-      if (cachedSettings) {
-        setSettings(cachedSettings);
-        console.log('Using cached settings due to API error');
-      } else {
-        setError('Failed to load settings');
-        
-        // Fallback to default settings
+        // If no settings found, create default settings
         const fallbackSettings: UserSettings = {
-        id: 'user-1',
+        id: `settings-${userId}`,
         userId,
         aiConfiguration: {
-          provider: 'none',
+          provider: 'openrouter',
           enabled: false,
-          config: {}
+          config: {
+            apiKey: '',
+            model: 'openai/gpt-3.5-turbo',
+            baseUrl: 'https://openrouter.ai/api/v1',
+            maxTokens: 2000
+          }
         },
         aiFeatures: {
-          naturalLanguageQuery: false,
-          smartEntityExtraction: false,
-          intelligentSuggestions: false,
-          conversationAnalysis: false,
-          conflictResolution: false,
-          knowledgeGapDetection: false,
-          contextPrediction: false
+          naturalLanguageQuery: true,
+          smartEntityExtraction: true,
+          intelligentSuggestions: true,
+          conversationAnalysis: true,
+          conflictResolution: true,
+          knowledgeGapDetection: true,
+          contextPrediction: true
         },
         privacy: {
           allowDataCollection: false,
@@ -121,11 +107,11 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
         },
         performance: {
           cacheEnabled: true,
-          maxCacheSize: 1000,
+          maxCacheSize: 100,
           autoOptimize: true
         },
         ui: {
-          theme: 'auto',
+          theme: 'dark',
           compactMode: false,
           animationsEnabled: true
         },
@@ -137,7 +123,7 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, loadFromLocalStorage, saveToLocalStorage]);
 
   useEffect(() => {
     loadSettings();

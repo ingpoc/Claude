@@ -57,7 +57,7 @@ export const SmartSuggestionsPanel: React.FC<SmartSuggestionsPanelProps> = ({
   // Use the settings hook to check AI feature availability
   const { isAIFeatureEnabled, loading: settingsLoading } = useSettings();
 
-  // Mock suggestions for demo - MOVED TO TOP LEVEL BEFORE ANY CONDITIONAL RETURNS
+  // Mock suggestions for demo - Initialize suggestions
   useEffect(() => {
     const mockSuggestions: Suggestion[] = [
       {
@@ -129,7 +129,50 @@ export const SmartSuggestionsPanel: React.FC<SmartSuggestionsPanelProps> = ({
     setSuggestions(mockSuggestions);
   }, [projectId]);
 
-  // NOW WE CAN DO CONDITIONAL RENDERING AFTER ALL HOOKS
+  const categories = ['all', 'Architecture', 'Relationships', 'Patterns', 'Optimization', 'Documentation'];
+  
+  const filteredSuggestions = suggestions.filter(suggestion => 
+    !dismissedSuggestions.has(suggestion.id) &&
+    (selectedCategory === 'all' || suggestion.category === selectedCategory)
+  );
+
+  const getSuggestionIcon = (type: Suggestion['type']) => {
+    switch (type) {
+      case 'entity_creation': return <Plus className="h-4 w-4 text-emerald-500" />;
+      case 'relationship_suggestion': return <GitBranch className="h-4 w-4 text-indigo-500" />;
+      case 'pattern_insight': return <Target className="h-4 w-4 text-amber-500" />;
+      case 'optimization': return <Zap className="h-4 w-4 text-slate-500" />;
+      case 'knowledge_gap': return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+    }
+  };
+
+  const getPriorityColor = (priority: Suggestion['priority']) => {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-700 border-red-200';
+      case 'medium': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'low': return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.9) return 'text-emerald-600';
+    if (confidence >= 0.7) return 'text-amber-600';
+    return 'text-slate-600';
+  };
+
+  const handleDismiss = (suggestionId: string) => {
+    setDismissedSuggestions(prev => new Set([...prev, suggestionId]));
+  };
+
+  const handleAction = (suggestion: Suggestion) => {
+    if (onActionClick) {
+      onActionClick(suggestion);
+    } else {
+      console.log('Action clicked for suggestion:', suggestion.title);
+    }
+  };
+
+  // CONDITIONAL RENDERING AFTER ALL HOOKS
   // If still loading settings, show loading state
   if (settingsLoading) {
     return (
@@ -181,45 +224,6 @@ export const SmartSuggestionsPanel: React.FC<SmartSuggestionsPanelProps> = ({
       </Card>
     );
   }
-
-  const categories = ['all', 'Architecture', 'Relationships', 'Patterns', 'Optimization', 'Documentation'];
-  
-  const filteredSuggestions = suggestions.filter(suggestion => 
-    !dismissedSuggestions.has(suggestion.id) &&
-    (selectedCategory === 'all' || suggestion.category === selectedCategory)
-  );
-
-  const getSuggestionIcon = (type: Suggestion['type']) => {
-    switch (type) {
-      case 'entity_creation': return <Plus className="h-4 w-4 text-blue-500" />;
-      case 'relationship_suggestion': return <GitBranch className="h-4 w-4 text-green-500" />;
-      case 'pattern_insight': return <Target className="h-4 w-4 text-purple-500" />;
-      case 'optimization': return <Zap className="h-4 w-4 text-orange-500" />;
-      case 'knowledge_gap': return <AlertTriangle className="h-4 w-4 text-amber-500" />;
-    }
-  };
-
-  const getPriorityColor = (priority: Suggestion['priority']) => {
-    switch (priority) {
-      case 'high': return 'bg-red-50 text-red-700 border-red-200';
-      case 'medium': return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'low': return 'bg-slate-50 text-slate-600 border-slate-200';
-    }
-  };
-
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.9) return 'text-emerald-600';
-    if (confidence >= 0.8) return 'text-blue-600';
-    return 'text-slate-600';
-  };
-
-  const handleDismiss = (suggestionId: string) => {
-    setDismissedSuggestions(prev => new Set([...prev, suggestionId]));
-  };
-
-  const handleAction = (suggestion: Suggestion) => {
-    onActionClick?.(suggestion);
-  };
 
   return (
     <Card className={cn("border-slate-200 bg-white shadow-sm", className)}>

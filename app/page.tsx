@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Users, Library, Workflow, Settings, Brain } from 'lucide-react';
+import { Users, Library, Workflow, Settings, Brain, Database } from 'lucide-react';
 import { Button } from "../components/ui/button";
 import ProjectCard from "../components/ProjectCard";
 import StatCard from "../components/StatCard";
@@ -11,6 +11,7 @@ import ActivityFeed from "../components/ActivityFeed";
 import { ContextDashboard } from "../components/ui/ContextDashboard";
 import { NaturalLanguageQuery } from "../components/ui/NaturalLanguageQuery";
 import { SmartSuggestionsPanel } from "../components/ui/SmartSuggestionsPanel";
+import { MigrationDashboard } from "../components/ui/MigrationDashboard";
 import { getProjectsAction } from './actions/knowledgeGraphActions';
 import { settingsService } from '../lib/services/SettingsService';
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -222,6 +223,23 @@ export default async function DashboardPage() {
             />
           </div>
         )}
+
+        {/* Database Migration Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Database Migration</h2>
+              <p className="text-slate-600 text-sm mt-1">
+                Migrate from KuzuDB to Qdrant-only architecture for improved performance
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-lg">
+              <Database className="h-4 w-4 text-amber-600" />
+              <span className="text-sm font-medium text-amber-700">Migration Available</span>
+            </div>
+          </div>
+          <MigrationDashboard />
+        </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

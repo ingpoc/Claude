@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIService } from '../../../../../lib/services/AIService';
-import { KnowledgeGraphService } from '../../../../../lib/services/KnowledgeGraphService';
+import { qdrantDataService } from '../../../../../lib/services/QdrantDataService';
 import { SettingsService } from '../../../../../lib/services/SettingsService';
 import { logger } from '../../../../../lib/services/Logger';
 
@@ -46,20 +46,30 @@ export async function POST(
     logger.info('Processing natural language query', { projectId, query: query.substring(0, 100) });
 
     // Get user settings for AI configuration
-    const settingsService = SettingsService.getInstance();
-    const userSettings = await settingsService.getUserSettings(userId);
+    await qdrantDataService.initialize();
+    const userSettings = await qdrantDataService.getUserSettings(userId);
+    
+    if (!userSettings) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'User settings not found. Please configure your settings first.' 
+        },
+        { status: 400 }
+      );
+    }
 
     // Initialize services
     const aiService = new AIService(userSettings.aiConfiguration, userSettings.aiFeatures);
-    const knowledgeGraphService = KnowledgeGraphService.getInstance();
+    await qdrantDataService.initialize();
 
     // Get knowledge graph context if requested
     let context: any = {};
     if (includeContext) {
       try {
         // Get entities and relationships for context
-        const entities = await knowledgeGraphService.getAllEntities(projectId);
-        const relationships = await knowledgeGraphService.getRelationships(projectId);
+        const entities = await qdrantDataService.getEntitiesByProject(projectId);
+        const relationships = await qdrantDataService.getAllRelationships(projectId);
         
         context = {
           projectId,
@@ -72,8 +82,8 @@ export async function POST(
             description: e.description
           })),
           relationships: relationships.slice(0, 30).map(r => ({
-            from: r.from,
-            to: r.to,
+            from: r.sourceId,
+            to: r.targetId,
             type: r.type,
             description: r.description
           }))

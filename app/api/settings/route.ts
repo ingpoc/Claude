@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { settingsService } from '../../../lib/services/SettingsService';
+import { qdrantDataService, QdrantUserSettings } from '../../../lib/services/QdrantDataService';
 import { UserSettings } from '../../../lib/models/Settings';
 
 export async function GET(request: NextRequest) {
@@ -7,7 +7,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId') || 'default-user';
 
-    const settings = await settingsService.getUserSettings(userId);
+    await qdrantDataService.initialize();
+    const settings = await qdrantDataService.getUserSettings(userId);
 
     return NextResponse.json({
       success: true,
@@ -39,7 +40,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updatedSettings = await settingsService.updateUserSettings(userId, settings);
+    await qdrantDataService.initialize();
+    
+    // Get existing settings or create new ones
+    const existingSettings = await qdrantDataService.getUserSettings(userId);
+    const now = new Date();
+    
+    const updatedSettings: QdrantUserSettings = {
+      id: existingSettings?.id || `settings_${userId}_${Date.now()}`,
+      userId,
+      aiConfiguration: settings.aiConfiguration || existingSettings?.aiConfiguration || {},
+      aiFeatures: settings.aiFeatures || existingSettings?.aiFeatures || {},
+      privacy: settings.privacy || existingSettings?.privacy || {},
+      performance: settings.performance || existingSettings?.performance || {},
+      ui: settings.ui || existingSettings?.ui || {},
+      createdAt: existingSettings?.createdAt || now,
+      updatedAt: now
+    };
+
+    await qdrantDataService.saveUserSettings(updatedSettings);
 
     return NextResponse.json({
       success: true,
@@ -71,19 +90,26 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    let updatedSettings: UserSettings;
+    await qdrantDataService.initialize();
     
-    // If both are provided, update them together
-    if (aiConfiguration && aiFeatures) {
-      updatedSettings = await settingsService.updateUserSettings(userId, {
-        aiConfiguration,
-        aiFeatures
-      });
-    } else if (aiConfiguration) {
-      updatedSettings = await settingsService.updateAIConfiguration(userId, aiConfiguration);
-    } else {
-      updatedSettings = await settingsService.updateAIFeatures(userId, aiFeatures);
+    // Get existing settings
+    const existingSettings = await qdrantDataService.getUserSettings(userId);
+    if (!existingSettings) {
+      return NextResponse.json(
+        { error: 'User settings not found. Please create settings first.' },
+        { status: 404 }
+      );
     }
+
+    // Update specific fields
+    const updatedSettings: QdrantUserSettings = {
+      ...existingSettings,
+      aiConfiguration: aiConfiguration || existingSettings.aiConfiguration,
+      aiFeatures: aiFeatures || existingSettings.aiFeatures,
+      updatedAt: new Date()
+    };
+
+    await qdrantDataService.saveUserSettings(updatedSettings);
 
     return NextResponse.json({
       success: true,

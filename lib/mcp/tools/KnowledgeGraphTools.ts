@@ -3,15 +3,32 @@ import { z } from 'zod';
 // import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SessionManager } from '../SessionManager'; // Keep for now if handlers use it, though projectId source will change
 
-// Import the knowledge graph service
-import {
-  knowledgeGraphService,
-  type Entity,
-  type Relationship,
-  type Observation,
-  type CreateEntityRequest,
-  type CreateRelationshipRequest
-} from "../../services";
+// Import the Qdrant data service
+import { qdrantDataService } from "../../services/QdrantDataService";
+
+// Define types for compatibility
+interface Entity {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  observations: Array<{ id: string; text: string; createdAt?: string }>;
+  parentId?: string;
+}
+
+interface Relationship {
+  id: string;
+  from: string;
+  to: string;
+  type: string;
+  description?: string;
+}
+
+interface Observation {
+  id: string;
+  text: string;
+  createdAt?: string;
+}
 
 // Import Tool type from SDK
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -107,8 +124,65 @@ const deleteObservationSchemaDef = {
     observation_id: z.string().describe("The unique ID of the observation to delete.")
 };
 
+// Helper function to convert Zod schema to JSON Schema
+function zodToJsonSchema(zodSchema: z.ZodRawShape): any {
+  const properties: any = {};
+  const required: string[] = [];
+  
+  for (const [key, value] of Object.entries(zodSchema)) {
+    if (value instanceof z.ZodString) {
+      properties[key] = {
+        type: "string",
+        description: value.description
+      };
+      if (!value.isOptional()) {
+        required.push(key);
+      }
+    } else if (value instanceof z.ZodOptional) {
+      const innerType = value._def.innerType;
+      if (innerType instanceof z.ZodString) {
+        properties[key] = {
+          type: "string",
+          description: innerType.description
+        };
+      } else if (innerType instanceof z.ZodEnum) {
+        properties[key] = {
+          type: "string",
+          enum: innerType._def.values,
+          description: innerType.description
+        };
+      }
+    } else if (value instanceof z.ZodDefault) {
+      const innerType = value._def.innerType;
+      if (innerType instanceof z.ZodOptional) {
+        const enumType = innerType._def.innerType;
+        if (enumType instanceof z.ZodEnum) {
+          properties[key] = {
+            type: "string",
+            enum: enumType._def.values,
+            description: enumType.description,
+            default: value._def.defaultValue()
+          };
+        }
+      }
+    } else if (value instanceof z.ZodEnum) {
+      properties[key] = {
+        type: "string",
+        enum: value._def.values,
+        description: value.description
+      };
+      required.push(key);
+    }
+  }
+  
+  return {
+    type: "object",
+    properties,
+    required
+  };
+}
 
-// --- Define Tool Handlers (Using project_id from args) ---
+// --- Define Tool Handlers (Using QdrantDataService) ---
 
 const createEntityHandler = async (args: ToolArgs<typeof createEntitySchemaDef>) => {
   try {
@@ -117,21 +191,33 @@ const createEntityHandler = async (args: ToolArgs<typeof createEntitySchemaDef>)
         ? args.observations.split('\n').map(s => s.trim()).filter(s => s.length > 0) 
         : [];
 
-    // Project ID now comes from args
-    const entity = await knowledgeGraphService.createEntity(args.project_id, {
+    // Initialize Qdrant and create entity
+    await qdrantDataService.initialize();
+    const qEntity = await qdrantDataService.createEntity({
       name: args.name,
       type: args.type,
       description: args.description,
-      observationsText: observationsArray,
-      parentId: args.parentId
+      projectId: args.project_id,
+      metadata: { 
+        parentId: args.parentId,
+        observations: observationsArray.map((text, index) => ({
+          id: `obs_${index}`,
+          text,
+          createdAt: new Date().toISOString()
+        }))
+      }
     });
 
-    if (!entity) {
-      return {
-        content: [{ type: "text" as const, text: "Error: Failed to create entity." }],
-        isError: true
-      };
-    }
+    // Convert to expected format
+    const entity: Entity = {
+      id: qEntity.id,
+      name: qEntity.name,
+      type: qEntity.type,
+      description: qEntity.description || '',
+      observations: qEntity.metadata.observations || [],
+      parentId: qEntity.metadata.parentId
+    };
+
     return { content: [{ type: "text" as const, text: JSON.stringify(entity) }] };
   } catch (error) {
     console.error("Error in createEntityHandler:", error);
@@ -144,20 +230,25 @@ const createEntityHandler = async (args: ToolArgs<typeof createEntitySchemaDef>)
 
 const createRelationshipHandler = async (args: ToolArgs<typeof createRelationshipSchemaDef>) => {
   try {
-    const rel = await knowledgeGraphService.createRelationship(args.project_id, {
-      fromEntityId: args.source_id,
-      toEntityId: args.target_id,
+    await qdrantDataService.initialize();
+    const qRel = await qdrantDataService.createRelationship({
+      sourceId: args.source_id,
+      targetId: args.target_id,
       type: args.type,
-      description: args.description
+      description: args.description,
+      projectId: args.project_id,
+      strength: 1.0,
+      metadata: {}
     });
 
-    if (!rel) {
-      return {
-        content: [{ type: "text" as const, text: "Error: Failed to create relationship." }],
-        isError: true
-      };
-    }
-    // Assuming Relationship type has from, to, type, id
+    const rel: Relationship = {
+      id: qRel.id,
+      from: qRel.sourceId,
+      to: qRel.targetId,
+      type: qRel.type,
+      description: qRel.description
+    };
+
     return { content: [{ type: "text" as const, text: JSON.stringify({ id: rel.id, from_id: rel.from, to_id: rel.to, type: rel.type }) }] };
   } catch (error) {
     console.error("Error in createRelationshipHandler:", error);
@@ -170,20 +261,31 @@ const createRelationshipHandler = async (args: ToolArgs<typeof createRelationshi
 
 const addObservationHandler = async (args: ToolArgs<typeof addObservationSchemaDef>) => {
   try {
-    const result = await knowledgeGraphService.addObservation(
-      args.project_id,
-      args.entity_id,
-      args.observation
-    );
-
-    if (!result || !result.observation_id) { // Check if result is valid
+    await qdrantDataService.initialize();
+    
+    // Get current entity
+    const entity = await qdrantDataService.getEntity(args.project_id, args.entity_id);
+    if (!entity) {
       return {
-        content: [{ type: "text" as const, text: "Error: Failed to add observation." }],
+        content: [{ type: "text" as const, text: "Error: Entity not found." }],
         isError: true
       };
     }
-    // Assuming result has observation_id
-    return { content: [{ type: "text" as const, text: `Observation added successfully (ID: ${result.observation_id}).` }] };
+    
+    // Add observation to metadata
+    const observations = entity.metadata.observations || [];
+    const newObservation = {
+      id: `obs_${Date.now()}`,
+      text: args.observation,
+      createdAt: new Date().toISOString()
+    };
+    observations.push(newObservation);
+    
+    await qdrantDataService.updateEntity(args.project_id, args.entity_id, {
+      metadata: { ...entity.metadata, observations }
+    });
+
+    return { content: [{ type: "text" as const, text: `Observation added successfully (ID: ${newObservation.id}).` }] };
   } catch (error) {
     console.error("Error in addObservationHandler:", error);
     return {
@@ -195,14 +297,24 @@ const addObservationHandler = async (args: ToolArgs<typeof addObservationSchemaD
 
 const getEntityHandler = async (args: ToolArgs<typeof getEntitySchemaDef>) => {
   try {
-    const entity = await knowledgeGraphService.getEntity(args.project_id, args.entity_id);
+    await qdrantDataService.initialize();
+    const qEntity = await qdrantDataService.getEntity(args.project_id, args.entity_id);
     
-    if (!entity) {
+    if (!qEntity) {
       return {
         content: [{ type: "text" as const, text: "Error: Entity not found." }],
         isError: true
       };
     }
+
+    const entity: Entity = {
+      id: qEntity.id,
+      name: qEntity.name,
+      type: qEntity.type,
+      description: qEntity.description || '',
+      observations: qEntity.metadata.observations || [],
+      parentId: qEntity.metadata.parentId
+    };
 
     return { content: [{ type: "text" as const, text: JSON.stringify(entity) }] };
   } catch (error) {
@@ -216,11 +328,21 @@ const getEntityHandler = async (args: ToolArgs<typeof getEntitySchemaDef>) => {
 
 const listEntitiesHandler = async (args: ToolArgs<typeof listEntitiesSchemaDef>) => {
   try {
-    let entities = await knowledgeGraphService.getAllEntities(args.project_id, args.type);
+    await qdrantDataService.initialize();
+    let qEntities = await qdrantDataService.getEntitiesByProject(args.project_id, 1000);
     
     if (args.type) {
-      entities = entities.filter(entity => entity.type === args.type);
+      qEntities = qEntities.filter(entity => entity.type === args.type);
     }
+
+    const entities: Entity[] = qEntities.map(qEntity => ({
+      id: qEntity.id,
+      name: qEntity.name,
+      type: qEntity.type,
+      description: qEntity.description || '',
+      observations: qEntity.metadata.observations || [],
+      parentId: qEntity.metadata.parentId
+    }));
 
     return { content: [{ type: "text" as const, text: JSON.stringify(entities) }] };
   } catch (error) {
@@ -234,12 +356,48 @@ const listEntitiesHandler = async (args: ToolArgs<typeof listEntitiesSchemaDef>)
 
 const getRelatedEntitiesHandler = async (args: ToolArgs<typeof getRelatedEntitiesSchemaDef>) => {
   try {
-    const relatedEntities = await knowledgeGraphService.getRelatedEntities(
-      args.project_id,
-      args.entity_id,
-      args.relationship_type,
-      args.direction
-    );
+    await qdrantDataService.initialize();
+    
+    // Get relationships for this entity
+    const relationships = await qdrantDataService.getRelationshipsByEntity(args.project_id, args.entity_id);
+    
+    // Filter by relationship type if specified
+    const filteredRelationships = args.relationship_type 
+      ? relationships.filter(rel => rel.type === args.relationship_type)
+      : relationships;
+    
+    // Get related entity IDs based on direction
+    let relatedEntityIds: string[] = [];
+    const direction = args.direction || 'both';
+    
+    filteredRelationships.forEach(rel => {
+      if (direction === 'both' || direction === 'outgoing') {
+        if (rel.sourceId === args.entity_id) {
+          relatedEntityIds.push(rel.targetId);
+        }
+      }
+      if (direction === 'both' || direction === 'incoming') {
+        if (rel.targetId === args.entity_id) {
+          relatedEntityIds.push(rel.sourceId);
+        }
+      }
+    });
+    
+    // Get the actual entities
+    const relatedEntities: Entity[] = [];
+    for (const relatedId of relatedEntityIds) {
+      const qEntity = await qdrantDataService.getEntity(args.project_id, relatedId);
+      if (qEntity) {
+        relatedEntities.push({
+          id: qEntity.id,
+          name: qEntity.name,
+          type: qEntity.type,
+          description: qEntity.description || '',
+          observations: qEntity.metadata.observations || [],
+          parentId: qEntity.metadata.parentId
+        });
+      }
+    }
 
     return { content: [{ type: "text" as const, text: JSON.stringify(relatedEntities) }] };
   } catch (error) {
@@ -253,34 +411,35 @@ const getRelatedEntitiesHandler = async (args: ToolArgs<typeof getRelatedEntitie
 
 const getRelationshipsHandler = async (args: ToolArgs<typeof getRelationshipsSchemaDef>) => {
   try {
-    // Create filter object
-    const filter: { fromId?: string, toId?: string, type?: string } = {};
-
-    if (args.direction === 'outgoing') {
-      filter.fromId = args.entity_id;
-    } else if (args.direction === 'incoming') {
-      filter.toId = args.entity_id;
-    } else {
-      // For 'both', we need to get relationships where the entity is either source or target
-      const allRelationships = await knowledgeGraphService.getRelationships(args.project_id, filter);
-      let relationships = allRelationships.filter(rel => 
-        rel.from === args.entity_id || rel.to === args.entity_id
-      );
-      
-      if (args.relationship_type) {
-        relationships = relationships.filter(rel => rel.type === args.relationship_type);
-      }
-      
-      return { content: [{ type: "text" as const, text: JSON.stringify(relationships) }] };
-    }
-
+    await qdrantDataService.initialize();
+    
+    // Get relationships for this entity
+    let relationships = await qdrantDataService.getRelationshipsByEntity(args.project_id, args.entity_id);
+    
+    // Filter by relationship type if specified
     if (args.relationship_type) {
-      filter.type = args.relationship_type;
+      relationships = relationships.filter(rel => rel.type === args.relationship_type);
     }
+    
+    // Apply direction filter if specified
+    const direction = args.direction || 'both';
+    if (direction === 'incoming') {
+      relationships = relationships.filter(rel => rel.targetId === args.entity_id);
+    } else if (direction === 'outgoing') {
+      relationships = relationships.filter(rel => rel.sourceId === args.entity_id);
+    }
+    // 'both' doesn't need additional filtering
+    
+    // Convert to expected format
+    const convertedRelationships: Relationship[] = relationships.map(rel => ({
+      id: rel.id,
+      from: rel.sourceId,
+      to: rel.targetId,
+      type: rel.type,
+      description: rel.description
+    }));
 
-    let relationships = await knowledgeGraphService.getRelationships(args.project_id, filter);
-
-    return { content: [{ type: "text" as const, text: JSON.stringify(relationships) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify(convertedRelationships) }] };
   } catch (error) {
     console.error("Error in getRelationshipsHandler:", error);
     return {
@@ -292,18 +451,11 @@ const getRelationshipsHandler = async (args: ToolArgs<typeof getRelationshipsSch
 
 const updateEntityDescriptionHandler = async (args: ToolArgs<typeof updateEntityDescriptionSchemaDef>) => {
   try {
-    const success = await knowledgeGraphService.updateEntity(
-      args.project_id,
-      args.entity_id,
-      { description: args.description }
-    );
-
-    if (!success) {
-      return {
-        content: [{ type: "text" as const, text: "Error: Failed to update entity description." }],
-        isError: true
-      };
-    }
+    await qdrantDataService.initialize();
+    
+    await qdrantDataService.updateEntity(args.project_id, args.entity_id, {
+      description: args.description
+    });
 
     return { content: [{ type: "text" as const, text: "Entity description updated successfully." }] };
   } catch (error) {
@@ -317,15 +469,8 @@ const updateEntityDescriptionHandler = async (args: ToolArgs<typeof updateEntity
 
 const deleteEntityHandler = async (args: ToolArgs<typeof deleteEntitySchemaDef>) => {
   try {
-    const success = await knowledgeGraphService.deleteEntity(args.project_id, args.entity_id);
-
-    if (!success) {
-      return {
-        content: [{ type: "text" as const, text: "Error: Failed to delete entity." }],
-        isError: true
-      };
-    }
-
+    await qdrantDataService.initialize();
+    await qdrantDataService.deleteEntity(args.project_id, args.entity_id);
     return { content: [{ type: "text" as const, text: "Entity deleted successfully." }] };
   } catch (error) {
     console.error("Error in deleteEntityHandler:", error);
@@ -338,15 +483,8 @@ const deleteEntityHandler = async (args: ToolArgs<typeof deleteEntitySchemaDef>)
 
 const deleteRelationshipHandler = async (args: ToolArgs<typeof deleteRelationshipSchemaDef>) => {
   try {
-    const success = await knowledgeGraphService.deleteRelationship(args.project_id, args.relationship_id);
-
-    if (!success) {
-      return {
-        content: [{ type: "text" as const, text: "Error: Failed to delete relationship." }],
-        isError: true
-      };
-    }
-
+    await qdrantDataService.initialize();
+    await qdrantDataService.deleteRelationship(args.project_id, args.relationship_id);
     return { content: [{ type: "text" as const, text: "Relationship deleted successfully." }] };
   } catch (error) {
     console.error("Error in deleteRelationshipHandler:", error);
@@ -359,14 +497,31 @@ const deleteRelationshipHandler = async (args: ToolArgs<typeof deleteRelationshi
 
 const deleteObservationHandler = async (args: ToolArgs<typeof deleteObservationSchemaDef>) => {
   try {
-    const success = await knowledgeGraphService.deleteObservation(args.project_id, args.entity_id, args.observation_id);
-
-    if (!success) {
+    await qdrantDataService.initialize();
+    
+    // Get current entity
+    const entity = await qdrantDataService.getEntity(args.project_id, args.entity_id);
+    if (!entity) {
       return {
-        content: [{ type: "text" as const, text: "Error: Failed to delete observation." }],
+        content: [{ type: "text" as const, text: "Error: Entity not found." }],
         isError: true
       };
     }
+    
+    // Remove observation from metadata
+    const observations = entity.metadata.observations || [];
+    const filteredObservations = observations.filter((obs: any) => obs.id !== args.observation_id);
+    
+    if (filteredObservations.length === observations.length) {
+      return {
+        content: [{ type: "text" as const, text: "Error: Observation not found." }],
+        isError: true
+      };
+    }
+    
+    await qdrantDataService.updateEntity(args.project_id, args.entity_id, {
+      metadata: { ...entity.metadata, observations: filteredObservations }
+    });
 
     return { content: [{ type: "text" as const, text: "Observation deleted successfully." }] };
   } catch (error) {
@@ -380,126 +535,82 @@ const deleteObservationHandler = async (args: ToolArgs<typeof deleteObservationS
 
 // --- Export Tool Information ---
 
-// This function now returns an array of Tools instead of registering them
 export function getKnowledgeGraphToolInfo(_sessionManager: SessionManager) {
   const tools: Tool[] = [
     {
       name: "create_entity",
       description: "Registers a new entity (like a file, function, concept) in the knowledge graph for the active project.",
-      inputSchema: {
-        type: "object",
-        properties: createEntitySchemaDef,
-        required: ["project_id", "name", "type", "description"]
-      }
+      inputSchema: zodToJsonSchema(createEntitySchemaDef)
     },
     {
       name: "create_relationship",
       description: "Defines a relationship between two existing entities within the active project.",
-      inputSchema: {
-        type: "object",
-        properties: createRelationshipSchemaDef,
-        required: ["project_id", "source_id", "target_id", "type"]
-      }
+      inputSchema: zodToJsonSchema(createRelationshipSchemaDef)
     },
     {
       name: "add_observation",
       description: "Adds a specific textual observation to an existing entity within the active project.",
-      inputSchema: {
-        type: "object",
-        properties: addObservationSchemaDef,
-        required: ["project_id", "entity_id", "observation"]
-      }
+      inputSchema: zodToJsonSchema(addObservationSchemaDef)
     },
     {
       name: "get_entity",
       description: "Retrieves details for a specific entity within the active project.",
-      inputSchema: {
-        type: "object",
-        properties: getEntitySchemaDef,
-        required: ["project_id", "entity_id"]
-      }
+      inputSchema: zodToJsonSchema(getEntitySchemaDef)
     },
     {
       name: "list_entities",
       description: "Lists entities within the active project, optionally filtered by type.",
-      inputSchema: {
-        type: "object",
-        properties: listEntitiesSchemaDef,
-        required: ["project_id"]
-      }
+      inputSchema: zodToJsonSchema(listEntitiesSchemaDef)
     },
     {
       name: "get_related_entities",
       description: "Finds entities related to a specific entity within the active project, optionally filtering by relationship type and direction.",
-      inputSchema: {
-        type: "object",
-        properties: getRelatedEntitiesSchemaDef,
-        required: ["project_id", "entity_id"]
-      }
+      inputSchema: zodToJsonSchema(getRelatedEntitiesSchemaDef)
     },
     {
       name: "get_relationships",
       description: "Retrieves relationships connected to a specific entity within the active project, optionally filtering by type and direction.",
-      inputSchema: {
-        type: "object",
-        properties: getRelationshipsSchemaDef,
-        required: ["project_id", "entity_id"]
-      }
+      inputSchema: zodToJsonSchema(getRelationshipsSchemaDef)
     },
     {
       name: "update_entity_description",
       description: "Updates the description of a specific entity within the active project.",
-      inputSchema: {
-        type: "object",
-        properties: updateEntityDescriptionSchemaDef,
-        required: ["project_id", "entity_id", "description"]
-      }
+      inputSchema: zodToJsonSchema(updateEntityDescriptionSchemaDef)
     },
     {
       name: "delete_entity",
-      description: "Deletes a specific entity and its associated observations and relationships within the active project.",
-      inputSchema: {
-        type: "object",
-        properties: deleteEntitySchemaDef,
-        required: ["project_id", "entity_id"]
-      }
+      description: "Removes an entity and all its relationships from the active project.",
+      inputSchema: zodToJsonSchema(deleteEntitySchemaDef)
     },
     {
       name: "delete_relationship",
-      description: "Deletes a specific relationship between entities within a project.",
-      inputSchema: {
-        type: "object",
-        properties: deleteRelationshipSchemaDef,
-        required: ["project_id", "relationship_id"]
-      }
+      description: "Removes a specific relationship from the active project.",
+      inputSchema: zodToJsonSchema(deleteRelationshipSchemaDef)
     },
     {
       name: "delete_observation",
-      description: "Deletes a specific observation associated with an entity within the active project.",
-      inputSchema: {
-        type: "object",
-        properties: deleteObservationSchemaDef,
-        required: ["project_id", "entity_id", "observation_id"]
-      }
+      description: "Removes a specific observation from an entity within the active project.",
+      inputSchema: zodToJsonSchema(deleteObservationSchemaDef)
     }
   ];
 
-  // Return tool information with handlers
+  const handlers = {
+    create_entity: createEntityHandler,
+    create_relationship: createRelationshipHandler,
+    add_observation: addObservationHandler,
+    get_entity: getEntityHandler,
+    list_entities: listEntitiesHandler,
+    get_related_entities: getRelatedEntitiesHandler,
+    get_relationships: getRelationshipsHandler,
+    update_entity_description: updateEntityDescriptionHandler,
+    delete_entity: deleteEntityHandler,
+    delete_relationship: deleteRelationshipHandler,
+    delete_observation: deleteObservationHandler
+  };
+
   return {
     tools,
-    handlers: {
-      "create_entity": createEntityHandler,
-      "create_relationship": createRelationshipHandler,
-      "add_observation": addObservationHandler,
-      "get_entity": getEntityHandler,
-      "list_entities": listEntitiesHandler,
-      "get_related_entities": getRelatedEntitiesHandler,
-      "get_relationships": getRelationshipsHandler,
-      "update_entity_description": updateEntityDescriptionHandler,
-      "delete_entity": deleteEntityHandler,
-      "delete_relationship": deleteRelationshipHandler,
-      "delete_observation": deleteObservationHandler
-    }
+    handlers
   };
 }
 

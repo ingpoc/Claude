@@ -15,6 +15,7 @@ export interface LogContext {
 
 class Logger {
   private isDevelopment = process.env.NODE_ENV !== 'production';
+  private isMcpMode = process.env.MCP_MODE === 'true' || process.stdin.isTTY === false;
 
   private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
     const timestamp = new Date().toISOString();
@@ -22,33 +23,47 @@ class Logger {
     return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
   }
 
+  private safeLog(message: string, useStderr = false): void {
+    if (this.isMcpMode) {
+      // In MCP mode, only use stderr to avoid interfering with JSON-RPC on stdout
+      process.stderr.write(message + '\n');
+    } else {
+      // Normal mode, use console
+      if (useStderr) {
+        console.error(message);
+      } else {
+        console.log(message);
+      }
+    }
+  }
+
   error(message: string, error?: Error | unknown, context?: LogContext): void {
     const formattedMessage = this.formatMessage(LogLevel.ERROR, message, context);
-    console.error(formattedMessage);
+    this.safeLog(formattedMessage, true);
     if (error instanceof Error) {
-      console.error('Error details:', error.message);
+      this.safeLog('Error details: ' + error.message, true);
       if (this.isDevelopment) {
-        console.error('Stack trace:', error.stack);
+        this.safeLog('Stack trace: ' + (error.stack || ''), true);
       }
     } else if (error) {
-      console.error('Error details:', error);
+      this.safeLog('Error details: ' + String(error), true);
     }
   }
 
   warn(message: string, context?: LogContext): void {
     const formattedMessage = this.formatMessage(LogLevel.WARN, message, context);
-    console.warn(formattedMessage);
+    this.safeLog(formattedMessage, true);
   }
 
   info(message: string, context?: LogContext): void {
     const formattedMessage = this.formatMessage(LogLevel.INFO, message, context);
-    console.log(formattedMessage);
+    this.safeLog(formattedMessage, true);
   }
 
   debug(message: string, context?: LogContext): void {
     if (this.isDevelopment) {
       const formattedMessage = this.formatMessage(LogLevel.DEBUG, message, context);
-      console.log(formattedMessage);
+      this.safeLog(formattedMessage, true);
     }
   }
 }
