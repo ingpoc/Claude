@@ -64,17 +64,25 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { userId = 'default-user', aiConfiguration, aiFeatures } = body;
 
-    let updatedSettings: UserSettings;
-    
-    if (aiConfiguration) {
-      updatedSettings = await settingsService.updateAIConfiguration(userId, aiConfiguration);
-    } else if (aiFeatures) {
-      updatedSettings = await settingsService.updateAIFeatures(userId, aiFeatures);
-    } else {
+    if (!aiConfiguration && !aiFeatures) {
       return NextResponse.json(
-        { error: 'Either aiConfiguration or aiFeatures is required' },
+        { error: 'Either aiConfiguration or aiFeatures (or both) is required' },
         { status: 400 }
       );
+    }
+
+    let updatedSettings: UserSettings;
+    
+    // If both are provided, update them together
+    if (aiConfiguration && aiFeatures) {
+      updatedSettings = await settingsService.updateUserSettings(userId, {
+        aiConfiguration,
+        aiFeatures
+      });
+    } else if (aiConfiguration) {
+      updatedSettings = await settingsService.updateAIConfiguration(userId, aiConfiguration);
+    } else {
+      updatedSettings = await settingsService.updateAIFeatures(userId, aiFeatures);
     }
 
     return NextResponse.json({

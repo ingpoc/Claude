@@ -156,22 +156,39 @@ export function NaturalLanguageQuery({
 
     setIsLoading(true);
     
-    // Simulate API call delay
-    setTimeout(() => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: query.trim(),
+          includeContext: true,
+          maxResults: 10,
+          userId: 'default-user'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to process query');
+      }
+
       const newResult: QueryResult = {
         id: Date.now().toString(),
-        query: query,
-        response: 'This is a mock response for your query. In the actual implementation, this would be processed by the natural language service and return relevant information from your knowledge graph.',
-        timestamp: new Date(),
-        entities: ['MockEntity1', 'MockEntity2'],
-        relationships: ['Entity1 -> Entity2'],
-        confidence: 0.92,
-        queryType: 'general'
+        query: data.query,
+        response: data.response,
+        timestamp: new Date(data.timestamp),
+        entities: data.entities || [],
+        relationships: data.relationships || [],
+        confidence: data.confidence || 0.7,
+        queryType: data.queryType || 'general'
       };
       
       setResults(prev => [newResult, ...prev]);
       setQuery('');
-      setIsLoading(false);
       
       // Scroll to bottom
       setTimeout(() => {
@@ -179,7 +196,27 @@ export function NaturalLanguageQuery({
           scrollAreaRef.current.scrollTop = 0;
         }
       }, 100);
-    }, 1500);
+
+    } catch (error) {
+      console.error('Natural language query failed:', error);
+      
+      // Show error result
+      const errorResult: QueryResult = {
+        id: Date.now().toString(),
+        query: query,
+        response: `Sorry, I encountered an error processing your query: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or check your AI settings.`,
+        timestamp: new Date(),
+        entities: [],
+        relationships: [],
+        confidence: 0,
+        queryType: 'general'
+      };
+      
+      setResults(prev => [errorResult, ...prev]);
+      setQuery('');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
