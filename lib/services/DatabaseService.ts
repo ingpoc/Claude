@@ -50,10 +50,8 @@ export class DatabaseService {
         // Execute query with or without parameters
         let result: kuzu.QueryResult;
         if (params && Object.keys(params).length > 0) {
-          // @ts-ignore - KuzuDB types may be outdated, this works at runtime
-          const statement = await conn.prepare(query);
-          // @ts-ignore - KuzuDB types may be outdated, this works at runtime
-          result = await conn.execute(statement, params, undefined);
+          // For now, use basic query method - parameterized queries might have issues
+          result = await conn.query(query, params);
         } else {
           result = await conn.query(query, undefined);
         }

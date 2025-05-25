@@ -1,10 +1,12 @@
 import { UserSettings, DEFAULT_SETTINGS, AIConfiguration, AIFeatures } from '../models/Settings';
 import { logger } from './Logger';
+import { databaseService } from './DatabaseService';
 import { v4 as uuidv4 } from 'uuid';
 
 export class SettingsService {
   private settingsCache = new Map<string, UserSettings>();
   private static instance: SettingsService;
+  private readonly SETTINGS_PROJECT_ID = 'settings'; // Special project for settings storage
 
   static getInstance(): SettingsService {
     if (!SettingsService.instance) {
@@ -15,14 +17,50 @@ export class SettingsService {
 
   async getUserSettings(userId: string): Promise<UserSettings> {
     try {
-      // Check cache first
-      const cacheKey = `user:${userId}`;
-      if (this.settingsCache.has(cacheKey)) {
-        return this.settingsCache.get(cacheKey)!;
+      // Clear cache to ensure fresh database query
+      this.clearCache(userId);
+      
+      const query = `
+        MATCH (s:UserSettings)
+        WHERE s.userId = '${userId}'
+        RETURN s.id, s.userId, s.aiProvider, s.aiEnabled, s.apiKey, s.model, s.baseUrl, s.maxTokens, s.aiFeatures, s.privacy, s.performance, s.ui, s.createdAt, s.updatedAt
+      `;
+
+      const result = await databaseService.executeQuery(this.SETTINGS_PROJECT_ID, query);
+      
+      if (result && (result as any).hasNext()) {
+        // Parse settings from database
+        const row = (result as any).getNextSync();
+        
+        const settings: UserSettings = {
+          id: row['s.id'],
+          userId: row['s.userId'],
+          aiConfiguration: {
+            provider: row['s.aiProvider'] || DEFAULT_SETTINGS.aiConfiguration.provider,
+            enabled: row['s.aiEnabled'] || DEFAULT_SETTINGS.aiConfiguration.enabled,
+            config: {
+              apiKey: row['s.apiKey'] || '',
+              model: row['s.model'] || DEFAULT_SETTINGS.aiConfiguration.config.model,
+              baseUrl: row['s.baseUrl'] || DEFAULT_SETTINGS.aiConfiguration.config.baseUrl,
+              maxTokens: row['s.maxTokens'] || DEFAULT_SETTINGS.aiConfiguration.config.maxTokens
+            }
+          },
+          aiFeatures: row['s.aiFeatures'] ? JSON.parse(row['s.aiFeatures']) : DEFAULT_SETTINGS.aiFeatures,
+          privacy: row['s.privacy'] ? JSON.parse(row['s.privacy']) : DEFAULT_SETTINGS.privacy,
+          performance: row['s.performance'] ? JSON.parse(row['s.performance']) : DEFAULT_SETTINGS.performance,
+          ui: row['s.ui'] ? JSON.parse(row['s.ui']) : DEFAULT_SETTINGS.ui,
+          createdAt: new Date(row['s.createdAt']),
+          updatedAt: new Date(row['s.updatedAt'])
+        };
+
+        // Cache the settings
+        const cacheKey = `user:${userId}`;
+        this.settingsCache.set(cacheKey, settings);
+        logger.info(`Loaded settings from database for user ${userId}`);
+        return settings;
       }
 
-      // For now, return default settings
-      // TODO: Implement database storage in future
+      // Create default settings if none exist
       const defaultSettings: UserSettings = {
         id: uuidv4(),
         userId,
@@ -31,7 +69,11 @@ export class SettingsService {
         updatedAt: new Date()
       };
 
+      // Save to database
+      await this.saveSettingsToDatabase(defaultSettings);
+
       // Cache the settings
+      const cacheKey = `user:${userId}`;
       this.settingsCache.set(cacheKey, defaultSettings);
       logger.info(`Created default settings for user ${userId}`);
       return defaultSettings;
@@ -50,6 +92,66 @@ export class SettingsService {
     }
   }
 
+  // Save settings to database
+  private async saveSettingsToDatabase(settings: UserSettings): Promise<boolean> {
+    try {
+      // First try to update existing settings
+      const updateQuery = `
+        MATCH (s:UserSettings)
+        WHERE s.userId = '${settings.userId}'
+        SET s.aiProvider = '${settings.aiConfiguration.provider}',
+            s.aiEnabled = ${settings.aiConfiguration.enabled},
+            s.apiKey = '${(settings.aiConfiguration.config.apiKey || '').replace(/'/g, "\\'")}',
+            s.model = '${(settings.aiConfiguration.config.model || '').replace(/'/g, "\\'")}',
+            s.baseUrl = '${(settings.aiConfiguration.config.baseUrl || '').replace(/'/g, "\\'")}',
+            s.maxTokens = ${settings.aiConfiguration.config.maxTokens || 1000},
+            s.aiFeatures = '${JSON.stringify(settings.aiFeatures).replace(/'/g, "\\'")}',
+            s.privacy = '${JSON.stringify(settings.privacy).replace(/'/g, "\\'")}',
+            s.performance = '${JSON.stringify(settings.performance).replace(/'/g, "\\'")}',
+            s.ui = '${JSON.stringify(settings.ui).replace(/'/g, "\\'")}',
+            s.updatedAt = timestamp('${settings.updatedAt.toISOString()}')
+        RETURN s.id;
+      `;
+      
+      let updateResult = await databaseService.executeQuery(this.SETTINGS_PROJECT_ID, updateQuery);
+
+      // If no existing record found, create new one
+      if (!updateResult || !(updateResult as any).hasNext()) {
+        const createQuery = `
+          CREATE (s:UserSettings {
+            id: '${settings.id}',
+            userId: '${settings.userId}',
+            aiProvider: '${settings.aiConfiguration.provider}',
+            aiEnabled: ${settings.aiConfiguration.enabled},
+            apiKey: '${(settings.aiConfiguration.config.apiKey || '').replace(/'/g, "\\'")}',
+            model: '${(settings.aiConfiguration.config.model || '').replace(/'/g, "\\'")}',
+            baseUrl: '${(settings.aiConfiguration.config.baseUrl || '').replace(/'/g, "\\'")}',
+            maxTokens: ${settings.aiConfiguration.config.maxTokens || 1000},
+            aiFeatures: '${JSON.stringify(settings.aiFeatures).replace(/'/g, "\\'")}',
+            privacy: '${JSON.stringify(settings.privacy).replace(/'/g, "\\'")}',
+            performance: '${JSON.stringify(settings.performance).replace(/'/g, "\\'")}',
+            ui: '${JSON.stringify(settings.ui).replace(/'/g, "\\'")}',
+            createdAt: timestamp('${settings.createdAt.toISOString()}'),
+            updatedAt: timestamp('${settings.updatedAt.toISOString()}')
+          });
+        `;
+
+        updateResult = await databaseService.executeQuery(this.SETTINGS_PROJECT_ID, createQuery);
+      }
+
+      const result = updateResult;
+      
+      if (result) {
+        logger.info(`Settings saved to database for user ${settings.userId}`);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      logger.error('Failed to save settings to database:', error);
+      return false;
+    }
+  }
+
   async updateUserSettings(userId: string, updates: Partial<UserSettings>): Promise<UserSettings> {
     try {
       const currentSettings = await this.getUserSettings(userId);
@@ -60,6 +162,12 @@ export class SettingsService {
         id: currentSettings.id, // Ensure ID doesn't change
         updatedAt: new Date()
       };
+
+      // Save to database first
+      const saved = await this.saveSettingsToDatabase(updatedSettings);
+      if (!saved) {
+        logger.warn(`Failed to save settings to database for user ${userId}, using cache only`);
+      }
 
       // Update cache
       const cacheKey = `user:${userId}`;
@@ -137,6 +245,18 @@ export class SettingsService {
       }
     }
 
+    if (config.provider === 'openrouter') {
+      if (!config.config.apiKey) {
+        errors.push('OpenRouter API key is required');
+      }
+      if (!config.config.model) {
+        errors.push('OpenRouter model is required');
+      }
+      if (config.config.baseUrl && !config.config.baseUrl.startsWith('http')) {
+        errors.push('OpenRouter base URL must be a valid HTTP/HTTPS URL');
+      }
+    }
+
     return { isValid: errors.length === 0, errors };
   }
 
@@ -148,11 +268,15 @@ export class SettingsService {
         return { success: true, message: 'AI is disabled' };
       }
 
-      // TODO: Implement actual AI connection testing with AIService
-      // For now, return a mock response based on provider
+      // Import AIService dynamically to avoid circular dependency
+      const { AIService } = await import('./AIService');
+      const aiService = new AIService(settings.aiConfiguration, settings.aiFeatures);
+      
+      const result = await aiService.testConnection();
+      
       return {
-        success: true,
-        message: `Connected to ${settings.aiConfiguration.provider}`,
+        success: result.success,
+        message: result.error || result.data?.message || 'Connection test completed',
         provider: settings.aiConfiguration.provider
       };
 

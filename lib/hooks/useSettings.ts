@@ -20,14 +20,84 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // localStorage backup utilities
+  const STORAGE_KEY = `settings_${userId}`;
+  
+  const saveToLocalStorage = (settingsData: UserSettings) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsData));
+      } catch (err) {
+        console.warn('Failed to save to localStorage:', err);
+      }
+    }
+  };
+
+  const loadFromLocalStorage = (): UserSettings | null => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Convert date strings back to Date objects
+          return {
+            ...parsed,
+            createdAt: new Date(parsed.createdAt),
+            updatedAt: new Date(parsed.updatedAt)
+          };
+        }
+      } catch (err) {
+        console.warn('Failed to load from localStorage:', err);
+      }
+    }
+    return null;
+  };
+
   const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // TODO: Replace with actual API call
-      // For now, return mock settings with AI disabled by default
-      const mockSettings: UserSettings = {
+      // Try localStorage first for immediate loading
+      const cachedSettings = loadFromLocalStorage();
+      if (cachedSettings) {
+        setSettings(cachedSettings);
+        setLoading(false); // Show cached data immediately
+      }
+      
+      // Then call the actual backend API to get latest data
+      const response = await fetch(`/api/settings?userId=${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load settings: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSettings(data.data);
+        saveToLocalStorage(data.data); // Update localStorage cache
+      } else {
+        throw new Error(data.error || 'Failed to load settings');
+      }
+    } catch (err) {
+      console.error('Failed to load settings:', err);
+      
+      // If we have cached settings, use them and don't show error
+      const cachedSettings = loadFromLocalStorage();
+      if (cachedSettings) {
+        setSettings(cachedSettings);
+        console.log('Using cached settings due to API error');
+      } else {
+        setError('Failed to load settings');
+        
+        // Fallback to default settings
+        const fallbackSettings: UserSettings = {
         id: 'user-1',
         userId,
         aiConfiguration: {
@@ -61,12 +131,9 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
         },
         createdAt: new Date(),
         updatedAt: new Date()
-      };
-
-      setSettings(mockSettings);
-    } catch (err) {
-      console.error('Failed to load settings:', err);
-      setError('Failed to load settings');
+        };
+        setSettings(fallbackSettings);
+      }
     } finally {
       setLoading(false);
     }
@@ -79,27 +146,80 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
   const updateAIConfiguration = async (config: AIConfiguration) => {
     if (!settings) return;
     
-    const updatedSettings = {
-      ...settings,
-      aiConfiguration: config,
-      updatedAt: new Date()
-    };
-    
-    setSettings(updatedSettings);
-    // TODO: Save to backend
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          aiConfiguration: config
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update AI configuration: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSettings(data.data);
+        saveToLocalStorage(data.data);
+      } else {
+        throw new Error(data.error || 'Failed to update AI configuration');
+      }
+    } catch (err) {
+      console.error('Failed to update AI configuration:', err);
+      
+      // Optimistic update even if save fails
+      const updatedSettings = {
+        ...settings,
+        aiConfiguration: config,
+        updatedAt: new Date()
+      };
+      setSettings(updatedSettings);
+    }
   };
 
   const updateAIFeatures = async (features: AIFeatures) => {
     if (!settings) return;
     
-    const updatedSettings = {
-      ...settings,
-      aiFeatures: features,
-      updatedAt: new Date()
-    };
-    
-    setSettings(updatedSettings);
-    // TODO: Save to backend
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          aiFeatures: features
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update AI features: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSettings(data.data);
+      } else {
+        throw new Error(data.error || 'Failed to update AI features');
+      }
+    } catch (err) {
+      console.error('Failed to update AI features:', err);
+      
+      // Optimistic update even if save fails
+      const updatedSettings = {
+        ...settings,
+        aiFeatures: features,
+        updatedAt: new Date()
+      };
+      setSettings(updatedSettings);
+    }
   };
 
   const toggleAIFeature = async (feature: keyof AIFeatures, enabled: boolean) => {
@@ -119,17 +239,33 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
     }
 
     try {
-      // TODO: Implement actual connection test
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Call the actual backend API endpoint
+      const response = await fetch('/api/settings/test-connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          aiConfiguration: settings.aiConfiguration,
+          aiFeatures: settings.aiFeatures
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
       return {
-        success: true,
-        message: `Successfully connected to ${settings.aiConfiguration.provider}`
+        success: result.success,
+        message: result.message || 'Connection test completed'
       };
     } catch (err) {
+      console.error('Connection test failed:', err);
       return {
         success: false,
-        message: 'Connection failed. Please check your configuration.'
+        message: err instanceof Error ? err.message : 'Connection test failed'
       };
     }
   };
@@ -138,8 +274,29 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
     if (!settings) return;
     
     try {
-      // TODO: Implement actual API call
-      console.log('Saving settings:', settings);
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          settings
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save settings: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSettings(data.data);
+        console.log('Settings saved successfully');
+      } else {
+        throw new Error(data.error || 'Failed to save settings');
+      }
     } catch (err) {
       console.error('Failed to save settings:', err);
       throw err;

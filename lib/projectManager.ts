@@ -299,6 +299,93 @@ async function initializeSchema(conn: kuzu.Connection, dbPath: string): Promise<
         `);
         console.error("[Schema] Entity table checked/created.");
         
+        // Create UserSettings table with TIMESTAMP types
+        try {
+            await conn.query(`
+                CREATE NODE TABLE IF NOT EXISTS UserSettings (
+                    id STRING PRIMARY KEY,
+                    userId STRING,
+                    aiProvider STRING,
+                    aiEnabled BOOLEAN,
+                    apiKey STRING,
+                    model STRING,
+                    baseUrl STRING,
+                    maxTokens INT64,
+                    aiFeatures STRING,
+                    privacy STRING,
+                    performance STRING,
+                    ui STRING,
+                    createdAt TIMESTAMP,
+                    updatedAt TIMESTAMP
+                )
+            `);
+            console.error("[Schema] UserSettings table checked/created.");
+        } catch (settingsError) {
+            console.error("[Schema] UserSettings table creation failed:", settingsError);
+        }
+
+        // Create Conversation tables with TIMESTAMP types
+        try {
+            await conn.query(`
+                CREATE NODE TABLE IF NOT EXISTS Conversation (
+                    id STRING PRIMARY KEY,
+                    projectId STRING,
+                    sessionId STRING,
+                    userMessage STRING,
+                    aiResponse STRING,
+                    extractedEntityIds STRING[],
+                    timestamp TIMESTAMP,
+                    contextUsed STRING[],
+                    messageType STRING,
+                    intent STRING,
+                    confidence DOUBLE,
+                    metadata STRING
+                )
+            `);
+            console.error("[Schema] Conversation table checked/created.");
+        } catch (conversationError) {
+            console.error("[Schema] Conversation table creation failed:", conversationError);
+        }
+
+        // Create ContextSession table with TIMESTAMP types
+        try {
+            await conn.query(`
+                CREATE NODE TABLE IF NOT EXISTS ContextSession (
+                    id STRING PRIMARY KEY,
+                    projectId STRING,
+                    userId STRING,
+                    lastActive TIMESTAMP,
+                    sessionSummary STRING,
+                    activeEntityIds STRING[],
+                    conversationState STRING,
+                    totalMessages INT64,
+                    isActive BOOLEAN,
+                    metadata STRING
+                )
+            `);
+            console.error("[Schema] ContextSession table checked/created.");
+        } catch (sessionError) {
+            console.error("[Schema] ContextSession table creation failed:", sessionError);
+        }
+
+        // Create ConversationEntityLink table with TIMESTAMP types
+        try {
+            await conn.query(`
+                CREATE NODE TABLE IF NOT EXISTS ConversationEntityLink (
+                    id STRING PRIMARY KEY,
+                    conversationId STRING,
+                    entityId STRING,
+                    relevanceScore DOUBLE,
+                    extractionMethod STRING,
+                    confidence DOUBLE,
+                    extractedAt TIMESTAMP
+                )
+            `);
+            console.error("[Schema] ConversationEntityLink table checked/created.");
+        } catch (linkError) {
+            console.error("[Schema] ConversationEntityLink table creation failed:", linkError);
+        }
+        
         // For relationships, we need to handle schema migration
         // First try to create the table with full schema
         try {

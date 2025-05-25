@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -28,7 +28,7 @@ import {
   Save,
   Loader2
 } from 'lucide-react';
-import { AI_PROVIDERS, AIProvider, AIConfiguration, AIFeatures } from '../../lib/models/Settings';
+import { AI_PROVIDERS, AIProvider, AIConfiguration, AIFeatures, getOpenRouterModels, getOpenRouterFreeModels } from '../../lib/models/Settings';
 import { useSettings } from '../../lib/hooks/useSettings';
 
 export default function SettingsPage() {
@@ -49,6 +49,11 @@ export default function SettingsPage() {
   const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  
+  // State for dynamic model loading
+  const [showFreeOnly, setShowFreeOnly] = useState(true);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   const handleTestConnection = async () => {
     try {
@@ -139,6 +144,49 @@ export default function SettingsPage() {
   };
 
   const currentProvider = AI_PROVIDERS.find(p => p.id === settings?.aiConfiguration.provider);
+
+  // Function to load OpenRouter models dynamically
+  const loadOpenRouterModels = useCallback(async (freeOnly: boolean = false) => {
+    if (currentProvider?.id !== 'openrouter') return;
+    
+    try {
+      setLoadingModels(true);
+      const apiKey = settings?.aiConfiguration.config.apiKey;
+      
+      let models: string[];
+      if (freeOnly) {
+        models = await getOpenRouterFreeModels(apiKey);
+      } else {
+        models = await getOpenRouterModels({ 
+          apiKey, 
+          freeOnly: false, 
+          includeVariants: true, 
+          maxResults: 100 
+        });
+      }
+      
+      setAvailableModels(models);
+      console.log(`Loaded ${models.length} ${freeOnly ? 'free' : 'all'} OpenRouter models`);
+    } catch (error) {
+      console.error('Failed to load OpenRouter models:', error);
+      setErrors(prev => [...prev, 'Failed to load models. Using fallback list.']);
+    } finally {
+      setLoadingModels(false);
+    }
+  }, [currentProvider?.id, settings?.aiConfiguration.config.apiKey]);
+
+  // Toggle between free and all models
+  const handleToggleFreeOnly = async (freeOnly: boolean) => {
+    setShowFreeOnly(freeOnly);
+    await loadOpenRouterModels(freeOnly);
+  };
+
+  // Load models when OpenRouter is selected
+  useEffect(() => {
+    if (currentProvider?.id === 'openrouter') {
+      loadOpenRouterModels(showFreeOnly);
+    }
+  }, [currentProvider?.id, settings?.aiConfiguration.config.apiKey, loadOpenRouterModels, showFreeOnly]);
 
   if (loading) {
     return (
@@ -261,19 +309,93 @@ export default function SettingsPage() {
                         </Label>
                         
                         {field.type === 'select' ? (
-                          <Select 
-                            value={settings.aiConfiguration.config[field.key] || field.defaultValue?.toString()} 
-                            onValueChange={(value) => updateAIConfig(field.key, value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={field.placeholder} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {field.options?.map((option) => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="space-y-3">
+                            {/* Free/Paid Toggle for OpenRouter Model Selection */}
+                            {field.key === 'model' && currentProvider?.id === 'openrouter' && (
+                              <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                                <div className="flex items-center gap-3">
+                                  <Label className="text-sm font-medium text-indigo-900">Model Type:</Label>
+                                  <div className="flex items-center gap-4">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleFreeOnly(true)}
+                                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                                        showFreeOnly
+                                          ? 'bg-emerald-600 text-white shadow-sm'
+                                          : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      🆓 Free Only
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleFreeOnly(false)}
+                                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                                        !showFreeOnly
+                                          ? 'bg-indigo-600 text-white shadow-sm'
+                                          : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      💰 All Models
+                                    </button>
+                                  </div>
+                                </div>
+                                {loadingModels && (
+                                  <div className="flex items-center gap-2 text-indigo-600">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span className="text-sm">Loading models...</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            <Select 
+                              value={settings.aiConfiguration.config[field.key] || field.defaultValue?.toString()} 
+                              onValueChange={(value) => updateAIConfig(field.key, value)}
+                              disabled={loadingModels && field.key === 'model' && currentProvider?.id === 'openrouter'}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={field.placeholder} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {/* Use dynamic models for OpenRouter, fallback to static for others */}
+                                {field.key === 'model' && currentProvider?.id === 'openrouter' && availableModels.length > 0 ? (
+                                  availableModels.map((model) => (
+                                    <SelectItem key={model} value={model}>
+                                      <div className="flex items-center gap-2">
+                                        {model.includes(':free') ? '🆓' : '💰'} {model}
+                                      </div>
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  field.options?.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                      {field.key === 'model' && currentProvider?.id === 'openrouter' ? (
+                                        <div className="flex items-center gap-2">
+                                          {option.includes(':free') ? '🆓' : '💰'} {option}
+                                        </div>
+                                      ) : (
+                                        option
+                                      )}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                            
+                            {/* Model Info for OpenRouter */}
+                            {field.key === 'model' && currentProvider?.id === 'openrouter' && (
+                              <div className="text-xs text-slate-500 space-y-1">
+                                <p>
+                                  <strong>{availableModels.length > 0 ? availableModels.length : field.options?.length || 0}</strong> models available
+                                  {showFreeOnly ? ' (free only)' : ' (free + paid)'}
+                                </p>
+                                {showFreeOnly && (
+                                  <p className="text-emerald-600">💡 Free models are perfect for development and testing</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         ) : field.type === 'password' ? (
                           <div className="relative">
                             <Input

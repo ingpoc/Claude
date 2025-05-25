@@ -57,7 +57,7 @@ export const SmartSuggestionsPanel: React.FC<SmartSuggestionsPanelProps> = ({
   // Use the settings hook to check AI feature availability
   const { isAIFeatureEnabled, loading: settingsLoading } = useSettings();
 
-  // Mock suggestions for demo - moved to top level
+  // Mock suggestions for demo - MOVED TO TOP LEVEL BEFORE ANY CONDITIONAL RETURNS
   useEffect(() => {
     const mockSuggestions: Suggestion[] = [
       {

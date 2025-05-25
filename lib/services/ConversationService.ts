@@ -20,6 +20,8 @@ class ConversationService {
   // Simple in-memory cache for conversation context
   private contextCache = new Map<string, { data: Context; timestamp: number }>();
 
+
+
   /**
    * Store a new conversation with automatic entity linking
    */
@@ -47,7 +49,7 @@ class ConversationService {
           userMessage: $userMessage,
           aiResponse: $aiResponse,
           extractedEntityIds: $extractedEntityIds,
-          timestamp: $timestamp,
+          timestamp: timestamp($timestamp),
           contextUsed: $contextUsed,
           messageType: $messageType,
           intent: $intent,
@@ -184,8 +186,8 @@ class ConversationService {
         MATCH (c:Conversation)
         WHERE c.projectId = $projectId
         ${filters?.sessionId ? 'AND c.sessionId = $sessionId' : ''}
-        ${filters?.dateFrom ? 'AND datetime(c.timestamp) >= datetime($dateFrom)' : ''}
-        ${filters?.dateTo ? 'AND datetime(c.timestamp) <= datetime($dateTo)' : ''}
+        ${filters?.dateFrom ? 'AND c.timestamp >= timestamp($dateFrom)' : ''}
+        ${filters?.dateTo ? 'AND c.timestamp <= timestamp($dateTo)' : ''}
         AND (
           toLower(c.userMessage) CONTAINS toLower($query) OR
           toLower(c.aiResponse) CONTAINS toLower($query) OR
@@ -309,8 +311,8 @@ class ConversationService {
       MATCH (c:Conversation)
       WHERE c.projectId = $projectId
       ${filters.sessionId ? 'AND c.sessionId = $sessionId' : ''}
-      ${filters.dateFrom ? 'AND datetime(c.timestamp) >= datetime($dateFrom)' : ''}
-      ${filters.dateTo ? 'AND datetime(c.timestamp) <= datetime($dateTo)' : ''}
+      ${filters.dateFrom ? 'AND c.timestamp >= timestamp($dateFrom)' : ''}
+      ${filters.dateTo ? 'AND c.timestamp <= timestamp($dateTo)' : ''}
       RETURN c
       ORDER BY c.timestamp DESC
       ${filters.limit ? `LIMIT ${filters.limit}` : ''}
@@ -353,16 +355,18 @@ class ConversationService {
     for (const entityId of entityIds) {
       const query = `
         CREATE (cel:ConversationEntityLink {
+          id: $id,
           conversationId: $conversationId,
           entityId: $entityId,
           relevanceScore: $relevanceScore,
           extractionMethod: $extractionMethod,
           confidence: $confidence,
-          extractedAt: $extractedAt
+          extractedAt: timestamp($extractedAt)
         })
       `;
 
       const params: QueryParams = {
+        id: uuidv4(),
         conversationId,
         entityId,
         relevanceScore: confidence,
@@ -381,7 +385,7 @@ class ConversationService {
   private async updateSessionActivity(sessionId: string, projectId: string): Promise<void> {
     const query = `
       MERGE (s:ContextSession {id: $sessionId, projectId: $projectId})
-      SET s.lastActive = $lastActive,
+      SET s.lastActive = timestamp($lastActive),
           s.isActive = true
     `;
 

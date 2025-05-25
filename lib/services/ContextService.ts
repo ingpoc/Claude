@@ -368,7 +368,7 @@ class ContextService {
       
       const query = `
         MATCH (s:ContextSession)
-        WHERE datetime(s.lastActive) < datetime($expiredBefore)
+        WHERE s.lastActive < timestamp($expiredBefore)
         SET s.isActive = false
         RETURN count(s) as count
       `;
@@ -425,7 +425,7 @@ class ContextService {
     const query = `
       MERGE (s:ContextSession {id: $id, projectId: $projectId})
       SET s.userId = $userId,
-          s.lastActive = $lastActive,
+          s.lastActive = timestamp($lastActive),
           s.sessionSummary = $sessionSummary,
           s.activeEntityIds = $activeEntityIds,
           s.conversationState = $conversationState,
@@ -449,6 +449,8 @@ class ContextService {
 
     await databaseService.executeQuery(session.projectId, query, params);
   }
+
+
 
   private async getRelevantEntities(
     projectId: string,

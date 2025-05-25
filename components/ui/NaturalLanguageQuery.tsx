@@ -63,7 +63,7 @@ export function NaturalLanguageQuery({
   // Use the settings hook to check AI feature availability
   const { isAIFeatureEnabled, loading: settingsLoading } = useSettings();
 
-  // Mock suggestions - moved to top level
+  // Mock suggestions - MOVED TO TOP LEVEL BEFORE ANY CONDITIONAL RETURNS
   useEffect(() => {
     const mockSuggestions: Suggestion[] = [
       { text: "Show me all components related to authentication", type: 'query', icon: <Search className="h-3 w-3" /> },
