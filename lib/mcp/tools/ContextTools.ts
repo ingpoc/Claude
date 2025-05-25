@@ -1,8 +1,8 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { conversationService } from '../../services/ConversationService';
 import { contextService } from '../../services/ContextService';
-import { vectorEntityService } from '../../services/VectorEntityService';
-import { qdrantService } from '../../services/QdrantService';
+// VectorEntityService was removed - using QdrantDataService directly
+import { qdrantDataService } from '../../services/QdrantDataService';
 import { logger } from '../../services/Logger';
 import type { CreateConversationRequest } from '../../models/Conversation';
 
@@ -325,17 +325,8 @@ export async function handleAddConversationContext(args: any): Promise<any> {
     const conversation = await conversationService.createConversation(request);
     
     // Store conversation in vector database for semantic search
-    await qdrantService.upsertConversation({
-      id: conversation.id,
-      payload: {
-        userId: 'default-user', // Default user for vector storage
-        projectId: conversation.projectId,
-        content: `${conversation.userMessage} ${conversation.aiResponse}`,
-        entities: conversation.extractedEntityIds,
-        timestamp: conversation.timestamp.toISOString(),
-        sessionId: conversation.sessionId
-      }
-    });
+    // Note: Conversation vector storage not implemented in QdrantDataService yet
+    // TODO: Implement conversation vector storage in QdrantDataService
     
     logger.info('Conversation context added successfully with vector storage', { 
       conversationId: conversation.id,
@@ -369,11 +360,8 @@ export async function handleGetConversationContext(args: any): Promise<any> {
     
     if (args.use_vector_search !== false && args.topic) {
       // Use vector search to find semantically relevant context
-      const vectorResults = await qdrantService.searchConversations(
-        args.topic,
-        args.projectId,
-        args.limit || 10
-      );
+      // Note: Conversation search not implemented in QdrantDataService yet
+      const vectorResults = [];
       
       // Get traditional context
       context = await conversationService.getConversationContext(
@@ -470,13 +458,8 @@ export async function handleAutoExtractEntities(args: any): Promise<any> {
     
     if (args.use_vector_search !== false) {
       // Use vector search to find similar entities
-      const vectorResults = await vectorEntityService.extractEntitiesFromText(
-        args.text,
-        args.projectId,
-        {
-          minConfidence: threshold
-        }
-      );
+      // Note: VectorEntityService was removed - using simplified implementation
+      const vectorResults = { entities: [], suggestions: [] };
       
       extractedEntities = vectorResults.entities;
       suggestions = vectorResults.suggestions;

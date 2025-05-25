@@ -1,6 +1,12 @@
 // Service exports for clean imports
 export { logger, LogLevel, type LogContext } from './Logger';
-export { databaseService, type QueryParams, type QueryOptions } from './DatabaseService';
+export { 
+  qdrantDataService,
+  type QdrantEntity,
+  type QdrantRelationship,
+  type QdrantProject,
+  type QdrantUserSettings
+} from './QdrantDataService';
 export { 
   entityService, 
   type Entity, 
@@ -26,19 +32,19 @@ export {
   type GraphMetrics 
 } from './KnowledgeGraphService';
 export {
-  conversationService,
-  type Conversation,
-  type ConversationEntityLink,
-  type CreateConversationRequest,
-  type ConversationFilter,
-  type ConversationSearchResult,
-  type Context
+  conversationService
 } from './ConversationService';
 export {
   contextService,
   type SessionManager,
   type ContextLoadOptions
 } from './ContextService';
+export {
+  settingsService
+} from './SettingsService';
+export {
+  AIService
+} from './AIService';
 
 // Export conversation models from models
 export type {

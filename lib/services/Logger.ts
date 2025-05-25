@@ -16,6 +16,7 @@ export interface LogContext {
 class Logger {
   private isDevelopment = process.env.NODE_ENV !== 'production';
   private isMcpMode = process.env.MCP_MODE === 'true' || process.stdin.isTTY === false;
+  private isBrowser = typeof window !== 'undefined';
 
   private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
     const timestamp = new Date().toISOString();
@@ -24,11 +25,26 @@ class Logger {
   }
 
   private safeLog(message: string, useStderr = false): void {
-    if (this.isMcpMode) {
-      // In MCP mode, only use stderr to avoid interfering with JSON-RPC on stdout
-      process.stderr.write(message + '\n');
-    } else {
-      // Normal mode, use console
+    // In browser production mode, suppress all logging
+    if (this.isBrowser && !this.isDevelopment) {
+      return;
+    }
+
+    if (this.isMcpMode && !this.isBrowser) {
+      // In MCP mode (server-side), only use stderr for errors to avoid interfering with JSON-RPC on stdout
+      if (useStderr) {
+        process.stderr.write(message + '\n');
+      }
+      // Don't log info/debug messages in MCP mode to keep stdout clean
+    } else if (!this.isBrowser) {
+      // Normal server mode, use console
+      if (useStderr) {
+        console.error(message);
+      } else {
+        console.log(message);
+      }
+    } else if (this.isDevelopment) {
+      // Browser development mode, use console
       if (useStderr) {
         console.error(message);
       } else {
@@ -57,13 +73,13 @@ class Logger {
 
   info(message: string, context?: LogContext): void {
     const formattedMessage = this.formatMessage(LogLevel.INFO, message, context);
-    this.safeLog(formattedMessage, true);
+    this.safeLog(formattedMessage, false);
   }
 
   debug(message: string, context?: LogContext): void {
     if (this.isDevelopment) {
       const formattedMessage = this.formatMessage(LogLevel.DEBUG, message, context);
-      this.safeLog(formattedMessage, true);
+      this.safeLog(formattedMessage, false);
     }
   }
 }

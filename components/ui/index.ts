@@ -10,7 +10,6 @@ export { ProjectSidebar } from './ProjectSidebar';
 export { ContextDashboard } from './ContextDashboard';
 export { NaturalLanguageQuery } from './NaturalLanguageQuery';
 export { SmartSuggestionsPanel } from './SmartSuggestionsPanel';
-export { MigrationDashboard } from './MigrationDashboard';
 
 // Re-export other UI components if they exist
 export * from './button';

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { databaseService } from './DatabaseService';
+import { qdrantDataService } from './QdrantDataService';
 import { logger } from './Logger';
 
 export interface Observation {
@@ -45,333 +45,257 @@ export class EntityService {
     return EntityService.instance;
   }
 
+  /**
+   * Create a new entity
+   * Note: Simplified implementation using QdrantDataService
+   */
   async createEntity(projectId: string, request: CreateEntityRequest): Promise<Entity | null> {
-    const { name, type, description, observationsText = [], parentId } = request;
-    
-    logger.info('Creating entity', { 
-      projectId, 
-      operation: 'createEntity',
-      entityName: name,
-      entityType: type 
-    });
-
-    return databaseService.withTransaction(projectId, async () => {
+    try {
       const id = `entity_${uuidv4()}`;
       const now = new Date().toISOString();
-      const observations: Observation[] = observationsText.map(text => ({
-        id: `obs_${uuidv4()}`,
+      const observations: Observation[] = (request.observationsText || []).map(text => ({
+        id: uuidv4(),
         text,
         createdAt: now
       }));
 
-      const params = {
+      const entity: Entity = {
         id,
-        name,
-        type,
-        description,
-        observationsJson: JSON.stringify(observations),
-        parentId: parentId || '',
-        createdAt: now,
-        updatedAt: now
-      };
-
-      const createQuery = `
-        CREATE (e:Entity {
-          id: $id,
-          name: $name,
-          type: $type,
-          description: $description,
-          observations: $observationsJson,
-          parentId: $parentId,
-          createdAt: $createdAt,
-          updatedAt: $updatedAt
-        })
-      `;
-
-      const result = await databaseService.executeQuery(projectId, createQuery, params);
-      
-      if (!result) {
-        logger.error('Failed to create entity in database', undefined, { 
-          projectId, 
-          entityName: name 
-        });
-        return null;
-      }
-
-      logger.info('Entity created successfully', { 
-        projectId, 
-        entityId: id,
-        entityName: name 
-      });
-
-      return {
-        id,
-        name,
-        type,
-        description,
+        name: request.name,
+        type: request.type,
+        description: request.description,
         observations,
-        parentId,
+        parentId: request.parentId,
         createdAt: now,
         updatedAt: now
       };
-    });
-  }
 
-  async getEntity(projectId: string, entityId: string): Promise<Entity | null> {
-    logger.debug('Retrieving entity', { projectId, entityId, operation: 'getEntity' });
+      // Create entity using QdrantDataService
+      const qdrantEntity = await qdrantDataService.createEntity({
+        name: request.name,
+        type: request.type,
+        description: request.description,
+        projectId,
+        metadata: {
+          observations,
+          parentId: request.parentId,
+          originalCreatedAt: now,
+          originalUpdatedAt: now
+        }
+      });
 
-    const query = 'MATCH (e:Entity {id: $id}) RETURN e';
-    const result = await databaseService.executeQuery(projectId, query, { id: entityId });
+      logger.info('Entity created', { 
+        entityId: id, 
+        projectId, 
+        name: request.name,
+        type: request.type 
+      });
 
-    if (!result || !(result as any).hasNext()) {
-      logger.warn('Entity not found', { projectId, entityId });
+      return entity;
+
+    } catch (error) {
+      logger.error('Failed to create entity', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId, 
+        request 
+      });
       return null;
     }
+  }
 
+  /**
+   * Get entity by ID
+   * Note: Simplified implementation using QdrantDataService
+   */
+  async getEntity(projectId: string, entityId: string): Promise<Entity | null> {
     try {
-      const record = (result as any).getNextSync();
-      
-      // Debug: Log the record structure for single entity queries too
-      logger.debug('Single Entity Record Structure', { 
-        projectId, 
-        entityId,
-        recordKeys: Object.keys(record || {}),
-        recordType: typeof record,
-        recordValue: record 
-      });
-      
-      const entityData = record.e || record[0]; // Try both property access and array index
-      
-      if (!entityData) {
-        logger.warn('No entity data found in single entity record', { projectId, entityId, record });
+      const qdrantEntity = await qdrantDataService.getEntity(projectId, entityId);
+      if (!qdrantEntity) {
         return null;
       }
-      
-      return this.parseEntityFromDB(entityData);
+
+      // Convert QdrantEntity to Entity
+      const entity: Entity = {
+        id: qdrantEntity.id,
+        name: qdrantEntity.name,
+        type: qdrantEntity.type,
+        description: qdrantEntity.description || '',
+        observations: qdrantEntity.metadata.observations || [],
+        parentId: qdrantEntity.metadata.parentId,
+        createdAt: qdrantEntity.metadata.originalCreatedAt || qdrantEntity.createdAt.toISOString(),
+        updatedAt: qdrantEntity.metadata.originalUpdatedAt || qdrantEntity.updatedAt.toISOString()
+      };
+
+      return entity;
+
     } catch (error) {
-      logger.error('Failed to parse entity from database', error, { projectId, entityId });
+      logger.error('Failed to get entity', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId, 
+        entityId 
+      });
       return null;
     }
   }
 
+  /**
+   * Get all entities for a project
+   * Note: Simplified implementation using QdrantDataService
+   */
   async getAllEntities(projectId: string, type?: string): Promise<Entity[]> {
-    logger.debug('Retrieving all entities', { 
-      projectId, 
-      operation: 'getAllEntities',
-      filterType: type 
-    });
+    try {
+      const qdrantEntities = await qdrantDataService.getEntitiesByProject(projectId, 100, 0);
+      
+      // Convert QdrantEntities to Entities
+      const entities: Entity[] = qdrantEntities
+        .filter(qe => !type || qe.type === type)
+        .map(qe => ({
+          id: qe.id,
+          name: qe.name,
+          type: qe.type,
+          description: qe.description || '',
+          observations: qe.metadata.observations || [],
+          parentId: qe.metadata.parentId,
+          createdAt: qe.metadata.originalCreatedAt || qe.createdAt.toISOString(),
+          updatedAt: qe.metadata.originalUpdatedAt || qe.updatedAt.toISOString()
+        }));
 
-    const query = type 
-      ? 'MATCH (e:Entity {type: $type}) RETURN e ORDER BY e.name'
-      : 'MATCH (e:Entity) RETURN e ORDER BY e.name';
-    
-    const params = type ? { type } : undefined;
-    const result = await databaseService.executeQuery(projectId, query, params);
+      logger.info('Retrieved entities', { projectId, count: entities.length, type });
+      return entities;
 
-    if (!result) {
-      logger.error('Failed to retrieve entities', undefined, { projectId });
+    } catch (error) {
+      logger.error('Failed to retrieve entities', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId 
+      });
       return [];
     }
-
-    const entities: Entity[] = [];
-    try {
-      while ((result as any).hasNext()) {
-        const record = (result as any).getNextSync();
-        
-        // Debug: Log the actual record structure
-        logger.debug('KuzuDB Record Structure', { 
-          projectId, 
-          recordKeys: Object.keys(record || {}),
-          recordType: typeof record,
-          recordValue: record 
-        });
-        
-        const entityData = record.e || record[0]; // Try both property access and array index
-        
-        if (!entityData) {
-          logger.warn('No entity data found in record', { projectId, record });
-          continue;
-        }
-        
-        const entity = this.parseEntityFromDB(entityData);
-        
-        if (entity) {
-          entities.push(entity);
-        }
-      }
-    } catch (error) {
-      logger.error('Failed to parse entities from database', error, { projectId });
-    }
-
-    logger.debug('Retrieved entities', { projectId, count: entities.length });
-    return entities;
   }
 
+  /**
+   * Update an entity
+   * Note: Simplified implementation using QdrantDataService
+   */
   async updateEntity(
     projectId: string, 
     entityId: string, 
     updates: UpdateEntityRequest
   ): Promise<Entity | null> {
-    logger.info('Updating entity', { 
-      projectId, 
-      entityId, 
-      operation: 'updateEntity',
-      updateFields: Object.keys(updates)
-    });
-
-    return databaseService.withTransaction(projectId, async () => {
-      // First get the current entity
+    try {
+      // Get current entity
       const currentEntity = await this.getEntity(projectId, entityId);
       if (!currentEntity) {
         logger.warn('Cannot update entity: entity not found', { projectId, entityId });
         return null;
       }
 
-      // Build update query dynamically
-      const updateFields: string[] = [];
-      const params: any = { id: entityId, updatedAt: new Date().toISOString() };
+      // Update entity using QdrantDataService
+      await qdrantDataService.updateEntity(projectId, entityId, {
+        name: updates.name,
+        type: updates.type,
+        description: updates.description,
+        metadata: {
+          ...currentEntity,
+          observations: updates.observations || currentEntity.observations,
+          parentId: updates.parentId !== undefined ? updates.parentId : currentEntity.parentId,
+          originalUpdatedAt: new Date().toISOString()
+        }
+      });
 
-      if (updates.name !== undefined) {
-        updateFields.push('e.name = $name');
-        params.name = updates.name;
-      }
-      
-      if (updates.type !== undefined) {
-        updateFields.push('e.type = $type');
-        params.type = updates.type;
-      }
-      
-      if (updates.description !== undefined) {
-        updateFields.push('e.description = $description');
-        params.description = updates.description;
-      }
-      
-      if (updates.observations !== undefined) {
-        updateFields.push('e.observations = $observationsJson');
-        params.observationsJson = JSON.stringify(updates.observations);
-      }
-      
-      if (updates.parentId !== undefined) {
-        updateFields.push('e.parentId = $parentId');
-        params.parentId = updates.parentId;
-      }
+      // Return updated entity
+      return await this.getEntity(projectId, entityId);
 
-      updateFields.push('e.updatedAt = $updatedAt');
-
-      const updateQuery = `
-        MATCH (e:Entity {id: $id})
-        SET ${updateFields.join(', ')}
-        RETURN e
-      `;
-
-      const result = await databaseService.executeQuery(projectId, updateQuery, params);
-      
-      if (!result || !(result as any).hasNext()) {
-        logger.error('Failed to update entity', undefined, { projectId, entityId });
-        return null;
-      }
-
-      try {
-        const record = (result as any).getNextSync();
-        const entityData = record.e; // Direct property access for KuzuDB Node.js API
-        const updatedEntity = this.parseEntityFromDB(entityData);
-        
-        logger.info('Entity updated successfully', { projectId, entityId });
-        return updatedEntity;
-      } catch (error) {
-        logger.error('Failed to parse updated entity', error, { projectId, entityId });
-        return null;
-      }
-    });
+    } catch (error) {
+      logger.error('Failed to update entity', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId, 
+        entityId 
+      });
+      return null;
+    }
   }
 
+  /**
+   * Delete an entity
+   * Note: Simplified implementation using QdrantDataService
+   */
   async deleteEntity(projectId: string, entityId: string): Promise<boolean> {
-    logger.info('Deleting entity', { projectId, entityId, operation: 'deleteEntity' });
+    try {
+      await qdrantDataService.deleteEntity(projectId, entityId);
+      
+      logger.info('Entity deleted successfully', { projectId, entityId });
+      return true;
 
-    return databaseService.withTransaction(projectId, async () => {
-      // First delete all relationships involving this entity
-      const deleteRelQuery = `
-        MATCH (e:Entity {id: $id})-[r]-()
-        DELETE r
-      `;
-      
-      await databaseService.executeQuery(projectId, deleteRelQuery, { id: entityId });
-
-      // Then delete the entity itself
-      const deleteEntityQuery = `
-        MATCH (e:Entity {id: $id})
-        DELETE e
-      `;
-      
-      const result = await databaseService.executeQuery(projectId, deleteEntityQuery, { id: entityId });
-      
-      if (result) {
-        logger.info('Entity deleted successfully', { projectId, entityId });
-        return true;
-      } else {
-        logger.error('Failed to delete entity', undefined, { projectId, entityId });
-        return false;
-      }
-    }) || false;
+    } catch (error) {
+      logger.error('Failed to delete entity', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId, 
+        entityId 
+      });
+      return false;
+    }
   }
 
+  /**
+   * Add observation to entity
+   * Note: Simplified implementation - observations stored in metadata
+   */
   async addObservation(
     projectId: string, 
     entityId: string, 
     observationText: string
   ): Promise<{ observation_id: string } | null> {
-    logger.info('Adding observation to entity', { 
-      projectId, 
-      entityId, 
-      operation: 'addObservation' 
-    });
-
-    return databaseService.withTransaction(projectId, async () => {
+    try {
       const entity = await this.getEntity(projectId, entityId);
       if (!entity) {
         logger.warn('Cannot add observation: entity not found', { projectId, entityId });
         return null;
       }
 
+      const observationId = uuidv4();
       const newObservation: Observation = {
-        id: `obs_${uuidv4()}`,
+        id: observationId,
         text: observationText,
         createdAt: new Date().toISOString()
       };
 
       const updatedObservations = [...entity.observations, newObservation];
       
-      const success = await this.updateEntity(projectId, entityId, {
+      const updateResult = await this.updateEntity(projectId, entityId, {
         observations: updatedObservations
       });
 
-      if (success) {
-        logger.info('Observation added successfully', { 
+      if (updateResult) {
+        logger.info('Observation added to entity', { 
           projectId, 
           entityId, 
-          observationId: newObservation.id 
+          observationId 
         });
-        return { observation_id: newObservation.id };
+        return { observation_id: observationId };
       } else {
-        logger.error('Failed to add observation', undefined, { projectId, entityId });
         return null;
       }
-    });
+
+    } catch (error) {
+      logger.error('Failed to add observation', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId, 
+        entityId 
+      });
+      return null;
+    }
   }
 
+  /**
+   * Delete observation from entity
+   * Note: Simplified implementation - observations stored in metadata
+   */
   async deleteObservation(
     projectId: string, 
     entityId: string, 
     observationId: string
   ): Promise<boolean> {
-    logger.info('Deleting observation from entity', { 
-      projectId, 
-      entityId, 
-      observationId,
-      operation: 'deleteObservation' 
-    });
-
-    return databaseService.withTransaction(projectId, async () => {
+    try {
       const entity = await this.getEntity(projectId, entityId);
       if (!entity) {
         logger.warn('Cannot delete observation: entity not found', { projectId, entityId });
@@ -380,47 +304,43 @@ export class EntityService {
 
       const updatedObservations = entity.observations.filter(obs => obs.id !== observationId);
       
-      if (updatedObservations.length === entity.observations.length) {
-        logger.warn('Observation not found', { projectId, entityId, observationId });
-        return false;
-      }
-
-      const success = await this.updateEntity(projectId, entityId, {
+             const updateResult = await this.updateEntity(projectId, entityId, {
         observations: updatedObservations
       });
 
-      if (success) {
-        logger.info('Observation deleted successfully', { 
+      if (updateResult) {
+        logger.info('Observation deleted from entity', { 
           projectId, 
           entityId, 
           observationId 
         });
         return true;
       } else {
-        logger.error('Failed to delete observation', undefined, { 
-          projectId, 
-          entityId, 
-          observationId 
-        });
         return false;
       }
-    }) || false;
+
+    } catch (error) {
+      logger.error('Failed to delete observation', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId, 
+        entityId, 
+        observationId 
+      });
+      return false;
+    }
   }
 
+  /**
+   * Edit observation text
+   * Note: Simplified implementation - observations stored in metadata
+   */
   async editObservation(
     projectId: string,
     entityId: string,
     observationId: string,
     newText: string
   ): Promise<Observation | null> {
-    logger.info('Editing observation', { 
-      projectId, 
-      entityId, 
-      observationId,
-      operation: 'editObservation' 
-    });
-
-    return databaseService.withTransaction(projectId, async () => {
+    try {
       const entity = await this.getEntity(projectId, entityId);
       if (!entity) {
         logger.warn('Cannot edit observation: entity not found', { projectId, entityId });
@@ -429,7 +349,11 @@ export class EntityService {
 
       const observationIndex = entity.observations.findIndex(obs => obs.id === observationId);
       if (observationIndex === -1) {
-        logger.warn('Observation not found', { projectId, entityId, observationId });
+        logger.warn('Cannot edit observation: observation not found', { 
+          projectId, 
+          entityId, 
+          observationId 
+        });
         return null;
       }
 
@@ -438,53 +362,61 @@ export class EntityService {
         ...updatedObservations[observationIndex],
         text: newText
       };
-
-      const success = await this.updateEntity(projectId, entityId, {
+      
+      const updateResult = await this.updateEntity(projectId, entityId, {
         observations: updatedObservations
       });
 
-      if (success) {
-        logger.info('Observation edited successfully', { 
+      if (updateResult) {
+        logger.info('Observation edited', { 
           projectId, 
           entityId, 
           observationId 
         });
         return updatedObservations[observationIndex];
       } else {
-        logger.error('Failed to edit observation', undefined, { 
-          projectId, 
-          entityId, 
-          observationId 
-        });
         return null;
       }
-    });
-  }
 
-  private parseEntityFromDB(entityData: any): Entity | null {
-    try {
-      const observations = this.parseObservations(entityData.observations);
-      
-      return {
-        id: entityData.id,
-        name: entityData.name,
-        type: entityData.type,
-        description: entityData.description,
-        observations,
-        parentId: entityData.parentId || undefined,
-        createdAt: entityData.createdAt,
-        updatedAt: entityData.updatedAt
-      };
     } catch (error) {
-      logger.error('Failed to parse entity from database', error);
+      logger.error('Failed to edit observation', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId, 
+        entityId, 
+        observationId 
+      });
       return null;
     }
   }
 
-  private parseObservations(obsData: string | Observation[] | null | undefined): Observation[] {
-    if (!obsData) {
-      return [];
+  /**
+   * Parse entity data from database format
+   */
+  private parseEntityFromDB(entityData: any): Entity | null {
+    if (!entityData) return null;
+
+    try {
+      return {
+        id: entityData.id,
+        name: entityData.name,
+        type: entityData.type,
+        description: entityData.description || '',
+        observations: this.parseObservations(entityData.observations),
+        parentId: entityData.parentId,
+        createdAt: entityData.createdAt,
+        updatedAt: entityData.updatedAt
+      };
+    } catch (error) {
+      logger.error('Failed to parse entity from database', { error, entityData });
+      return null;
     }
+  }
+
+  /**
+   * Parse observations from various formats
+   */
+  private parseObservations(obsData: string | Observation[] | null | undefined): Observation[] {
+    if (!obsData) return [];
     
     if (Array.isArray(obsData)) {
       return obsData;
@@ -494,8 +426,7 @@ export class EntityService {
       try {
         const parsed = JSON.parse(obsData);
         return Array.isArray(parsed) ? parsed : [];
-      } catch (error) {
-        logger.error('Failed to parse observations JSON', error);
+      } catch {
         return [];
       }
     }
