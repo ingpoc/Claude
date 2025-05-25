@@ -153,7 +153,7 @@ export default async function DashboardPage() {
                 <div className="lg:col-span-2">
                   <NaturalLanguageQuery 
                     projectId={projects[0]?.id || 'default'}
-                    className="h-full min-h-[400px]"
+                    className="h-full min-h-[250px]"
                   />
                 </div>
               )}
@@ -163,7 +163,7 @@ export default async function DashboardPage() {
                 <div className={aiFeatures.naturalLanguageQuery ? "lg:col-span-1" : "lg:col-span-3"}>
                   <SmartSuggestionsPanel 
                     projectId={projects[0]?.id || 'default'}
-                    className="h-full min-h-[400px]"
+                    className="h-full min-h-[250px]"
                   />
                 </div>
               )}

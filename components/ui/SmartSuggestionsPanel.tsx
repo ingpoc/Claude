@@ -57,76 +57,38 @@ export const SmartSuggestionsPanel: React.FC<SmartSuggestionsPanelProps> = ({
   // Use the settings hook to check AI feature availability
   const { isAIFeatureEnabled, loading: settingsLoading } = useSettings();
 
-  // Mock suggestions for demo - Initialize suggestions
+  // Fetch AI-powered suggestions
   useEffect(() => {
-    const mockSuggestions: Suggestion[] = [
-      {
-        id: '1',
-        type: 'entity_creation',
-        title: 'Create API Gateway Entity',
-        description: 'Your system seems to have multiple API endpoints. Consider creating an API Gateway entity to centralize routing and management.',
-        confidence: 0.89,
-        priority: 'high',
-        category: 'Architecture',
-        actionLabel: 'Create Entity',
-        relatedEntities: ['UserAPI', 'AuthAPI', 'DataAPI'],
-        estimatedImpact: 'Improves system organization',
-        timeToImplement: '5 minutes'
-      },
-      {
-        id: '2',
-        type: 'relationship_suggestion',
-        title: 'Link Database to Services',
-        description: 'I noticed several service entities that likely interact with your database. Adding these relationships would improve clarity.',
-        confidence: 0.92,
-        priority: 'medium',
-        category: 'Relationships',
-        actionLabel: 'Add Relationships',
-        relatedEntities: ['UserService', 'Database', 'AuthService'],
-        estimatedImpact: 'Better dependency tracking',
-        timeToImplement: '3 minutes'
-      },
-      {
-        id: '3',
-        type: 'pattern_insight',
-        title: 'Microservices Pattern Detected',
-        description: 'Your architecture follows a microservices pattern. Consider documenting service boundaries and communication protocols.',
-        confidence: 0.85,
-        priority: 'medium',
-        category: 'Patterns',
-        actionLabel: 'Document Pattern',
-        relatedEntities: ['UserService', 'AuthService', 'NotificationService'],
-        estimatedImpact: 'Clearer architecture documentation',
-        timeToImplement: '10 minutes'
-      },
-      {
-        id: '4',
-        type: 'optimization',
-        title: 'Consolidate Similar Entities',
-        description: 'Found entities with similar names that might be duplicates: "User Model" and "UserModel". Consider merging them.',
-        confidence: 0.95,
-        priority: 'low',
-        category: 'Optimization',
-        actionLabel: 'Review & Merge',
-        relatedEntities: ['User Model', 'UserModel'],
-        estimatedImpact: 'Reduces duplication',
-        timeToImplement: '2 minutes'
-      },
-      {
-        id: '5',
-        type: 'knowledge_gap',
-        title: 'Missing Error Handling Documentation',
-        description: 'Your API entities lack error handling documentation. This could improve system reliability understanding.',
-        confidence: 0.78,
-        priority: 'medium',
-        category: 'Documentation',
-        actionLabel: 'Add Documentation',
-        relatedEntities: ['API Endpoints', 'Error Handling'],
-        estimatedImpact: 'Better error management',
-        timeToImplement: '15 minutes'
+    const fetchSuggestions = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/suggestions`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.suggestions) {
+            setSuggestions(data.suggestions);
+          }
+        } else {
+          // If API fails, show empty state instead of mock data
+          setSuggestions([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch AI suggestions:', error);
+        // If API fails, show empty state instead of mock data
+        setSuggestions([]);
       }
-    ];
-    setSuggestions(mockSuggestions);
+    };
+
+    if (projectId && projectId !== 'default') {
+      fetchSuggestions();
+    } else {
+      setSuggestions([]);
+    }
   }, [projectId]);
 
   const categories = ['all', 'Architecture', 'Relationships', 'Patterns', 'Optimization', 'Documentation'];
