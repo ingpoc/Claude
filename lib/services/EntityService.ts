@@ -182,22 +182,22 @@ export class EntityService {
     updates: UpdateEntityRequest
   ): Promise<Entity | null> {
     try {
-      // Get current entity
-      const currentEntity = await this.getEntity(projectId, entityId);
-      if (!currentEntity) {
+      // Get the original QdrantEntity to preserve metadata structure
+      const qdrantEntity = await qdrantDataService.getEntity(projectId, entityId);
+      if (!qdrantEntity) {
         logger.warn('Cannot update entity: entity not found', { projectId, entityId });
         return null;
       }
 
-      // Update entity using QdrantDataService
+      // Update entity using QdrantDataService with proper metadata structure
       await qdrantDataService.updateEntity(projectId, entityId, {
         name: updates.name,
         type: updates.type,
         description: updates.description,
         metadata: {
-          ...currentEntity,
-          observations: updates.observations || currentEntity.observations,
-          parentId: updates.parentId !== undefined ? updates.parentId : currentEntity.parentId,
+          ...qdrantEntity.metadata, // Preserve existing metadata structure
+          observations: updates.observations || qdrantEntity.metadata.observations || [],
+          parentId: updates.parentId !== undefined ? updates.parentId : qdrantEntity.metadata.parentId,
           originalUpdatedAt: new Date().toISOString()
         }
       });

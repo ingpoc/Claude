@@ -74,6 +74,20 @@ if (IS_DEVELOPMENT) {
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
     const url = `${API_BASE_URL}${endpoint}`;
     // console.log(`[API Action] Fetching: ${options.method || 'GET'} ${url}`);
+    
+    // Determine if this is a mutating operation that should bypass cache
+    const method = options.method?.toUpperCase() || 'GET';
+    const isMutatingOperation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+    
+    // Check if cache busting is requested (t= query parameter)
+    const isCacheBustingRequest = url.includes('?t=') || url.includes('&t=');
+    
+    // For read operations, use cache unless cache busting is requested
+    // For mutating operations, always bypass cache
+    const nextConfig = (isMutatingOperation || isCacheBustingRequest)
+        ? { revalidate: 0 } // No cache for mutating operations or cache-busting requests
+        : { revalidate: 60 }; // Cache for 60 seconds for normal read operations
+    
     try {
         const response = await fetch(url, {
             ...options,
@@ -81,8 +95,7 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
                 'Content-Type': 'application/json',
                 ...options.headers,
             },
-            // Use default caching for static generation, override in specific calls if needed
-            next: { revalidate: 60 }, // Revalidate every 60 seconds
+            next: nextConfig,
         });
 
         if (!response.ok) {
@@ -223,16 +236,20 @@ export async function deleteRelationship(
 
 export async function getEntity(
     projectId: string = DEFAULT_PROJECT_ID,
-    entityId: string
+    entityId: string,
+    bustCache: boolean = false
 ): Promise<Entity | null> {
-    const entity = await fetchApi<Entity>(`/api/ui/projects/${projectId}/entities/${entityId}`);
+    const endpoint = bustCache ? `/api/ui/projects/${projectId}/entities/${entityId}?t=${Date.now()}` : `/api/ui/projects/${projectId}/entities/${entityId}`;
+    const entity = await fetchApi<Entity>(endpoint);
     return parseObservations(entity);
 }
 
 export async function getAllEntities(
-    projectId: string = DEFAULT_PROJECT_ID
+    projectId: string = DEFAULT_PROJECT_ID,
+    bustCache: boolean = false
 ): Promise<Entity[]> {
-    const entities = await fetchApi<Entity[]>(`/api/ui/projects/${projectId}/entities`);
+    const endpoint = bustCache ? `/api/ui/projects/${projectId}/entities?t=${Date.now()}` : `/api/ui/projects/${projectId}/entities`;
+    const entities = await fetchApi<Entity[]>(endpoint);
     return entities ? entities.map(parseObservations).filter((e): e is Entity => e !== null) : []; 
 }
 
@@ -240,11 +257,13 @@ export async function getAllEntities(
 // but its filtering capabilities might differ from the original getAllRelationshipsForContextDb
 // which might have fetched *all* relationships unconditionally.
 export async function getAllRelationshipsForContext(
-    projectId: string = DEFAULT_PROJECT_ID
+    projectId: string = DEFAULT_PROJECT_ID,
+    bustCache: boolean = false
 ): Promise<Relationship[]> {
     console.warn("[API Action] getAllRelationshipsForContext: Functionality may differ or not be fully implemented via API yet. Using basic /relationships endpoint.");
     // Fetching all relationships without filters for now
-    const relationships = await fetchApi<Relationship[]>(`/api/ui/projects/${projectId}/relationships`);
+    const endpoint = bustCache ? `/api/ui/projects/${projectId}/relationships?t=${Date.now()}` : `/api/ui/projects/${projectId}/relationships`;
+    const relationships = await fetchApi<Relationship[]>(endpoint);
     return relationships ?? []; // Return empty array if fetchApi returned null
     // Original call: return await getAllRelationshipsForContextDb(projectId);
 }
@@ -254,7 +273,8 @@ export async function getRelatedEntities(
     projectId: string = DEFAULT_PROJECT_ID,
     entityId: string,
     relationshipType?: string,
-    direction: 'incoming' | 'outgoing' | 'both' = 'both'
+    direction: 'incoming' | 'outgoing' | 'both' = 'both',
+    bustCache: boolean = false
 ): Promise<Entity[]> {
     // console.warn("[API Action] getRelatedEntities: Not implemented via API yet.");
     // Build query parameters
@@ -264,6 +284,9 @@ export async function getRelatedEntities(
     }
     if (direction) { // Direction always has a value (defaults to 'both')
         params.append('direction', direction);
+    }
+    if (bustCache) {
+        params.append('t', Date.now().toString());
     }
     const queryString = params.toString();
     const endpoint = `/api/ui/projects/${projectId}/entities/${entityId}/related${queryString ? '?' + queryString : ''}`;
@@ -337,8 +360,9 @@ export async function deleteProjectAction(projectId: string): Promise<boolean> {
 }
 
 // Get all projects action
-export async function getProjectsAction(): Promise<ProjectMetadata[]> {
-    const projects = await fetchApi<ProjectMetadata[]>('/api/ui/projects');
+export async function getProjectsAction(bustCache: boolean = false): Promise<ProjectMetadata[]> {
+    const endpoint = bustCache ? `/api/ui/projects?t=${Date.now()}` : '/api/ui/projects';
+    const projects = await fetchApi<ProjectMetadata[]>(endpoint);
     return projects ?? []; // Return empty array on null/error
 }
 

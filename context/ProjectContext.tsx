@@ -43,9 +43,9 @@ interface ProjectContextType extends Omit<ProjectState, 'projectId'> {
   addRelationship: (fromId: string, toId: string, type: string) => Promise<RelationshipInfo | null>;
   deleteEntity: (entityId: string) => Promise<boolean>;
   deleteRelationship: (relationshipId: string) => Promise<boolean>;
-  findEntityById: (entityId: string) => Promise<Entity | null>;
+  findEntityById: (entityId: string, bustCache?: boolean) => Promise<Entity | null>;
   getRelatedEntities: (entityId: string) => Promise<Array<{entity: Entity, relationship: RelationshipInfo}>>;
-  refreshState: () => Promise<void>; 
+  refreshState: (bustCache?: boolean) => Promise<void>; 
   isLoading: boolean;
   editObservation: (entityId: string, observationId: string, newText: string) => Promise<boolean>;
   deleteObservation: (entityId: string, observationId: string) => Promise<boolean>;
@@ -70,16 +70,16 @@ export const ProjectProvider = ({
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshState = useCallback(async () => {
+  const refreshState = useCallback(async (bustCache: boolean = false) => {
     setIsLoading(true);
     try {
         // Get project details
         const project = await getProject(projectId);
         
-        // Call server actions to get data
+        // Call server actions to get data with cache busting if needed
         const [entities, relationships] = await Promise.all([
-            getAllEntities(projectId),
-            getAllRelationshipsForContext(projectId)
+            getAllEntities(projectId, bustCache),
+            getAllRelationshipsForContext(projectId, bustCache)
         ]);
         
         // console.log(`getAllEntities returned: ${JSON.stringify(entities)}`);
@@ -115,7 +115,7 @@ export const ProjectProvider = ({
   const addEntityAction = useCallback(async (name: string, type: string, description: string, observations?: string[], parentId?: string): Promise<Entity | null> => {
     const newEntity = await createEntity(projectId, name, type, description, observations, parentId);
     if (newEntity) {
-      await refreshState();
+      await refreshState(true); // Bust cache after creating entity
     }
     return newEntity;
   }, [projectId, refreshState]);
@@ -123,7 +123,7 @@ export const ProjectProvider = ({
   const addObservationAction = useCallback(async (entityId: string, observation: string): Promise<boolean> => {
     const result = await addObservation(projectId, entityId, observation);
     if (result) {
-       await refreshState();
+       await refreshState(true); // Bust cache after adding observation
     }
     return !!result;
   }, [projectId, refreshState]);
@@ -131,7 +131,7 @@ export const ProjectProvider = ({
   const updateEntityDescriptionAction = useCallback(async (entityId: string, description: string): Promise<boolean> => {
     const success = await updateEntityDescription(projectId, entityId, description);
     if (success) {
-        await refreshState();
+        await refreshState(true); // Bust cache after updating entity
     }
     return success;
   }, [projectId, refreshState]);
@@ -139,7 +139,7 @@ export const ProjectProvider = ({
   const addRelationshipAction = useCallback(async (fromId: string, toId: string, type: string): Promise<RelationshipInfo | null> => {
       const newRel = await createRelationship(projectId, fromId, toId, type);
       if (newRel) {
-          await refreshState();
+          await refreshState(true); // Bust cache after creating relationship
       }
       // Assuming the action returns the same structure
       return newRel as RelationshipInfo | null; 
@@ -148,7 +148,7 @@ export const ProjectProvider = ({
   const deleteEntityAction = useCallback(async (entityId: string): Promise<boolean> => {
       const success = await deleteEntity(projectId, entityId);
       if (success) {
-          await refreshState();
+          await refreshState(true); // Bust cache after deleting entity
       }
       return success;
   }, [projectId, refreshState]);
@@ -156,7 +156,7 @@ export const ProjectProvider = ({
   const deleteRelationshipAction = useCallback(async (relationshipId: string): Promise<boolean> => {
       const success = await deleteRelationship(projectId, relationshipId);
       if (success) {
-          await refreshState();
+          await refreshState(true); // Bust cache after deleting relationship
       }
       return success;
   }, [projectId, refreshState]);
@@ -164,7 +164,7 @@ export const ProjectProvider = ({
   const editObservationAction = useCallback(async (entityId: string, observationId: string, newText: string): Promise<boolean> => {
     const success = await editObservation(projectId, entityId, observationId, newText);
     if (success) {
-      await refreshState();
+      await refreshState(true); // Bust cache after editing observation
     }
     return success;
   }, [projectId, refreshState]);
@@ -172,7 +172,7 @@ export const ProjectProvider = ({
   const deleteObservationAction = useCallback(async (entityId: string, observationId: string): Promise<boolean> => {
     const success = await deleteObservation(projectId, entityId, observationId);
     if (success) {
-      await refreshState();
+      await refreshState(true); // Bust cache after deleting observation
     }
     return success;
   }, [projectId, refreshState]);
@@ -182,8 +182,8 @@ export const ProjectProvider = ({
     return success;
   }, []);
 
-  const findEntityByIdAction = useCallback(async (entityId: string) => 
-    getEntity(projectId, entityId)
+  const findEntityByIdAction = useCallback(async (entityId: string, bustCache: boolean = false) => 
+    getEntity(projectId, entityId, bustCache)
   , [projectId]);
   
   // Get related entities for a specific entity

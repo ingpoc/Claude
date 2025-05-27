@@ -51,10 +51,10 @@ export default function ProjectsPage() {
     active: projects.filter(p => p.lastAccessed).length
   };
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjects = useCallback(async (bustCache: boolean = false) => {
     setIsLoading(true);
     try {
-      const data = await getProjectsAction();
+      const data = await getProjectsAction(bustCache);
       setProjects(data);
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -96,7 +96,8 @@ export default function ProjectsPage() {
       });
 
       if (response.ok) {
-        await fetchProjects();
+        // Bust cache to ensure we get fresh data after creation
+        await fetchProjects(true);
       } else {
         console.error("Failed to create project:", response.statusText);
       }
@@ -108,17 +109,29 @@ export default function ProjectsPage() {
 
   const handleDeleteProject = useCallback(async (projectIdToDelete: string) => {
     if (window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
-      setIsLoading(true);
-      const success = await deleteProjectAction(projectIdToDelete);
-      if (success) {
-        await fetchProjects();
-      } else {
-        console.error(`Failed to delete project ${projectIdToDelete}`);
-        alert(`Failed to delete project ${projectIdToDelete}.`);
-        setIsLoading(false);
+      // Optimistically update UI immediately
+      const originalProjects = [...projects];
+      setProjects(projects.filter(p => p.id !== projectIdToDelete));
+      
+      try {
+        const success = await deleteProjectAction(projectIdToDelete);
+        if (success) {
+          // Refresh from server to ensure data consistency
+          await fetchProjects(true);
+        } else {
+          // Revert optimistic update on failure
+          setProjects(originalProjects);
+          console.error(`Failed to delete project ${projectIdToDelete}`);
+          alert(`Failed to delete project ${projectIdToDelete}.`);
+        }
+      } catch (error) {
+        // Revert optimistic update on error
+        setProjects(originalProjects);
+        console.error('Error deleting project:', error);
+        alert(`Error deleting project ${projectIdToDelete}.`);
       }
     }
-  }, [fetchProjects]);
+  }, [projects, fetchProjects]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">

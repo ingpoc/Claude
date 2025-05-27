@@ -93,7 +93,7 @@ function convertQdrantEntityToEntity(qEntity: any) {
         name: qEntity.name,
         type: qEntity.type,
         description: qEntity.description || '',
-        observations: [], // QdrantEntity doesn't have observations in the same format
+        observations: qEntity.metadata?.observations || [], // Get observations from metadata
         parentId: qEntity.metadata?.parentId
     };
 }
