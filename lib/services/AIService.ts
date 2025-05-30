@@ -457,6 +457,7 @@ class OpenRouterProvider extends BaseAIProvider {
         temperature: request.temperature || 0.7,
         stream: false
       };
+      logger.debug('OpenRouterProvider: Sending request to OpenRouter:', { requestBody });
 
       const response = await fetch(`${this.config.baseUrl || 'https://openrouter.ai/api/v1'}/chat/completions`, {
         method: 'POST',
@@ -479,6 +480,24 @@ class OpenRouterProvider extends BaseAIProvider {
       }
 
       const data = await response.json();
+      // logger.info('OpenRouterProvider: Received raw data from OpenRouter API:', { data }); // Log the raw response data
+
+      const responseContent = data.choices?.[0]?.message?.content;
+      const finishReason = data.choices?.[0]?.finish_reason;
+
+      if (finishReason === 'length' && (!responseContent || responseContent.trim() === '')) {
+        logger.warn(
+          'OpenRouterProvider: Response content is empty and finish_reason is "length". ' +
+          'This suggests max_tokens might be too low for the model to generate a full response. ' +
+          'Consider increasing max_tokens in settings.',
+          { 
+            model: data.model, 
+            configuredMaxTokens: request.max_tokens || this.config.max_tokens, 
+            promptTokens: data.usage?.prompt_tokens,
+            completionTokens: data.usage?.completion_tokens
+          }
+        );
+      }
 
       return {
         success: true,

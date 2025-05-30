@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSettings } from '../../lib/hooks/useSettings';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
+import { Label } from './label';
 
 interface QueryResult {
   id: string;
@@ -55,7 +57,7 @@ interface NaturalLanguageQueryProps {
 }
 
 export function NaturalLanguageQuery({ 
-  projectId: defaultProjectId,
+  projectId: initialProjectId,
   allProjects = [],
   className,
   onEntityClick
@@ -66,10 +68,22 @@ export function NaturalLanguageQuery({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId);
   
   // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL
   // Use the settings hook to check AI feature availability
   const { isAIFeatureEnabled, loading: settingsLoading } = useSettings();
+
+  // Update selectedProjectId if initialProjectId changes and is valid
+  useEffect(() => {
+    if (initialProjectId && allProjects.some(p => p.id === initialProjectId)) {
+      setSelectedProjectId(initialProjectId);
+    } else if (allProjects.length > 0) {
+      setSelectedProjectId(allProjects[0].id); // Default to first project if initial is invalid
+    } else {
+      setSelectedProjectId("_determine_"); // Fallback if no projects
+    }
+  }, [initialProjectId, allProjects]);
 
   // Mock suggestions - Initialize suggestions
   useEffect(() => {
@@ -111,24 +125,20 @@ export function NaturalLanguageQuery({
 
     setIsLoading(true);
     
-    let targetProjectId = defaultProjectId;
-    let queryRequiresProjectDetermination = true;
+    // Use the selectedProjectId from state
+    let targetProjectId = selectedProjectId;
 
-    // Try to find a project name in the query
-    if (allProjects && allProjects.length > 0) {
-      const queryLower = query.toLowerCase();
-      for (const proj of allProjects) {
-        if (proj.name && queryLower.includes(proj.name.toLowerCase())) {
-          targetProjectId = proj.id;
-          queryRequiresProjectDetermination = false; // Project found in query
-          // console.log(`Query mentions project: ${proj.name}, using ID: ${proj.id}`); // Optional: for debugging
-          break; // Use the first match
-        }
-      }
-    }
-
-    if (queryRequiresProjectDetermination && allProjects && allProjects.length > 0) {
-      targetProjectId = "_determine_"; // Special ID for backend to determine project
+    // If selectedProjectId is somehow not set (e.g. no projects), or is explicitly "_determine_"
+    // and allProjects are available, set it to "_determine_" for backend processing.
+    if ((!targetProjectId || targetProjectId === "_determine_") && allProjects && allProjects.length > 0) {
+      targetProjectId = "_determine_"; 
+    } else if (!targetProjectId && (!allProjects || allProjects.length === 0)) {
+      // No project selected and no projects available, cannot send query
+      console.error("No project selected and no projects available.");
+      // Optionally set an error state to display to the user
+      // For now, just log and return
+      setIsLoading(false);
+      return;
     }
     
     const requestBody: any = {
@@ -152,9 +162,15 @@ export function NaturalLanguageQuery({
       });
 
       const data = await response.json();
+      console.log("Received data from /query API:", data);
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to process query');
+        console.error('Query API call was not ok or data.success is false', { responseStatus: response.status, dataReceived: data });
+        throw new Error(data.error || 'Failed to process query. API status: ' + response.status);
+      }
+
+      if (!data.response || (typeof data.response === 'string' && data.response.trim() === '')) {
+        console.warn("Query API successful, but AI response text is empty.", { data });
       }
 
       const newResult: QueryResult = {
@@ -273,167 +289,183 @@ export function NaturalLanguageQuery({
   }
 
   return (
-    <div className={cn("flex flex-col", className)}>
-      <Card className="flex-1 border-slate-200 bg-white shadow-sm flex flex-col">
-        <CardHeader className="pb-3 border-b border-slate-100">
-          <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-slate-600" />
-            Natural Language Query
-          </CardTitle>
-          <p className="text-sm text-slate-500 mt-1">
-            Ask questions about your knowledge graph in natural language
-          </p>
-        </CardHeader>
-        
-        <CardContent className="flex-1 flex flex-col pt-4">
-          {/* Query Results */}
-          <ScrollArea ref={scrollAreaRef} className="flex-1 mb-4 min-h-[300px]">
-            <div className="space-y-4">
-              {results.length === 0 ? (
-                <div className="text-center py-8">
-                  <Bot className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-500 mb-6">Ask me anything about your knowledge graph</p>
-                  
-                  {/* Suggestions */}
+    <Card className={cn("h-full flex flex-col", className)}>
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center gap-2 text-slate-700">
+          <MessageSquare className="h-5 w-5" />
+          Natural Language Query
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+        {/* Project Selection Dropdown */}
+        {allProjects && allProjects.length > 0 && (
+          <div className="mb-2">
+            <Label htmlFor="nlq-project-select" className="text-xs text-slate-600 mb-1 block">Select Project</Label>
+            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+              <SelectTrigger id="nlq-project-select" className="w-full">
+                <SelectValue placeholder="Select a project..." />
+              </SelectTrigger>
+              <SelectContent>
+                {allProjects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+                {/* Option to let AI determine project if needed */}
+                <SelectItem value="_determine_">Let AI decide / All Projects</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Query Results */}
+        <ScrollArea ref={scrollAreaRef} className="flex-1 mb-4 min-h-[300px]">
+          <div className="space-y-4">
+            {results.length === 0 ? (
+              <div className="text-center py-8">
+                <Bot className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500 mb-6">Ask me anything about your knowledge graph</p>
+                
+                {/* Suggestions */}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-700 mb-3">Try these examples:</p>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-slate-700 mb-3">Try these examples:</p>
-                    <div className="space-y-2">
-                      {suggestions.map((suggestion, index) => (
-                        <button
-                          key={index}
-                          onClick={() => handleUseSuggestion(suggestion)}
-                          className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            {suggestion.icon}
-                            <span className="text-sm text-slate-700">{suggestion.text}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                    {suggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleUseSuggestion(suggestion)}
+                        className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          {suggestion.icon}
+                          <span className="text-sm text-slate-700">{suggestion.text}</span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <>
-                  {results.map((result) => (
-                    <div key={result.id} className="space-y-3">
-                      {/* User Query */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                          <User className="h-4 w-4 text-slate-600" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="bg-slate-50 rounded-lg p-3">
-                            <p className="text-sm text-slate-700">{result.query}</p>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Clock className="h-3 w-3 text-slate-400" />
-                            <span className="text-xs text-slate-400">
-                              {result.timestamp.toLocaleTimeString()}
-                            </span>
-                          </div>
-                        </div>
+              </div>
+            ) : (
+              <>
+                {results.map((result) => (
+                  <div key={result.id} className="space-y-3">
+                    {/* User Query */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                        <User className="h-4 w-4 text-slate-600" />
                       </div>
-
-                      {/* AI Response */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                          <Bot className="h-4 w-4 text-emerald-600" />
+                      <div className="flex-1">
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-sm text-slate-700">{result.query}</p>
                         </div>
-                        <div className="flex-1">
-                          <div className="space-y-3">
-                            <div className="bg-white border border-slate-200 rounded-lg p-3">
-                              <div 
-                                className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none"
-                                dangerouslySetInnerHTML={{ __html: formatAIResponse(result.response) }}
-                              ></div>
-                            </div>
-
-                            {/* Metadata */}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="outline" className={getQueryTypeColor(result.queryType)}>
-                                {getQueryTypeLabel(result.queryType)}
-                              </Badge>
-                              <Badge variant="outline" className="text-slate-600">
-                                {Math.round(result.confidence * 100)}% confidence
-                              </Badge>
-                            </div>
-
-                            {/* Entities & Relationships */}
-                            {(result.entities.length > 0 || result.relationships.length > 0) && (
-                              <div className="space-y-2">
-                                {result.entities.length > 0 && (
-                                  <div>
-                                    <p className="text-xs font-medium text-slate-600 mb-1">Related Entities:</p>
-                                    <div className="flex flex-wrap gap-1">
-                                      {result.entities.map((entity, idx) => (
-                                        <button
-                                          key={idx}
-                                          onClick={() => onEntityClick?.(entity)}
-                                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs hover:bg-blue-100 transition-colors"
-                                        >
-                                          {entity}
-                                          <ArrowRight className="h-3 w-3" />
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {result.relationships.length > 0 && (
-                                  <div>
-                                    <p className="text-xs font-medium text-slate-600 mb-1">Key Relationships:</p>
-                                    <div className="space-y-1">
-                                      {result.relationships.map((rel, idx) => (
-                                        <div key={idx} className="text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                          {rel}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Clock className="h-3 w-3 text-slate-400" />
+                          <span className="text-xs text-slate-400">
+                            {result.timestamp.toLocaleTimeString()}
+                          </span>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </>
-              )}
-            </div>
-          </ScrollArea>
 
-          {/* Query Input */}
-          <div className="border-t border-slate-100 pt-4 flex-shrink-0">
-            <div className="flex gap-2">
-              <div className="flex-1">
+                    {/* AI Response */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                        <Bot className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="space-y-3">
+                          <div className="bg-white border border-slate-200 rounded-lg p-3">
+                            <div 
+                              className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ __html: formatAIResponse(result.response) }}
+                            ></div>
+                          </div>
+
+                          {/* Metadata */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className={getQueryTypeColor(result.queryType)}>
+                              {getQueryTypeLabel(result.queryType)}
+                            </Badge>
+                            <Badge variant="outline" className="text-slate-600">
+                              {Math.round(result.confidence * 100)}% confidence
+                            </Badge>
+                          </div>
+
+                          {/* Entities & Relationships */}
+                          {(result.entities.length > 0 || result.relationships.length > 0) && (
+                            <div className="space-y-2">
+                              {result.entities.length > 0 && (
+                                <div>
+                                  <p className="text-xs font-medium text-slate-600 mb-1">Related Entities:</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {result.entities.map((entity, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => onEntityClick?.(entity)}
+                                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs hover:bg-blue-100 transition-colors"
+                                      >
+                                        {entity}
+                                        <ArrowRight className="h-3 w-3" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {result.relationships.length > 0 && (
+                                <div>
+                                  <p className="text-xs font-medium text-slate-600 mb-1">Key Relationships:</p>
+                                  <div className="space-y-1">
+                                    {result.relationships.map((rel, idx) => (
+                                      <div key={idx} className="text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                                        {rel}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Query Input */}
+        <div className="border-t border-slate-100 pt-4 flex-shrink-0">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <div className="relative">
                 <Textarea
                   ref={textareaRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Ask about your knowledge graph... (Press Enter to send)"
-                  className="min-h-[80px] resize-none border-slate-200 focus:border-slate-300"
-                  disabled={isLoading}
+                  className="pr-20 pl-4 py-3 text-sm rounded-lg border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm resize-none"
+                  rows={2}
                 />
+                <Button 
+                  type="button" 
+                  size="icon" 
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md"
+                  onClick={handleSendQuery}
+                  disabled={isLoading || !query.trim() || (!selectedProjectId && (!allProjects || allProjects.length === 0))}
+                >
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  <span className="sr-only">Send</span>
+                </Button>
               </div>
-              <Button
-                onClick={handleSendQuery}
-                disabled={!query.trim() || isLoading}
-                className="self-end h-[80px] px-4 bg-slate-900 hover:bg-slate-800"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

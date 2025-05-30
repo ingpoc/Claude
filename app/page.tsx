@@ -23,6 +23,10 @@ interface Project {
   description?: string;
   createdAt: string;
   lastAccessed?: string;
+  entityCount?: number;
+  relationshipCount?: number;
+  activityScore?: number;
+  status?: 'new' | 'active' | 'archived';
 }
 
 // Make the component async to fetch data
@@ -33,21 +37,30 @@ export default async function DashboardPage() {
   let fetchError = null;
   try {
     const fetchedProjects = await getProjectsAction();
-    projects = fetchedProjects || [];
+    projects = (fetchedProjects || []).map((p, index) => ({
+      ...p,
+      entityCount: Math.floor(Math.random() * 50) + 10,
+      relationshipCount: Math.floor(Math.random() * 100) + 20,
+      activityScore: Math.floor(Math.random() * 100) + 20,
+      status: index === 0 ? 'new' : 'active',
+    }));
   } catch (error) {
     console.error("Error fetching projects for dashboard:", error);
     fetchError = "Failed to load projects.";
-    // For build time, use mock data instead of failing
     projects = [
       {
         id: 'sample-1',
         name: 'Sample Project',
         description: 'A sample project for demonstration',
         createdAt: new Date().toISOString(),
-        lastAccessed: new Date().toISOString()
+        lastAccessed: new Date().toISOString(),
+        entityCount: 30,
+        relationshipCount: 50,
+        activityScore: 75,
+        status: 'active',
       }
     ];
-    fetchError = null; // Clear error for build time
+    fetchError = null;
   }
 
   // Fetch user settings to check AI feature availability
@@ -56,7 +69,6 @@ export default async function DashboardPage() {
     userSettings = await settingsService.getUserSettings('default-user');
   } catch (error) {
     console.error("Error fetching user settings:", error);
-    // Use default settings if fetch fails
     userSettings = null;
   }
 
@@ -81,8 +93,8 @@ export default async function DashboardPage() {
   );
 
   // Placeholder stats (replace with real data fetching if available)
-  const totalEntities = 157; // Example stat
-  const totalRelationships = 342; // Example stat
+  const totalEntities = projects.reduce((sum, p) => sum + (p.entityCount || 0), 0) || 157;
+  const totalRelationships = projects.reduce((sum, p) => sum + (p.relationshipCount || 0), 0) || 342;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -152,8 +164,8 @@ export default async function DashboardPage() {
               {aiFeatures.naturalLanguageQuery && (
                 <div className="lg:col-span-2">
                   <NaturalLanguageQuery 
-                    projectId={projects[0]?.id || 'default'}
                     allProjects={projects}
+                    projectId={projects[0]?.id || 'default'}
                     className="h-full min-h-[250px]"
                   />
                 </div>
@@ -225,8 +237,6 @@ export default async function DashboardPage() {
           </div>
         )}
 
-
-
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Projects Section */}
@@ -253,28 +263,27 @@ export default async function DashboardPage() {
                     name={project.name}
                     description={project.description || ""}
                     lastUpdated={new Date(project.lastAccessed || project.createdAt).toLocaleDateString()}
-                    entityCount={Math.floor(Math.random() * 50) + 10} // Mock data
-                    relationshipCount={Math.floor(Math.random() * 100) + 20} // Mock data
-                    activityScore={Math.floor(Math.random() * 100) + 20} // Mock data
-                    status={index === 0 ? 'new' : index === 1 ? 'active' : 'active'}
+                    entityCount={project.entityCount || 0}
+                    relationshipCount={project.relationshipCount || 0}
+                    activityScore={project.activityScore || 0}
+                    status={project.status || 'active'}
                     delay={0.3 + index * 0.1}
                   />
                 ))}
               </div>
             ) : (
-              <div className="text-center text-slate-500 py-8">
-                <Library className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                <p>No projects found. Create your first project to get started!</p>
+              <div className="text-center py-8">
+                <p className="text-slate-600 mb-4">No projects found. Get started by creating a new project.</p>
+                <Button asChild>
+                  <Link href="/projects/new">Create New Project</Link>
+                </Button>
               </div>
             )}
           </div>
 
-          {/* Activity Feed Sidebar */}
+          {/* Activity Feed Section */}
           <div className="lg:col-span-1">
-            <ActivityFeed 
-              className="h-fit"
-              maxItems={6}
-            />
+            <ActivityFeed />
           </div>
         </div>
       </div>
