@@ -30,7 +30,7 @@ async function testOpenRouterAuth() {
   };
 
   try {
-    const invalidAIService = new AIService(invalidConfig, features);
+    const invalidAIService = new AIService({aiConfiguration: invalidConfig, aiFeatures: features});
     const invalidResult = await invalidAIService.testConnection();
     
     console.log('Result:', invalidResult);
@@ -61,7 +61,7 @@ async function testOpenRouterAuth() {
   };
 
   try {
-    const wrongUrlService = new AIService(wrongUrlConfig, features);
+    const wrongUrlService = new AIService({aiConfiguration: wrongUrlConfig, aiFeatures: features});
     const wrongUrlResult = await wrongUrlService.testConnection();
     
     console.log('Result:', wrongUrlResult);
@@ -92,7 +92,7 @@ async function testOpenRouterAuth() {
   };
 
   try {
-    const emptyKeyService = new AIService(emptyKeyConfig, features);
+    const emptyKeyService = new AIService({aiConfiguration: emptyKeyConfig, aiFeatures: features});
     const emptyKeyResult = await emptyKeyService.testConnection();
     
     console.log('Result:', emptyKeyResult);
@@ -123,7 +123,7 @@ async function testOpenRouterAuth() {
   };
 
   try {
-    const invalidModelService = new AIService(invalidModelConfig, features);
+    const invalidModelService = new AIService({aiConfiguration: invalidModelConfig, aiFeatures: features});
     const invalidModelResult = await invalidModelService.testConnection();
     
     console.log('Result:', invalidModelResult);
@@ -159,7 +159,7 @@ async function testOpenRouterAuth() {
     console.log('⚠️  SKIPPED: Please replace "your-actual-key-here" with your actual OpenRouter API key to test');
   } else {
     try {
-      const validAIService = new AIService(validConfig, features);
+      const validAIService = new AIService({aiConfiguration: validConfig, aiFeatures: features});
       const validResult = await validAIService.testConnection();
       
       console.log('Result:', validResult);

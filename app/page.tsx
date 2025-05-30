@@ -153,6 +153,7 @@ export default async function DashboardPage() {
                 <div className="lg:col-span-2">
                   <NaturalLanguageQuery 
                     projectId={projects[0]?.id || 'default'}
+                    allProjects={projects}
                     className="h-full min-h-[250px]"
                   />
                 </div>

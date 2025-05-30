@@ -4,11 +4,18 @@ import { qdrantDataService } from '../../../../../lib/services/QdrantDataService
 import { SettingsService } from '../../../../../lib/services/SettingsService';
 import { logger } from '../../../../../lib/services/Logger';
 
+interface ProjectInfo { // For allProjects list
+  id: string;
+  name: string;
+  description?: string;
+}
+
 interface QueryRequest {
   query: string;
   includeContext?: boolean;
   maxResults?: number;
   userId?: string;
+  allProjects?: ProjectInfo[]; // Added for project determination
 }
 
 interface QueryResponse {
@@ -27,11 +34,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const { projectId } = await params;
+  let { projectId } = await params; // Make projectId mutable
   
   try {
     const body: QueryRequest = await request.json();
-    const { query, includeContext = true, maxResults = 10, userId = 'default-user' } = body;
+    // Destructure allProjects, potentially undefined
+    const { query, includeContext = true, maxResults = 10, userId = 'default-user', allProjects } = body;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return NextResponse.json(
@@ -43,10 +51,8 @@ export async function POST(
       );
     }
 
-    logger.info('Processing natural language query', { projectId, query: query.substring(0, 100) });
-
-    // Get user settings for AI configuration
-    await qdrantDataService.initialize();
+    // Get user settings for AI configuration first (needed for AIService)
+    await qdrantDataService.initialize(); // Ensure qdrant is initialized
     const userSettings = await qdrantDataService.getUserSettings(userId);
     
     if (!userSettings) {
@@ -59,8 +65,73 @@ export async function POST(
       );
     }
 
-    // Initialize services
-    const aiService = new AIService(userSettings.aiConfiguration, userSettings.aiFeatures);
+    const aiService = new AIService({ aiConfiguration: userSettings.aiConfiguration, aiFeatures: userSettings.aiFeatures });
+
+    if (projectId === "_determine_") {
+      if (!allProjects || allProjects.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "Cannot determine project: Project list not provided." },
+          { status: 400 }
+        );
+      }
+      logger.info('AI to determine project for query', { originalQuery: query.substring(0,100), numProjects: allProjects.length });
+
+      const projectDeterminationSystemPrompt = `You are an expert system that determines the most relevant project ID for a user's query based on a list of available projects.
+The user will provide a query and a list of projects (with ID, name, and description).
+Respond ONLY with the JSON object containing the ID of the most relevant project, like this: {"determinedProjectId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}.
+If no project seems relevant, or if you cannot confidently determine a project, respond with: {"determinedProjectId": "default"}.`;
+      
+      const projectsListText = allProjects.map(p => `ID: ${p.id}, Name: "${p.name}", Description: "${p.description || 'N/A'}"`).join('\\n');
+      const projectDeterminationPrompt = `User query: "${query}"
+
+Available projects:
+${projectsListText}
+
+Based on the user query and the project list, which project ID is most relevant? Return ONLY the JSON object.`;
+
+      const determinationResponse = await aiService.queryNaturalLanguage(projectDeterminationPrompt, { systemPrompt: projectDeterminationSystemPrompt });
+
+      if (!determinationResponse.success || !determinationResponse.data.response) {
+        logger.error('AI project determination failed', { error: determinationResponse.error });
+        return NextResponse.json(
+          { success: false, error: "AI failed to determine the project." },
+          { status: 500 }
+        );
+      }
+
+      try {
+        const responseObject = JSON.parse(determinationResponse.data.response.trim());
+        const determinedId = responseObject.determinedProjectId;
+        if (determinedId && allProjects.some(p => p.id === determinedId || determinedId === "default")) {
+          projectId = determinedId; // Update projectId with the AI's choice
+          logger.info('AI determined project ID', { determinedProjectId: projectId });
+        } else {
+          logger.warn('AI returned invalid or no project ID, falling back to default', { response: determinationResponse.data.response });
+          // Fallback strategy: use the first project ID from the list if "default" was the AI choice or if ID is invalid
+          // or consider a specific default project ID you might have.
+          projectId = allProjects[0]?.id || 'default'; // Or handle as an error
+        }
+      } catch (e) {
+        logger.error('Failed to parse AI project determination response', { response: determinationResponse.data.response, error: e });
+        // Fallback if parsing fails
+         projectId = allProjects[0]?.id || 'default'; 
+      }
+        // If projectId becomes "default" from AI, and you want to map it to an actual ID (e.g., first project)
+      if (projectId === "default" && allProjects && allProjects.length > 0) {
+        projectId = allProjects[0].id; 
+        logger.info('AI chose "default", mapped to first project ID', { mappedProjectId: projectId });
+      } else if (projectId === "default") {
+         // Handle case where "default" is chosen but no projects exist or no fallback defined
+        return NextResponse.json(
+            { success: false, error: "AI chose default project, but no fallback project is available." },
+            { status: 400 }
+        );
+      }
+    }
+
+    logger.info('Processing natural language query', { finalProjectId: projectId, query: query.substring(0, 100) });
+
+    // Initialize qdrantDataService (might have been initialized already, but good to ensure)
     await qdrantDataService.initialize();
 
     // Get knowledge graph context if requested
@@ -68,11 +139,11 @@ export async function POST(
     if (includeContext) {
       try {
         // Get entities and relationships for context
-        const entities = await qdrantDataService.getEntitiesByProject(projectId);
-        const relationships = await qdrantDataService.getAllRelationships(projectId);
+        const entities = await qdrantDataService.getEntitiesByProject(projectId); // projectId is now the determined one
+        const relationships = await qdrantDataService.getAllRelationships(projectId); // projectId is now the determined one
         
         context = {
-          projectId,
+          projectId, // Use the final projectId
           totalEntities: entities.length,
           totalRelationships: relationships.length,
           entities: entities.slice(0, 50).map(e => ({
@@ -89,13 +160,13 @@ export async function POST(
           }))
         };
       } catch (error) {
-        logger.warn('Failed to load knowledge graph context', { projectId, error });
+        logger.warn('Failed to load knowledge graph context', { finalProjectId: projectId, error });
         // Continue without context
       }
     }
 
-    // Process query with AI service
-    const aiResponse = await aiService.queryNaturalLanguage(query, context);
+    // Process query with AI service using the final projectId in context
+    const aiResponse = await aiService.queryNaturalLanguage(query, context); // Pass the potentially enriched context
 
     if (!aiResponse.success) {
       return NextResponse.json({
@@ -127,7 +198,7 @@ export async function POST(
     };
 
     logger.info('Natural language query processed successfully', { 
-      projectId, 
+      finalProjectId: projectId, 
       queryType, 
       confidence,
       entitiesFound: extractedEntities.length,
@@ -137,8 +208,10 @@ export async function POST(
     return NextResponse.json(response);
 
   } catch (error: any) {
+    // Use a general projectId for logging if it was determined, otherwise the initial one
+    const logProjectId = projectId === "_determine_" ? "undetermined" : projectId;
     logger.error('Failed to process natural language query', error, { 
-      projectId
+      projectId: logProjectId 
     });
 
     return NextResponse.json({
@@ -161,8 +234,8 @@ async function extractEntitiesFromResponse(responseText: string, contextEntities
 
   // Also look for common patterns that might indicate entities
   const entityPatterns = [
-    /\b([A-Z][a-zA-Z]*(?:Service|Controller|Model|Component|API|Repository|Manager|Handler))\b/g,
-    /\b([A-Z][a-zA-Z]*(?:Entity|Class|Function|Method))\b/g,
+    /\\b([A-Z][a-zA-Z]*(?:Service|Controller|Model|Component|API|Repository|Manager|Handler))\\b/g,
+    /\\b([A-Z][a-zA-Z]*(?:Entity|Class|Function|Method))\\b/g,
   ];
 
   entityPatterns.forEach(pattern => {
@@ -185,9 +258,9 @@ async function extractRelationshipsFromResponse(responseText: string, contextRel
   
   // Look for relationship patterns in the response
   const relationshipPatterns = [
-    /(\w+)\s+(?:connects to|links to|depends on|uses|calls|extends|implements)\s+(\w+)/gi,
-    /(\w+)\s*->\s*(\w+)/g,
-    /(\w+)\s+(?:relationship|connection|dependency)\s+(?:with|to)\s+(\w+)/gi
+    /(\\w+)\\s+(?:connects to|links to|depends on|uses|calls|extends|implements)\\s+(\\w+)/gi,
+    /(\\w+)\\s*->\\s*(\\w+)/g,
+    /(\\w+)\\s+(?:relationship|connection|dependency)\\s+(?:with|to)\\s+(\\w+)/gi
   ];
 
   relationshipPatterns.forEach(pattern => {

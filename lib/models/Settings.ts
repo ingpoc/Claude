@@ -238,6 +238,30 @@ export const AI_PROVIDERS: AIProvider[] = [
         defaultValue: 1000
       }
     ]
+  },
+  {
+    id: 'lmstudio',
+    name: 'LM Studio (Local)',
+    type: 'local',
+    description: 'Local AI models via LM Studio - connect to your LM Studio server.',
+    requiresApiKey: false,
+    configFields: [
+      {
+        key: 'baseUrl', // Optional: For users running LM Studio on a different port/host
+        label: 'LM Studio Server URL (Optional)',
+        type: 'text',
+        required: false,
+        defaultValue: 'http://localhost:1234', // Default LM Studio API server URL
+        placeholder: 'http://localhost:1234'
+      },
+      {
+        key: 'modelIdentifier',
+        label: 'Model Identifier',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g., publisher/repo/model-file' // Or the format LM Studio uses
+      }
+    ]
   }
 ];
 

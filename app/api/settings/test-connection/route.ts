@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create AIService with the configuration from frontend
-    const aiService = new AIService(aiConfiguration, aiFeatures || {});
+    const aiService = new AIService({ aiConfiguration, aiFeatures: aiFeatures || {} });
     
     // Test the connection using our fixed logic
     const result = await aiService.testConnection();

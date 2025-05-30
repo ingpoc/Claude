@@ -1,4 +1,6 @@
 import { AIConfiguration, AIFeatures } from '../models/Settings';
+import { LMStudioClient } from '@lmstudio/sdk';
+import { logger } from './Logger';
 
 export interface AIResponse {
   success: boolean;
@@ -9,25 +11,34 @@ export interface AIResponse {
     tokens?: number;
     cost?: number;
   };
+  query?: string;
+  timestamp?: Date;
+  entities?: string[];
+  relationships?: string[];
+  confidence?: number;
+  queryType?: 'entity_search' | 'relationship_analysis' | 'pattern_discovery' | 'general';
 }
 
 export interface AIQueryRequest {
   prompt: string;
   context?: any;
-  maxTokens?: number;
+  model?: string;
+  max_tokens?: number;
   temperature?: number;
   systemPrompt?: string;
 }
 
 export interface EntityExtractionRequest {
   text: string;
+  context?: any;
   existingEntities?: string[];
   projectContext?: any;
 }
 
 export interface SuggestionRequest {
   context: any;
-  knowledgeGraph: any;
+  count?: number;
+  knowledgeGraph?: any;
   userHistory?: any[];
   maxSuggestions?: number;
 }
@@ -160,151 +171,105 @@ class OpenAIProvider extends BaseAIProvider {
 
 // Ollama Provider (Local)
 class OllamaProvider extends BaseAIProvider {
+  private baseUrl: string;
+  private model: string;
+
+  constructor(config: Record<string, any>) {
+    super(config);
+    this.baseUrl = config.baseUrl || 'http://localhost:11434';
+    this.model = config.model;
+  }
+
   validateConfig(): boolean {
-    return !!(this.config.baseUrl && this.config.model);
+    if (!this.baseUrl) {
+      logger.error('OllamaProvider: Base URL is missing.');
+      return false;
+    }
+    if (!this.model) {
+      logger.error('OllamaProvider: Model is missing.');
+      return false;
+    }
+    return true;
   }
 
   async testConnection(): Promise<AIResponse> {
+    if (!this.isConfigured) {
+      return { success: false, error: 'Ollama provider not configured correctly.' };
+    }
     try {
-      const response = await fetch(`${this.config.baseUrl}/api/tags`);
+      const response = await fetch(`${this.baseUrl}/api/tags`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error('Ollama connection test failed:', errorText);
+        return { success: false, error: `Connection test failed: ${errorText}` };
+      }
+      // Check if the configured model exists
       const data = await response.json();
-      
-      const modelExists = data.models?.some((m: any) => m.name.includes(this.config.model));
-      
-      return {
-        success: modelExists,
-        data: { 
-          message: modelExists ? 'Connection successful' : 'Model not found',
-          availableModels: data.models?.map((m: any) => m.name) || []
-        }
-      };
+      const modelExists = data.models.some((m: any) => m.name.startsWith(this.model));
+      if (!modelExists) {
+        logger.warn(`Ollama model '${this.model}' not found. Available models: ${data.models.map((m:any) => m.name).join(', ')}`);
+        return { success: false, error: `Model '${this.model}' not found in Ollama. Please ensure it's pulled.` };
+      }
+
+      logger.info('Ollama connection test successful.');
+      return { success: true, data: 'Ollama connection successful and model found.' };
     } catch (error: any) {
-      return {
-        success: false,
-        error: `Ollama connection failed: ${error.message}`
-      };
+      logger.error('Ollama connection test error:', error);
+      return { success: false, error: error.message || 'Unknown error during connection test.' };
     }
   }
 
   async query(request: AIQueryRequest): Promise<AIResponse> {
+    if (!this.isConfigured) {
+      return { success: false, error: 'Ollama provider not configured correctly.' };
+    }
     try {
-      let prompt = request.prompt;
-      
-      if (request.systemPrompt) {
-        prompt = `${request.systemPrompt}\n\nUser: ${prompt}`;
-      }
-
+      // Ollama uses a slightly different chat structure if system prompt is needed
+      const messages = [];
       if (request.context) {
-        prompt = `Context: ${JSON.stringify(request.context)}\n\n${prompt}`;
+        messages.push({ role: 'system', content: request.context });
       }
+      messages.push({ role: 'user', content: request.prompt });
 
-      const response = await fetch(`${this.config.baseUrl}/api/generate`, {
+      const body = JSON.stringify({
+        model: this.model, // Model is specified in config for Ollama provider
+        messages,
+        stream: false, // For simplicity, not using streaming responses here
+        options: {
+          temperature: request.temperature || 0.7,
+          num_predict: request.max_tokens // Ollama uses num_predict for max tokens
+        }
+      });
+      
+      logger.debug('Ollama query request body:', { body });
+
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: this.config.model,
-          prompt,
-          stream: false,
-          options: {
-            temperature: request.temperature || 0.7,
-            num_predict: request.maxTokens || 1000
-          }
-        })
+        body,
       });
 
-      const data = await response.json();
+      const responseData = await response.json();
+      logger.debug('Ollama query response data:', responseData);
 
-      return {
-        success: response.ok,
-        data: { response: data.response },
-        provider: 'ollama'
-      };
+
+      if (!response.ok || responseData.error) {
+        logger.error('Ollama query failed:', responseData.error);
+        return { success: false, error: responseData.error || 'Ollama API error' };
+      }
+      return { success: true, data: responseData.message?.content, usage: {tokens: responseData.eval_count} }; // eval_count is like prompt_tokens for Ollama
     } catch (error: any) {
-      return {
-        success: false,
-        error: `Ollama query failed: ${error.message}`,
-        provider: 'ollama'
-      };
+      logger.error('Ollama query error:', error);
+      return { success: false, error: error.message || 'Unknown error during Ollama query.' };
     }
   }
 
   async extractEntities(request: EntityExtractionRequest): Promise<AIResponse> {
-    const prompt = `Extract relevant entities (functions, classes, components, APIs, etc.) from this text and return them as a simple list:
-
-Text: "${request.text}"
-
-Entities:`;
-
-    const response = await this.query({ prompt, maxTokens: 200 });
-
-    if (!response.success) {
-      return response;
-    }
-
-    const entities = response.data.response
-      .split('\n')
-      .map((line: string) => line.trim().replace(/^[-*]\s*/, ''))
-      .filter((entity: string) => entity.length > 0 && entity.length < 50);
-
-    return {
-      success: true,
-      data: { entities },
-      provider: 'ollama'
-    };
+    return { success: false, error: 'Entity extraction not implemented for Ollama yet.' };
   }
 
   async generateSuggestions(request: SuggestionRequest): Promise<AIResponse> {
-    const prompt = `Analyze this knowledge graph and suggest 3-5 improvements:
-
-Context: ${JSON.stringify(request.context)}
-
-Provide suggestions in this format:
-- Title: [suggestion title]
-- Description: [detailed description] 
-- Priority: [high/medium/low]
-- Category: [Architecture/Relationships/Patterns/etc.]
-
-Suggestions:`;
-
-    const response = await this.query({ prompt, maxTokens: 600 });
-
-    if (!response.success) {
-      return response;
-    }
-
-    // Parse the text response into structured suggestions
-    const suggestions = this.parseOllamaSuggestions(response.data.response);
-
-    return {
-      success: true,
-      data: { suggestions },
-      provider: 'ollama'
-    };
-  }
-
-  private parseOllamaSuggestions(text: string): any[] {
-    // Parse Ollama's text response into structured format
-    const suggestions: any[] = [];
-    const blocks = text.split(/(?=- Title:)/);
-
-    blocks.forEach(block => {
-      const titleMatch = block.match(/- Title:\s*(.+)/);
-      const descMatch = block.match(/- Description:\s*(.+)/);
-      const priorityMatch = block.match(/- Priority:\s*(.+)/);
-      const categoryMatch = block.match(/- Category:\s*(.+)/);
-
-      if (titleMatch && descMatch) {
-        suggestions.push({
-          title: titleMatch[1].trim(),
-          description: descMatch[1].trim(),
-          priority: priorityMatch?.[1]?.trim().toLowerCase() || 'medium',
-          category: categoryMatch?.[1]?.trim() || 'General',
-          actionLabel: 'Review'
-        });
-      }
-    });
-
-    return suggestions;
+    return { success: false, error: 'Suggestion generation not implemented for Ollama yet.' };
   }
 }
 
@@ -488,7 +453,7 @@ class OpenRouterProvider extends BaseAIProvider {
       const requestBody = {
         model: this.config.model,
         messages,
-        max_tokens: request.maxTokens || this.config.maxTokens || 1000,
+        max_tokens: request.max_tokens || this.config.max_tokens || 1000,
         temperature: request.temperature || 0.7,
         stream: false
       };
@@ -538,20 +503,18 @@ class OpenRouterProvider extends BaseAIProvider {
   }
 
   async extractEntities(request: EntityExtractionRequest): Promise<AIResponse> {
-    const systemPrompt = `You are an expert at extracting entities from text. Extract relevant entities (functions, classes, components, APIs, concepts, etc.) from the provided text. Return only a clean list of entities, one per line, without bullets or numbering.`;
+    const systemPrompt = `You are an expert at extracting entities from text. Extract relevant entities (functions, classes, components, APIs, etc.) from the provided text. Return only a clean list of entities, one per line, without bullets or numbering.`;
 
     const prompt = `Extract entities from this text:
 
 "${request.text}"
-
-${request.existingEntities ? `Existing entities to consider: ${request.existingEntities.join(', ')}` : ''}
 
 Entities:`;
 
     const response = await this.query({ 
       prompt, 
       systemPrompt,
-      maxTokens: 300,
+      max_tokens: 300,
       temperature: 0.3
     });
 
@@ -597,7 +560,7 @@ Provide ${request.maxSuggestions || 5} suggestions as JSON:`;
     const response = await this.query({ 
       prompt, 
       systemPrompt,
-      maxTokens: 800,
+      max_tokens: 800,
       temperature: 0.7
     });
 
@@ -764,90 +727,267 @@ Provide ${request.maxSuggestions || 5} suggestions as JSON:`;
   }
 }
 
+// NEW LMStudioProvider
+class LMStudioProvider extends BaseAIProvider {
+  private client: LMStudioClient | null = null;
+  private modelIdentifier: string;
+  private baseUrl: string;
+
+  constructor(config: Record<string, any>) {
+    super(config);
+    this.modelIdentifier = config.modelIdentifier;
+    this.baseUrl = config.baseUrl || 'http://localhost:1234'; // Default LM Studio API server
+    // Client initialization is deferred to testConnection or first query
+    // to allow for potential config updates before first use.
+  }
+
+  private async initializeClient(): Promise<boolean> {
+    if (this.client) return true;
+    try {
+      // LMStudioClient constructor can take a baseUrl
+      this.client = new LMStudioClient({ baseUrl: this.baseUrl });
+      // We might need to load the model explicitly if the SDK doesn't do it on first call
+      // For now, assume client.llm.model(identifier).respond() handles loading.
+      logger.info(`LMStudioProvider: Client initialized for model ${this.modelIdentifier} at ${this.baseUrl}`);
+      return true;
+    } catch (error: any) {
+      logger.error('LMStudioProvider: Failed to initialize client:', error);
+      this.client = null;
+      return false;
+    }
+  }
+  
+  validateConfig(): boolean {
+    if (!this.modelIdentifier) {
+      logger.error('LMStudioProvider: Model Identifier is missing.');
+      return false;
+    }
+    // baseUrl has a default, so it's always "present"
+    return true;
+  }
+
+  async testConnection(): Promise<AIResponse> {
+    if (!this.isConfigured) {
+      return { success: false, error: 'LMStudio provider not configured (modelIdentifier missing).' };
+    }
+    if (!await this.initializeClient() || !this.client) {
+        return { success: false, error: 'Failed to initialize LMStudio client.' };
+    }
+
+    try {
+      // The SDK doesn't have a direct "list models" or "ping server" function easily exposed.
+      // A simple way to test is to try to get a handle to the model.
+      // This might implicitly check if the server is reachable and the model identifier is known.
+      // Note: This might attempt to load the model, which could be slow.
+      // A better test would be a lightweight health check if the LM Studio server API supports it.
+      // For now, we assume getting the model object is a reasonable test.
+      
+      // Attempt to get the model. The SDK might throw if server is down or model is invalid.
+      // We don't call .load() here, just get the model object.
+      const model = await this.client.llm.model(this.modelIdentifier);
+
+      if (!model) {
+        logger.error(`LMStudioProvider: Model '${this.modelIdentifier}' not found or server unreachable at ${this.baseUrl}.`);
+        return { success: false, error: `Model '${this.modelIdentifier}' not found or server unreachable. Ensure LM Studio is running and the model path is correct.` };
+      }
+      
+      // To get more info like if it's loaded, you might use:
+      // const loadedModel = await this.client.llm.getLoaded(this.modelIdentifier);
+      // For a simple connection test, just getting the model object should suffice to check server reachability.
+
+      logger.info(`LMStudioProvider: Connection test successful for model ${this.modelIdentifier} at ${this.baseUrl}. Model object retrieved.`);
+      return { success: true, data: `LMStudio connection successful. Model '${this.modelIdentifier}' accessible.` };
+    } catch (error: any) {
+      logger.error('LMStudioProvider connection test error:', error);
+      let errorMessage = error.message || 'Unknown error during connection test.';
+      if (error.message && error.message.includes('fetch failed')) {
+        errorMessage = `Failed to connect to LM Studio server at ${this.baseUrl}. Is it running?`;
+      }
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  async query(request: AIQueryRequest): Promise<AIResponse> {
+    if (!this.isConfigured || !this.client) {
+      return { success: false, error: 'LMStudio provider not configured or client not initialized.' };
+    }
+    try {
+      const model = await this.client.llm.model(this.modelIdentifier);
+      if (!model) {
+        return { success: false, error: `LMStudio model '${this.modelIdentifier}' not found or could not be loaded.` };
+      }
+
+      const messages = [];
+      if (request.systemPrompt) {
+        messages.push({ role: 'system', content: request.systemPrompt });
+      }
+      if (request.context) {
+        // Assuming context is a string or can be stringified for system message
+        messages.push({ role: 'system', content: typeof request.context === 'string' ? request.context : JSON.stringify(request.context) });
+      }
+      messages.push({ role: 'user', content: request.prompt });
+
+      const predictOptions: any = {
+        max_tokens: request.max_tokens || this.config.max_tokens || 1000,
+        temperature: request.temperature || this.config.temperature || 0.7,
+      };
+      // Add other compatible options from this.config or request if needed
+
+      logger.debug(`LMStudioProvider: Querying model ${this.modelIdentifier} with messages:`, { messages, predictOptions });
+
+      // Using model.respond based on SDK example, assuming it fits the general query purpose
+      const llmResponse = await model.respond(messages, predictOptions);
+
+      if (!llmResponse || (typeof llmResponse === 'object' && 'error' in llmResponse)) {
+        const errorMsg = (typeof llmResponse === 'object' && llmResponse && 'error' in llmResponse) ? (llmResponse as any).error : 'Unknown error from LMStudio';
+        logger.error('LMStudio query failed:', errorMsg);
+        return { success: false, error: errorMsg, provider: 'lmstudio' };
+      }
+      
+      const content = typeof llmResponse === 'string' ? llmResponse : (llmResponse as any).content;
+
+      return {
+        success: true,
+        data: content, // Adjust based on actual llmResponse structure
+        provider: 'lmstudio',
+        // Add usage data if available from llmResponse
+      };
+    } catch (error: any) {
+      logger.error('LMStudioProvider query error:', error);
+      let errorMessage = error.message || 'Unknown error during LMStudio query.';
+       if (error.message && error.message.includes('fetch failed')) {
+        errorMessage = `Failed to connect to LM Studio server at ${this.baseUrl} for query. Is it running?`;
+      }
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  async extractEntities(request: EntityExtractionRequest): Promise<AIResponse> {
+    // TODO: Implement proper entity extraction with LMStudio if supported
+    // For now, falling back to a generic "not supported" or simple extraction.
+    if (!this.isConfigured || !this.client) {
+      return { success: false, error: 'LMStudio provider not configured or client not initialized.' };
+    }
+     // Fallback to simple pattern matching or a specific prompt
+    const entities = this.simpleEntityExtraction(request.text, request.projectContext);
+    return {
+      success: true,
+      data: { entities },
+      provider: 'lmstudio-pattern-matching'
+    };
+  }
+
+  async generateSuggestions(request: SuggestionRequest): Promise<AIResponse> {
+    // TODO: Implement proper suggestion generation with LMStudio if supported
+    if (!this.isConfigured || !this.client) {
+      return { success: false, error: 'LMStudio provider not configured or client not initialized.' };
+    }
+    return {
+      success: false,
+      error: 'Suggestion generation not yet implemented for LMStudioProvider.',
+      provider: 'lmstudio'
+    };
+  }
+  
+  // Added a simple helper for fallback, can be expanded
+  private simpleEntityExtraction(text: string, projectContext?:any): string[] {
+    // Simple pattern-based extraction as fallback
+    // Consider using projectContext to refine patterns if needed
+    const patterns = [
+      /\b[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*\b/g, // Title case words
+      /\b(?:class|function|method|component|service|api|endpoint)\s+([A-Za-z][A-Za-z0-9]*)\b/gi, // Code entities
+    ];
+
+    const entities = new Set<string>();
+    patterns.forEach(pattern => {
+      const matches = text.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          if (match.length > 2 && match.length < 50) { // Basic filtering
+            entities.add(match.trim());
+          }
+        });
+      }
+    });
+    return Array.from(entities);
+  }
+}
+
 // Main AI Service
 export class AIService {
   private provider: BaseAIProvider;
   private config: AIConfiguration;
   private features: AIFeatures;
 
-  constructor(config: AIConfiguration, features: AIFeatures) {
-    this.config = config;
-    this.features = features;
+  constructor(settings: { aiConfiguration: AIConfiguration, aiFeatures: AIFeatures }) {
+    this.config = settings.aiConfiguration;
+    this.features = settings.aiFeatures;
     this.provider = this.createProvider();
+    logger.info(`AIService initialized with provider: ${this.provider.constructor.name}`);
   }
 
   private createProvider(): BaseAIProvider {
-    switch (this.config.provider) {
+    const providerType = this.config.provider || 'none';
+    const providerConfig = this.config.config || {};
+    logger.info(`Creating AI provider of type: ${providerType}`);
+
+    switch (providerType) {
       case 'openai':
-        return new OpenAIProvider(this.config.config);
+        // return new OpenAIProvider(providerConfig); // OpenAI not fully implemented
+        logger.warn("OpenAI provider is selected but not fully implemented. Falling back to NoAIProvider.");
+        return new NoAIProvider({});
       case 'ollama':
-        return new OllamaProvider(this.config.config);
+        return new OllamaProvider(providerConfig);
       case 'openrouter':
-        return new OpenRouterProvider(this.config.config);
-      // Add other providers here
+        return new OpenRouterProvider(providerConfig);
+      case 'lmstudio':
+        return new LMStudioProvider(providerConfig);
+      case 'none':
       default:
+        logger.info("No AI provider specified or 'none' selected. Using NoAIProvider.");
         return new NoAIProvider({});
     }
   }
 
   updateConfiguration(config: AIConfiguration, features: AIFeatures) {
+    logger.info('Updating AI Service configuration and features', { newProvider: config.provider });
     this.config = config;
     this.features = features;
-    this.provider = this.createProvider();
+    this.provider = this.createProvider(); // Re-create provider with new config
+    logger.info(`AIService re-initialized with provider: ${this.provider.constructor.name}`);
   }
 
   isFeatureEnabled(feature: keyof AIFeatures): boolean {
-    return this.config.enabled && this.features[feature];
+    return !!this.features[feature];
   }
 
   async testConnection(): Promise<AIResponse> {
-    if (!this.config.enabled) {
-      return { success: true, data: { message: 'AI is disabled' } };
-    }
+    logger.info('Testing AI provider connection...');
     return this.provider.testConnection();
   }
 
-  async queryNaturalLanguage(prompt: string, context?: any): Promise<AIResponse> {
+  async queryNaturalLanguage(prompt: string, context?: any, systemPrompt?: string): Promise<AIResponse> {
     if (!this.isFeatureEnabled('naturalLanguageQuery')) {
-      return {
-        success: false,
-        error: 'Natural language query is disabled. Enable it in AI settings.'
-      };
+      return { success: false, error: "Natural language queries are disabled." };
     }
-
-    const systemPrompt = `You are a helpful AI assistant for a knowledge graph system. Answer questions about the knowledge graph data provided in the context. Be specific and reference the actual entities and relationships when possible.`;
-
-    return this.provider.query({
-      prompt,
-      context,
-      systemPrompt,
-      maxTokens: 1000
-    });
+    logger.info('Querying natural language with prompt:', { prompt, context, systemPrompt });
+    return this.provider.query({ prompt, context, systemPrompt, max_tokens: this.config.config?.maxTokens || 1000 });
   }
 
   async extractEntities(text: string, existingEntities?: string[], projectContext?: any): Promise<AIResponse> {
     if (!this.isFeatureEnabled('smartEntityExtraction')) {
-      // Fallback to pattern matching
-      return this.provider.extractEntities({ text, existingEntities, projectContext });
+      return { success: false, error: "Entity extraction is disabled." };
     }
-
+    logger.info('Extracting entities from text:', { text, existingEntities, projectContext });
     return this.provider.extractEntities({ text, existingEntities, projectContext });
   }
 
-  async generateSuggestions(context: any, knowledgeGraph: any, userHistory?: any[]): Promise<AIResponse> {
+  async generateSuggestions(context: any, knowledgeGraph?: any, userHistory?: any[]): Promise<AIResponse> {
     if (!this.isFeatureEnabled('intelligentSuggestions')) {
-      return {
-        success: false,
-        error: 'Intelligent suggestions are disabled. Enable them in AI settings.'
-      };
+      return { success: false, error: "Smart suggestions are disabled." };
     }
-
-    return this.provider.generateSuggestions({
-      context,
-      knowledgeGraph,
-      userHistory,
-      maxSuggestions: 5
-    });
+    logger.info('Generating suggestions with context:', { context, knowledgeGraph, userHistory });
+    return this.provider.generateSuggestions({ context, knowledgeGraph, userHistory });
   }
 
   getProviderInfo(): { name: string; type: string; isReady: boolean } {

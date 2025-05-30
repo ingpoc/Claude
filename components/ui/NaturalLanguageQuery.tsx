@@ -41,14 +41,22 @@ interface Suggestion {
   icon?: React.ReactNode;
 }
 
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 interface NaturalLanguageQueryProps {
   projectId: string;
+  allProjects?: Project[];
   className?: string;
   onEntityClick?: (entityId: string) => void;
 }
 
 export function NaturalLanguageQuery({ 
-  projectId = 'default', 
+  projectId: defaultProjectId,
+  allProjects = [],
   className,
   onEntityClick
 }: NaturalLanguageQueryProps) {
@@ -103,18 +111,44 @@ export function NaturalLanguageQuery({
 
     setIsLoading(true);
     
+    let targetProjectId = defaultProjectId;
+    let queryRequiresProjectDetermination = true;
+
+    // Try to find a project name in the query
+    if (allProjects && allProjects.length > 0) {
+      const queryLower = query.toLowerCase();
+      for (const proj of allProjects) {
+        if (proj.name && queryLower.includes(proj.name.toLowerCase())) {
+          targetProjectId = proj.id;
+          queryRequiresProjectDetermination = false; // Project found in query
+          // console.log(`Query mentions project: ${proj.name}, using ID: ${proj.id}`); // Optional: for debugging
+          break; // Use the first match
+        }
+      }
+    }
+
+    if (queryRequiresProjectDetermination && allProjects && allProjects.length > 0) {
+      targetProjectId = "_determine_"; // Special ID for backend to determine project
+    }
+    
+    const requestBody: any = {
+      query: query.trim(),
+      includeContext: true,
+      maxResults: 10,
+      userId: 'default-user'
+    };
+
+    if (targetProjectId === "_determine_") {
+      requestBody.allProjects = allProjects.map(p => ({ id: p.id, name: p.name, description: p.description }));
+    }
+
     try {
-      const response = await fetch(`/api/projects/${projectId}/query`, {
+      const response = await fetch(`/api/projects/${targetProjectId}/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          query: query.trim(),
-          includeContext: true,
-          maxResults: 10,
-          userId: 'default-user'
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -309,7 +343,10 @@ export function NaturalLanguageQuery({
                         <div className="flex-1">
                           <div className="space-y-3">
                             <div className="bg-white border border-slate-200 rounded-lg p-3">
-                              <p className="text-sm text-slate-700 leading-relaxed">{result.response}</p>
+                              <div 
+                                className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none"
+                                dangerouslySetInnerHTML={{ __html: formatAIResponse(result.response) }}
+                              ></div>
                             </div>
 
                             {/* Metadata */}
@@ -398,4 +435,55 @@ export function NaturalLanguageQuery({
       </Card>
     </div>
   );
-} 
+}
+
+// Helper function to format AI response (simple version)
+// In a real app, you might use a library like react-markdown
+function formatAIResponse(text: string): string {
+  if (!text) return '';
+
+  let html = text;
+
+  // Convert markdown-style bold (**text**) to <strong>text</strong>
+  html = html.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+
+  // Convert markdown headings (## Heading, ### Heading) to <h2>, <h3>
+  html = html.replace(/^###\s+(.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^##\s+(.*$)/gim, '<h2>$1</h2>');
+
+  // Convert newlines to <br> tags for basic paragraph breaks
+  // More sophisticated would be to wrap distinct blocks in <p>
+  html = html.replace(/\n/g, '<br />');
+
+  // Basic list detection (lines starting with * or - space)
+  // This is a very simplified version.
+  const lines = html.split(/<br \/>/g);
+  let inList = false;
+  const processedLines = lines.map(line => {
+    if (line.match(/^(\*|-)\s+/)) {
+      const itemContent = line.replace(/^(\*|-)\s+/, '');
+      if (!inList) {
+        inList = true;
+        return `<ul><li>${itemContent}</li>`;
+      }
+      return `<li>${itemContent}</li>`;
+    } else {
+      if (inList) {
+        inList = false;
+        return `</ul>${line}`;
+      }
+      return line;
+    }
+  });
+  html = processedLines.join("<br />");
+  if (inList) {
+    html += "</ul>"; // Close list if it's the last element
+  }
+  // Re-join with <br /> might not be ideal if <ul> creates block formatting.
+  // A proper parser would build a tree.
+  // For now, let's remove <br /> inside <li> and after </ul> if it was added just before.
+  html = html.replace(/<li><br \/>/g, '<li>').replace(/<br \/><\/ul>/g, '</ul>');
+  html = html.replace(/<br \/>(<h[23]>)/gi, '$1');
+
+  return html;
+}
