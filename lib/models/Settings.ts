@@ -22,6 +22,7 @@ export interface AIConfiguration {
   provider: string;
   enabled: boolean;
   config: Record<string, any>;
+  providerConfigs: Record<string, Record<string, any>>;
   lastTested?: Date;
   isWorking?: boolean;
   errorMessage?: string;
@@ -270,7 +271,8 @@ export const DEFAULT_SETTINGS: Omit<UserSettings, 'id' | 'userId' | 'createdAt' 
   aiConfiguration: {
     provider: 'none',
     enabled: false,
-    config: {}
+    config: {},
+    providerConfigs: {}
   },
   aiFeatures: {
     naturalLanguageQuery: false,

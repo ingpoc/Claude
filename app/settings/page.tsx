@@ -83,37 +83,74 @@ export default function SettingsPage() {
     }
   };
 
-  const updateAIProvider = (providerId: string) => {
-    if (!settings) return;
+  const updateAIProvider = (newProviderId: string) => {
+    const currentSettings = settings;
+    if (!currentSettings) return;
+
+    const selectedProviderDetails = AI_PROVIDERS.find(p => p.id === newProviderId);
+    if (!selectedProviderDetails) return;
+
+    let newConfigForProvider: { [key: string]: any } = {};
+
+    // Attempt to load existing config for the new provider from providerConfigs
+    if (currentSettings.aiConfiguration.providerConfigs && currentSettings.aiConfiguration.providerConfigs[newProviderId]) {
+      newConfigForProvider = { ...currentSettings.aiConfiguration.providerConfigs[newProviderId] };
+    } else {
+      // If no existing config, initialize with defaults
+      selectedProviderDetails.configFields.forEach(field => {
+        if (field.defaultValue !== undefined) {
+          newConfigForProvider[field.key] = field.defaultValue;
+        } else if (field.type === 'text' || field.type === 'password') {
+          newConfigForProvider[field.key] = '';
+        }
+      });
+    }
     
-    const provider = AI_PROVIDERS.find(p => p.id === providerId);
-    if (!provider) return;
-
-    const newConfig: AIConfiguration = {
-      provider: providerId,
-      enabled: providerId !== 'none',
-      config: {}
-    };
-
-    // Set default values for the provider
-    provider.configFields.forEach(field => {
-      if (field.defaultValue !== undefined) {
-        newConfig.config[field.key] = field.defaultValue;
+    // Ensure all declared configFields for the selectedProviderDetails are present,
+    // applying defaults if they were missing from a stored config or if it's a new config.
+    selectedProviderDetails.configFields.forEach(field => {
+      if (newConfigForProvider[field.key] === undefined) {
+        if (field.defaultValue !== undefined) {
+          newConfigForProvider[field.key] = field.defaultValue;
+        } else if (field.type === 'text' || field.type === 'password') {
+          newConfigForProvider[field.key] = '';
+        }
       }
     });
+        
+    const updatedFullAIConfiguration: AIConfiguration = {
+      ...currentSettings.aiConfiguration, // Preserve other fields like lastTested, isWorking
+      provider: newProviderId,
+      enabled: newProviderId !== 'none',
+      config: newConfigForProvider, // This is the active config
+      providerConfigs: {
+        ...(currentSettings.aiConfiguration.providerConfigs || {}),
+        [newProviderId]: newConfigForProvider // Store/update in providerConfigs
+      }
+    };
 
-    updateAIConfiguration(newConfig);
+    updateAIConfiguration(updatedFullAIConfiguration);
     setConnectionStatus(null);
   };
 
   const updateAIConfig = (key: string, value: any) => {
-    if (!settings) return;
+    if (!settings || !settings.aiConfiguration.provider) return;
     
+    const currentProviderId = settings.aiConfiguration.provider;
+    const existingProviderConfigs = settings.aiConfiguration.providerConfigs || {};
+    const currentProviderSpecificConfig = existingProviderConfigs[currentProviderId] || {};
+
+    const updatedProviderSpecificConfig = {
+      ...currentProviderSpecificConfig,
+      [key]: value
+    };
+
     const newConfig: AIConfiguration = {
       ...settings.aiConfiguration,
-      config: {
-        ...settings.aiConfiguration.config,
-        [key]: value
+      config: updatedProviderSpecificConfig, // Update active config
+      providerConfigs: {
+        ...existingProviderConfigs,
+        [currentProviderId]: updatedProviderSpecificConfig // Update in providerConfigs map
       }
     };
 

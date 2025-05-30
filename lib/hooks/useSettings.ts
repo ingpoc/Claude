@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { UserSettings, AIFeatures, AIConfiguration } from '../models/Settings';
 
 export interface UseSettingsReturn {
@@ -19,6 +19,12 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const settingsRef = useRef<UserSettings | null>(null);
+
+  // Effect to keep settingsRef in sync with settings state after re-renders
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   // localStorage backup utilities
   const STORAGE_KEY = `settings_${userId}`;
@@ -61,6 +67,10 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
       // Load from localStorage first for instant display
       const cachedSettings = loadFromLocalStorage();
       if (cachedSettings) {
+        // Ensure providerConfigs exists
+        if (!cachedSettings.aiConfiguration.providerConfigs) {
+          cachedSettings.aiConfiguration.providerConfigs = {};
+        }
         setSettings(cachedSettings);
       }
 
@@ -74,6 +84,10 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
       const data = await response.json();
       
       if (data.success && data.data) {
+        // Ensure providerConfigs exists in API response
+        if (!data.data.aiConfiguration.providerConfigs) {
+          data.data.aiConfiguration.providerConfigs = {};
+        }
         setSettings(data.data);
         saveToLocalStorage(data.data);
       } else {
@@ -84,12 +98,13 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
         aiConfiguration: {
           provider: 'openrouter',
           enabled: false,
-          config: {
+          config: { // Active config
             apiKey: '',
             model: 'openai/gpt-3.5-turbo',
             baseUrl: 'https://openrouter.ai/api/v1',
             maxTokens: 2000
-          }
+          },
+          providerConfigs: {} // Initialize providerConfigs
         },
         aiFeatures: {
           naturalLanguageQuery: true,
@@ -129,49 +144,86 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
     loadSettings();
   }, [loadSettings]);
 
-  const updateAIConfiguration = async (config: AIConfiguration) => {
-    if (!settings) return;
+  const updateAIConfiguration = async (newAiConfig: AIConfiguration) => {
+    const currentSettings = settingsRef.current; // Get latest known settings via ref
+    if (!currentSettings) return;
+
+    // Ensure providerConfigs exists on currentSettings and newAiConfig
+    const providerConfigs = { 
+      ...(currentSettings.aiConfiguration.providerConfigs || {}),
+      [newAiConfig.provider]: { ...(newAiConfig.config || {}) } 
+    };
+
+    const updatedAiConfig: AIConfiguration = {
+      ...newAiConfig,
+      providerConfigs: providerConfigs,
+      // Ensure the active 'config' matches the one for the current provider from providerConfigs
+      config: providerConfigs[newAiConfig.provider] || newAiConfig.config || {} 
+    };
     
+    const optimisticSettings: UserSettings = {
+      ...currentSettings,
+      aiConfiguration: updatedAiConfig,
+      updatedAt: new Date()
+    };
+    settingsRef.current = optimisticSettings; // Update ref immediately
+    setSettings(optimisticSettings);          // Update state for re-render & to trigger useEffect
+    saveToLocalStorage(optimisticSettings);
+
     try {
       const response = await fetch('/api/settings', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
-          aiConfiguration: config
+          aiConfiguration: updatedAiConfig // Send the fully updated aiConfiguration
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to update AI configuration: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to update AI configuration: ${response.statusText}`);
       }
 
       const data = await response.json();
       
-      if (data.success) {
+      if (data.success && data.data) {
+        // Ensure providerConfigs exists in the response from the server
+        if (data.data.aiConfiguration && !data.data.aiConfiguration.providerConfigs) {
+          data.data.aiConfiguration.providerConfigs = {};
+        }
+        // Also, ensure the active config is correctly set from providerConfigs if available
+        if (data.data.aiConfiguration && data.data.aiConfiguration.providerConfigs && data.data.aiConfiguration.provider) {
+          const activeProvider = data.data.aiConfiguration.provider;
+          data.data.aiConfiguration.config = data.data.aiConfiguration.providerConfigs[activeProvider] || data.data.aiConfiguration.config || {};
+        }
+        
+        settingsRef.current = data.data; // Update ref with server response
         setSettings(data.data);
         saveToLocalStorage(data.data);
       } else {
-        throw new Error(data.error || 'Failed to update AI configuration');
+        throw new Error(data.error || 'Failed to update AI configuration after successful call (unexpected response)');
       }
-    } catch (err) {
-      console.error('Failed to update AI configuration:', err);
-      
-      // Optimistic update even if save fails
-      const updatedSettings = {
-        ...settings,
-        aiConfiguration: config,
-        updatedAt: new Date()
-      };
-      setSettings(updatedSettings);
+    } catch (err: any) {
+      console.error('Failed to save AI configuration to backend:', err.message);
+      setError(`Failed to save AI config to server: ${err.message}. Local changes applied.`);
     }
   };
 
-  const updateAIFeatures = async (features: AIFeatures) => {
-    if (!settings) return;
-    
+  const updateAIFeatures = async (newFeatures: AIFeatures) => {
+    const currentSettings = settingsRef.current; // Get latest known settings via ref
+    if (!currentSettings) return;
+
+    const optimisticSettings: UserSettings = {
+        ...currentSettings,
+        aiFeatures: newFeatures,
+        updatedAt: new Date()
+    };
+    settingsRef.current = optimisticSettings; // Update ref immediately
+    setSettings(optimisticSettings);          // Update state for re-render & to trigger useEffect
+    // We save to localStorage optimistically here for consistency, though original only did on API success for this func.
+    saveToLocalStorage(optimisticSettings);
+
     try {
       const response = await fetch('/api/settings', {
         method: 'PUT',
@@ -180,39 +232,36 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
         },
         body: JSON.stringify({
           userId,
-          aiFeatures: features
+          aiFeatures: newFeatures
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to update AI features: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to update AI features: ${response.statusText}`);
       }
 
       const data = await response.json();
       
-      if (data.success) {
+      if (data.success && data.data) { // Assuming data.data is full UserSettings
+        settingsRef.current = data.data; // Update ref with server response
         setSettings(data.data);
+        saveToLocalStorage(data.data); 
       } else {
-        throw new Error(data.error || 'Failed to update AI features');
+        throw new Error(data.error || 'Failed to update AI features after successful call (unexpected response)');
       }
-    } catch (err) {
-      console.error('Failed to update AI features:', err);
-      
-      // Optimistic update even if save fails
-      const updatedSettings = {
-        ...settings,
-        aiFeatures: features,
-        updatedAt: new Date()
-      };
-      setSettings(updatedSettings);
+    } catch (err:any) {
+      console.error('Failed to update AI features to backend:', err.message);
+      setError(`Failed to save AI features to server: ${err.message}. Local changes applied.`);
     }
   };
 
   const toggleAIFeature = async (feature: keyof AIFeatures, enabled: boolean) => {
-    if (!settings) return;
+    const currentSettings = settingsRef.current; // Use ref to get current features
+    if (!currentSettings) return;
     
     const updatedFeatures = {
-      ...settings.aiFeatures,
+      ...currentSettings.aiFeatures,
       [feature]: enabled
     };
     
@@ -220,7 +269,9 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
   };
 
   const testConnection = async (): Promise<{ success: boolean; message: string }> => {
-    if (!settings?.aiConfiguration.enabled) {
+    const currentSettingsForTest = settingsRef.current; // Use the ref
+
+    if (!currentSettingsForTest?.aiConfiguration.enabled) {
       return { success: true, message: 'AI is disabled' };
     }
 
@@ -233,8 +284,8 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
         },
         body: JSON.stringify({
           userId,
-          aiConfiguration: settings.aiConfiguration,
-          aiFeatures: settings.aiFeatures
+          aiConfiguration: currentSettingsForTest.aiConfiguration, // Use from ref
+          aiFeatures: currentSettingsForTest.aiFeatures          // Use from ref
         }),
       });
 
@@ -257,7 +308,8 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
   };
 
   const saveSettings = async () => {
-    if (!settings) return;
+    const currentSettingsToSave = settingsRef.current; // Use the ref
+    if (!currentSettingsToSave) return;
     
     try {
       const response = await fetch('/api/settings', {
@@ -267,7 +319,7 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
         },
         body: JSON.stringify({
           userId,
-          settings
+          settings: currentSettingsToSave // Use from ref
         }),
       });
 
@@ -278,6 +330,7 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
       const data = await response.json();
       
       if (data.success) {
+        settingsRef.current = data.data; // Update ref with server response
         setSettings(data.data);
         console.log('Settings saved successfully');
       } else {
@@ -300,10 +353,12 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
   };
 
   const isAIFeatureEnabled = (feature: keyof AIFeatures): boolean => {
+    // Reading from state is fine here as it's usually for UI display after render
     return !!(settings?.aiConfiguration.enabled && settings.aiFeatures[feature]);
   };
 
   const isAIEnabled = (): boolean => {
+    // Reading from state is fine here
     return !!(settings?.aiConfiguration.enabled);
   };
 

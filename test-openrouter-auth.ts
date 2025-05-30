@@ -26,7 +26,8 @@ async function testOpenRouterAuth() {
       model: 'openai/gpt-3.5-turbo:free',
       baseUrl: 'https://openrouter.ai/api/v1',
       maxTokens: 1000
-    }
+    },
+    providerConfigs: {}
   };
 
   try {
@@ -57,7 +58,8 @@ async function testOpenRouterAuth() {
       model: 'openai/gpt-3.5-turbo:free',
       baseUrl: 'https://wrong-openrouter-url.com/api/v1',
       maxTokens: 1000
-    }
+    },
+    providerConfigs: {}
   };
 
   try {
@@ -88,7 +90,8 @@ async function testOpenRouterAuth() {
       model: 'openai/gpt-3.5-turbo:free',
       baseUrl: 'https://openrouter.ai/api/v1',
       maxTokens: 1000
-    }
+    },
+    providerConfigs: {}
   };
 
   try {
@@ -119,7 +122,8 @@ async function testOpenRouterAuth() {
       model: 'invalid/non-existent-model',
       baseUrl: 'https://openrouter.ai/api/v1',
       maxTokens: 1000
-    }
+    },
+    providerConfigs: {}
   };
 
   try {
@@ -152,7 +156,8 @@ async function testOpenRouterAuth() {
       model: 'openai/gpt-3.5-turbo:free',
       baseUrl: 'https://openrouter.ai/api/v1',
       maxTokens: 1000
-    }
+    },
+    providerConfigs: {}
   };
 
   if (validConfig.config.apiKey === 'your-actual-key-here') {

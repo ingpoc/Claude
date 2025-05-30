@@ -21,6 +21,7 @@ const jestSuiteConfig: AIConfiguration = {
     // model: 'nousresearch/nous-hermes-2-mixtral-8x7b-dpo',
     // You might add baseUrl or maxTokens here if OpenRouterProvider uses them from this.config.config
   },
+  providerConfigs: {}
 };
 
 const jestSuiteFeatures: AIFeatures = {
@@ -109,7 +110,8 @@ async function testOpenRouterStandalone() {
       model: 'anthropic/claude-3-haiku:beta', // Or any other valid model
       // baseUrl: 'https://openrouter.ai/api/v1', // Default is usually fine
       maxTokens: 150 // Example specific maxTokens for this instance
-    }
+    },
+    providerConfigs: {}
   };
 
   const standaloneFeatures: AIFeatures = {
