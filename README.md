@@ -1,5 +1,7 @@
 # MCP Knowledge Graph Server with Interactive Dashboard
 
+[![smithery badge](https://smithery.ai/badge/@ingpoc/claude)](https://smithery.ai/client/@ingpoc/claude)
+
 This project implements a comprehensive MCP (Model Context Protocol) server for knowledge graph management with an integrated Next.js dashboard. It provides AI-powered tools for creating, querying, and visualizing knowledge graphs with persistent vector storage and context intelligence features.
 
 ## Features
@@ -67,6 +69,15 @@ interface QdrantRelationship {
 
 ## Installation
 
+### Installing via Smithery
+
+To install MCP Knowledge Graph Server with Interactive Dashboard for Claude Desktop automatically via [Smithery](https://smithery.ai/client/@ingpoc/claude):
+
+```bash
+npx -y @smithery/cli install @ingpoc/claude --client claude
+```
+
+### Manual Installation
 1. **Clone the repository:**
    ```bash
    git clone <your-repository-url>
