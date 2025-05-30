@@ -176,7 +176,17 @@ Based on the user query and the project list, which project ID is most relevant?
     }
 
     // Extract entities and relationships from the response
-    const responseText = aiResponse.data.response;
+    // Adjust for different aiResponse.data structures from providers
+    const responseText = typeof aiResponse.data === 'string' ? aiResponse.data : aiResponse.data?.response;
+
+    if (typeof responseText !== 'string') {
+        logger.error('AI response text is not a string after processing aiResponse.data', { data: aiResponse.data });
+        return NextResponse.json({
+            success: false,
+            error: 'Invalid AI response format: response text is missing or not a string.'
+        }, { status: 500 });
+    }
+
     const extractedEntities = await extractEntitiesFromResponse(responseText, context.entities || []);
     const extractedRelationships = await extractRelationshipsFromResponse(responseText, context.relationships || []);
     

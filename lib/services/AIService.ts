@@ -731,24 +731,42 @@ Provide ${request.maxSuggestions || 5} suggestions as JSON:`;
 class LMStudioProvider extends BaseAIProvider {
   private client: LMStudioClient | null = null;
   private modelIdentifier: string;
-  private baseUrl: string;
+  private baseUrl: string; // This will store the HTTP URL for general reference
+  private wsBaseUrl: string; // This will store the WebSocket URL for the client
 
   constructor(config: Record<string, any>) {
     super(config);
+    logger.debug('LMStudioProvider constructor received config:', { config });
+    
+    // Store the original HTTP-like base URL (e.g., from settings UI)
+    const httpBaseUrl = config.lmStudioServerUrl || config.baseUrl || 'http://localhost:1234';
+    this.baseUrl = httpBaseUrl; 
+
+    // Convert to WebSocket URL for the client
+    if (httpBaseUrl.startsWith('http://')) {
+      this.wsBaseUrl = httpBaseUrl.replace('http://', 'ws://');
+    } else if (httpBaseUrl.startsWith('https://')) {
+      this.wsBaseUrl = httpBaseUrl.replace('https://', 'wss://');
+    } else {
+      // If no protocol, assume ws for localhost, or log warning
+      if (httpBaseUrl.includes('localhost') || httpBaseUrl.includes('127.0.0.1')) {
+        this.wsBaseUrl = `ws://${httpBaseUrl.replace(/^ws:\/\/|wss:\/\//, '')}`;
+      } else {
+        logger.warn(`LMStudioProvider: Could not determine WebSocket protocol for baseUrl: ${httpBaseUrl}. Attempting as is.`);
+        this.wsBaseUrl = httpBaseUrl; // Attempt as is, might fail
+      }
+    }
+    logger.info(`LMStudioProvider: HTTP baseUrl: ${this.baseUrl}, WebSocket wsBaseUrl for client: ${this.wsBaseUrl}`);
+
     this.modelIdentifier = config.modelIdentifier;
-    this.baseUrl = config.baseUrl || 'http://localhost:1234'; // Default LM Studio API server
-    // Client initialization is deferred to testConnection or first query
-    // to allow for potential config updates before first use.
+    this.initializeClient(); 
   }
 
   private async initializeClient(): Promise<boolean> {
     if (this.client) return true;
     try {
-      // LMStudioClient constructor can take a baseUrl
-      this.client = new LMStudioClient({ baseUrl: this.baseUrl });
-      // We might need to load the model explicitly if the SDK doesn't do it on first call
-      // For now, assume client.llm.model(identifier).respond() handles loading.
-      logger.info(`LMStudioProvider: Client initialized for model ${this.modelIdentifier} at ${this.baseUrl}`);
+      this.client = new LMStudioClient({ baseUrl: this.wsBaseUrl }); // Use wsBaseUrl
+      logger.info(`LMStudioProvider: Client initialized for model ${this.modelIdentifier} at ${this.wsBaseUrl}`);
       return true;
     } catch (error: any) {
       logger.error('LMStudioProvider: Failed to initialize client:', error);
@@ -758,11 +776,13 @@ class LMStudioProvider extends BaseAIProvider {
   }
   
   validateConfig(): boolean {
-    if (!this.modelIdentifier) {
-      logger.error('LMStudioProvider: Model Identifier is missing.');
+    if (!this.config.modelIdentifier) { 
+      logger.error('LMStudioProvider: Model Identifier is missing in the provided config.');
       return false;
     }
-    // baseUrl has a default, so it's always "present"
+    if (!this.baseUrl) {
+        logger.warn('LMStudioProvider: Base URL not effectively set during validateConfig. This might be okay if default is used.');
+    }
     return true;
   }
 

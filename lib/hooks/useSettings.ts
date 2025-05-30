@@ -269,24 +269,49 @@ export function useSettings(userId: string = 'default-user'): UseSettingsReturn 
   };
 
   const testConnection = async (): Promise<{ success: boolean; message: string }> => {
-    const currentSettingsForTest = settingsRef.current; // Use the ref
-
-    if (!currentSettingsForTest?.aiConfiguration.enabled) {
-      return { success: true, message: 'AI is disabled' };
+    const currentSettings = settingsRef.current;
+    if (!currentSettings) {
+      return { success: false, message: 'Settings not loaded' };
     }
 
+    const baseAIConfig = currentSettings.aiConfiguration;
+    const aiFeatures = currentSettings.aiFeatures || {};
+
+    if (!baseAIConfig || !baseAIConfig.enabled) {
+      // If AI is not configured or not enabled, still allow testing but indicate it's off.
+      // The backend will also likely confirm this or handle it.
+      // Alternatively, could return { success: true, message: 'AI is disabled' } directly.
+      console.log('Testing connection for disabled/unconfigured AI');
+    }
+
+    const activeProvider = baseAIConfig?.provider;
+    let providerSpecificConfig = baseAIConfig?.config || {}; // Default to current top-level config
+
+    if (baseAIConfig?.providerConfigs && activeProvider && baseAIConfig.providerConfigs[activeProvider]) {
+      providerSpecificConfig = baseAIConfig.providerConfigs[activeProvider];
+    }
+
+    const payload = {
+      userId,
+      aiConfiguration: {
+        ...(baseAIConfig || {}), // Spread baseAIConfig or an empty object if it's null
+        enabled: baseAIConfig?.enabled || false,
+        provider: activeProvider || 'none',
+        config: providerSpecificConfig || {},
+        providerConfigs: baseAIConfig?.providerConfigs || {}
+      },
+      aiFeatures,
+    };
+    
+    console.log('Testing connection with payload:', JSON.stringify(payload, null, 2));
+
     try {
-      // Call the actual backend API endpoint
       const response = await fetch('/api/settings/test-connection', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId,
-          aiConfiguration: currentSettingsForTest.aiConfiguration, // Use from ref
-          aiFeatures: currentSettingsForTest.aiFeatures          // Use from ref
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
