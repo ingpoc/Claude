@@ -165,3 +165,21 @@ bundle-analyzer-report.html
 *.bak
 *.backup
 *~
+
+# Qdrant Storage and Backups
+qdrant_storage
+qdrant_storage_old
+qdrant_storage_backup_*
+
+# Node Modules
+node_modules
+
+# Build Output
+dist
+
+# Environment Files
+.env
+.env.local
+
+# macOS system files
+.DS_Store
