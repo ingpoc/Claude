@@ -1,0 +1,34 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({ command: 'node', args: ['dist/standalone-server.js'], env: { NODE_ENV: 'production', UI_API_PORT: String(config.uiApiPort), QDRANT_URL: config.qdrantUrl, QDRANT_API_KEY: config.qdrantApiKey, OPENAI_API_KEY: config.openaiApiKey } })
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - qdrantUrl
+      - qdrantApiKey
+      - openaiApiKey
+    properties:
+      qdrantUrl:
+        type: string
+        description: URL of the Qdrant vector database
+      qdrantApiKey:
+        type: string
+        description: API key for Qdrant
+      openaiApiKey:
+        type: string
+        description: API key for OpenAI
+      uiApiPort:
+        type: number
+        default: 4000
+        description: Port for Express API server
+  exampleConfig:
+    qdrantUrl: http://localhost:6333
+    qdrantApiKey: example_qdrant_key
+    openaiApiKey: example_openai_key
+    uiApiPort: 4000
