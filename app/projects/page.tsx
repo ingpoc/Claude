@@ -10,7 +10,6 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Card, CardContent } from "../../components/ui/card";
-import { deleteProjectAction, getProjectsAction } from '../actions/knowledgeGraphActions';
 import { cn } from '../../lib/utils';
 
 interface Project {
@@ -51,11 +50,23 @@ export default function ProjectsPage() {
     active: projects.filter(p => p.lastAccessed).length
   };
 
+  // Use API base URL for UI API endpoints
+  const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || '';
+
   const fetchProjects = useCallback(async (bustCache: boolean = false) => {
     setIsLoading(true);
     try {
-      const data = await getProjectsAction(bustCache);
-      setProjects(data);
+      const url = `${API_BASE_URL}/api/ui/projects${bustCache ? `?t=${Date.now()}` : ''}`;
+      const response = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        console.error('Failed to fetch projects:', response.status, response.statusText);
+        setProjects([]);
+      } else {
+        const data = await response.json();
+        setProjects(data);
+      }
     } catch (error) {
       console.error('Error fetching projects:', error);
       setProjects([]);
@@ -114,7 +125,12 @@ export default function ProjectsPage() {
       setProjects(projects.filter(p => p.id !== projectIdToDelete));
       
       try {
-        const success = await deleteProjectAction(projectIdToDelete);
+        const deleteUrl = `${API_BASE_URL}/api/ui/projects/${projectIdToDelete}`;
+        const deleteResponse = await fetch(deleteUrl, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const success = deleteResponse.ok;
         if (success) {
           // Refresh from server to ensure data consistency
           await fetchProjects(true);

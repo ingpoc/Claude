@@ -111,7 +111,7 @@ const handleInitSession = (sessionManager: SessionManager): InitSessionHandler =
                  }
             }
             
-            sessionManager.setActiveProjectContext(currentSessionId, project.id, version);
+            sessionManager.setDefaultProjectId(project.id);
             // --- End Retrieve Context --- 
 
             // 3. Return success response matching expected text format
@@ -126,7 +126,7 @@ const handleInitSession = (sessionManager: SessionManager): InitSessionHandler =
 
         } catch (error: any) {
             console.error(`[InitSession] Error processing init_session:`, error);
-            sessionManager.clearActiveProjectContext(currentSessionId);
+            sessionManager.setDefaultProjectId(null);
             // Provide a more informative error message to the user
             const userErrorMessage = `Error initializing session: ${error.message}`;
             return {

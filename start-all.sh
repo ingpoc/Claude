@@ -3,6 +3,9 @@
 # Start Qdrant if not already running
 npm run start:qdrant
 
+# Create log directory if it doesn't exist
+mkdir -p logs
+
 # Function to stop Docker container
 function stop_docker {
     echo 'Stopping Qdrant Docker container...'
@@ -13,5 +16,10 @@ function stop_docker {
 # Trap SIGINT (Cmd + C) to stop Docker container
 trap stop_docker SIGINT
 
-# Start the services with concurrently
-concurrently --kill-others-on-fail "npm:start" "npm:start-nextjs" 
+# Set RUN_UI to true for local development with UI
+export RUN_UI=true
+
+# Start the unified server with UI
+echo "Starting MCP Knowledge Graph Server with Dashboard..."
+echo "Dashboard will be available at http://localhost:4000"
+npm run start 

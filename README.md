@@ -1,6 +1,15 @@
 # MCP Knowledge Graph Server with Interactive Dashboard
 
-This project implements a comprehensive MCP (Model Context Protocol) server for knowledge graph management with an integrated Next.js dashboard. It provides AI-powered tools for creating, querying, and visualizing knowledge graphs with persistent vector storage and context intelligence features.
+## No More Port Conflicts! 🎉
+
+The MCP Knowledge Graph server now supports **conflict-free multi-client usage**:
+
+- **Claude Desktop**, **Cursor**, and other MCP clients each spawn their own process
+- MCP processes communicate via **stdio** (no HTTP ports)
+- Optional **dashboard** runs separately on a configurable port
+- All instances share the same **Qdrant database**
+
+See [MCP_CLIENT_CONFIGS.md](MCP_CLIENT_CONFIGS.md) for detailed setup instructions.
 
 ## Features
 

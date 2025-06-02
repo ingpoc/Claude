@@ -18,7 +18,7 @@ import {
     deleteObservation,
     deleteProjectAction
 } from "../app/actions/knowledgeGraphActions"; // Import server actions
-import { getProject } from '../lib/projectManager';
+// Removed server action getProject, using REST API for project metadata
 
 // Interface for RelationshipInfo
 interface RelationshipInfo {
@@ -61,6 +61,8 @@ export const ProjectProvider = ({
   children: ReactNode;
   projectId: string;
 }) => {
+  // Base URL for UI API
+  const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || '';
   const [state, setState] = useState<ProjectState>({ 
     projectId,
     projectName: '',
@@ -73,26 +75,36 @@ export const ProjectProvider = ({
   const refreshState = useCallback(async (bustCache: boolean = false) => {
     setIsLoading(true);
     try {
-        // Get project details
-        const project = await getProject(projectId);
-        
-        // Call server actions to get data with cache busting if needed
-        const [entities, relationships] = await Promise.all([
-            getAllEntities(projectId, bustCache),
-            getAllRelationshipsForContext(projectId, bustCache)
-        ]);
-        
-        // console.log(`getAllEntities returned: ${JSON.stringify(entities)}`);
-        
-        setState({ 
-          projectId,
-          projectName: project?.name || projectId,
-          projectDescription: project?.description || '',
-          entities, 
-          relationships 
+      // Fetch project metadata from UI API
+      let project: { id: string; name: string; description?: string } | null = null;
+      try {
+        const projRes = await fetch(`${API_BASE_URL}/api/ui/projects/${projectId}`, {
+          headers: { 'Content-Type': 'application/json' }
         });
-        
-        // console.log(`Refreshed state for project ${projectId}: ${entities.length} entities, ${relationships.length} relationships.`);
+        if (projRes.ok) {
+          project = await projRes.json();
+        } else {
+          console.error(`Failed to fetch project ${projectId}:`, projRes.statusText);
+        }
+      } catch (error) {
+        console.error(`Error fetching project ${projectId}:`, error);
+      }
+      
+      // Call server actions to get data with cache busting if needed
+      const [entities, relationships] = await Promise.all([
+          getAllEntities(projectId, bustCache),
+          getAllRelationshipsForContext(projectId, bustCache)
+      ]);
+      
+      setState({ 
+        projectId,
+        projectName: project?.name || projectId,
+        projectDescription: project?.description || '',
+        entities, 
+        relationships 
+      });
+      
+      // console.log(`Refreshed state for project ${projectId}: ${entities.length} entities, ${relationships.length} relationships.`);
     } catch (error) {
         console.error(`Failed to load project ${projectId}:`, error);
         setState({ 

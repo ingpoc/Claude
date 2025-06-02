@@ -2,9 +2,9 @@
   "name": "@gurusharan3107/mcp-knowledge-graph",
   "version": "0.1.0",
   "description": "MCP Knowledge Graph Server",
-  "main": "dist/standalone-server.js",
+  "main": "dist/mcp-server.js",
   "bin": {
-    "mcp-knowledge-graph": "./dist/standalone-server.js"
+    "mcp-knowledge-graph": "./mcp-only.js"
   },
   "files": [
     "dist",
@@ -15,15 +15,20 @@
   ],
   "scripts": {
     "dev": "next dev -p 4000",
-    "start": "node dist/standalone-server.js",
-    "start:prod": "UI_API_PORT=4000 NODE_ENV=production node dist/standalone-server.js",
+    "start": "RUN_UI=true node dist/mcp-server.js",
+    "start:mcp": "node mcp-only.js",
+    "start:prod": "UI_API_PORT=4000 NODE_ENV=production RUN_UI=true node dist/mcp-server.js",
     "start-nextjs": "next dev -p 4000",
     "start:qdrant": "node -e \"const net = require('net'); const client = new net.Socket(); client.connect(6333, 'localhost', () => { console.log('Qdrant already running'); client.destroy(); process.exit(0); }); client.on('error', () => { console.log('Qdrant not running, starting...'); const { execSync } = require('child_process'); execSync('docker run -d -p 6333:6333 -p 6334:6334 -v ' + process.cwd() + '/qdrant_storage:/qdrant/storage:z qdrant/qdrant', { stdio: 'inherit' }); process.exit(0); });\"",
     "start:all": "bash start-all.sh",
     "build": "next build",
     "build:server": "tsc --project tsconfig.json",
     "lint": "next lint",
-    "preparepackage": "npm run build:server && npm run build"
+    "preparepackage": "npm run build:server && npm run build",
+    "setup": "bash setup.sh",
+    "diagnose": "node diagnose.js",
+    "test:multi-client": "bash test-multi-client.sh",
+    "test:endpoints": "node test-endpoints.js"
   },
   "dependencies": {
     "@lmstudio/sdk": "^1.1.1",

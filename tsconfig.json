@@ -35,7 +35,8 @@
     "**/*.ts", 
     "**/*.tsx", 
     ".next/types/**/*.ts",
-    "standalone-server.ts" 
+    "standalone-server.ts",
+    "mcp-server.ts"
   ],
   "exclude": [
     "node_modules",
