@@ -32,11 +32,14 @@ interface QueryResponse {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  context: { params: { projectId: string } }
 ) {
-  let { projectId } = await params; // Make projectId mutable
+  // Extract projectId safely
+  const { projectId: _projectId } = context.params;
+  let projectId = _projectId;
   
   try {
+    // Now inside try, proceed safely
     const body: QueryRequest = await request.json();
     // Destructure allProjects, potentially undefined
     const { query, includeContext = true, maxResults = 10, userId = 'default-user', allProjects } = body;
