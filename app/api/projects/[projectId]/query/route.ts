@@ -32,10 +32,10 @@ interface QueryResponse {
 
 export async function POST(
   request: NextRequest,
-  context: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   // Extract projectId safely
-  const { projectId: _projectId } = context.params;
+  const { projectId: _projectId } = await params;
   let projectId = _projectId;
   
   try {
@@ -145,19 +145,22 @@ Based on the user query and the project list, which project ID is most relevant?
         const entities = await qdrantDataService.getEntitiesByProject(projectId); // projectId is now the determined one
         const relationships = await qdrantDataService.getAllRelationships(projectId); // projectId is now the determined one
         
+        // Create entity lookup for cleaner relationship descriptions
+        const entityLookup = new Map();
+        entities.forEach(e => entityLookup.set(e.id, e.name));
+
         context = {
           projectId, // Use the final projectId
           totalEntities: entities.length,
           totalRelationships: relationships.length,
           entities: entities.slice(0, 50).map(e => ({
-            id: e.id,
             name: e.name,
             type: e.type,
             description: e.description
           })),
           relationships: relationships.slice(0, 30).map(r => ({
-            from: r.sourceId,
-            to: r.targetId,
+            from: entityLookup.get(r.sourceId) || 'Unknown Entity',
+            to: entityLookup.get(r.targetId) || 'Unknown Entity',
             type: r.type,
             description: r.description
           }))
@@ -168,8 +171,21 @@ Based on the user query and the project list, which project ID is most relevant?
       }
     }
 
+    // Create a more user-friendly system prompt for better responses
+    const systemPrompt = `You are a knowledgeable assistant helping analyze a software project's knowledge graph. 
+
+When answering questions:
+- Provide clear, concise insights without technical entity IDs or internal references
+- Focus on the actual content and relationships, not the underlying data structure
+- Use natural language and organize information logically
+- When referencing specific components, use their descriptive names, not IDs
+- Provide actionable insights and highlight important patterns
+- Keep responses conversational and easy to understand
+
+The knowledge graph contains information about project entities, their relationships, and migration status. Answer based on this context but present it in a thoughtful, human-readable way.`;
+
     // Process query with AI service using the final projectId in context
-    const aiResponse = await aiService.queryNaturalLanguage(query, context); // Pass the potentially enriched context
+    const aiResponse = await aiService.queryNaturalLanguage(query, context, systemPrompt); // Pass the potentially enriched context
 
     if (!aiResponse.success) {
       return NextResponse.json({
@@ -182,11 +198,11 @@ Based on the user query and the project list, which project ID is most relevant?
     // Adjust for different aiResponse.data structures from providers
     const responseText = typeof aiResponse.data === 'string' ? aiResponse.data : aiResponse.data?.response;
 
-    if (typeof responseText !== 'string') {
-        logger.error('AI response text is not a string after processing aiResponse.data', { data: aiResponse.data });
+    if (typeof responseText !== 'string' || responseText.trim() === '') {
+        logger.error('AI response text is not a string or is empty after processing aiResponse.data', { data: aiResponse.data });
         return NextResponse.json({
             success: false,
-            error: 'Invalid AI response format: response text is missing or not a string.'
+            error: 'AI provider returned empty or invalid response. Please check your AI configuration or try again.'
         }, { status: 500 });
     }
 

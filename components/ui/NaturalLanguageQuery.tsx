@@ -161,12 +161,28 @@ export function NaturalLanguageQuery({
         body: JSON.stringify(requestBody),
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API request failed (${response.status}): ${errorText}`);
+      }
+
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '') {
+        throw new Error('Empty response from API');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', { responseText, jsonError });
+        throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`);
+      }
       console.log("Received data from /query API:", data);
 
-      if (!response.ok || !data.success) {
-        console.error('Query API call was not ok or data.success is false', { responseStatus: response.status, dataReceived: data });
-        throw new Error(data.error || 'Failed to process query. API status: ' + response.status);
+      if (!data.success) {
+        console.error('Query API call returned success=false', { dataReceived: data });
+        throw new Error(data.error || 'Failed to process query');
       }
 
       if (!data.response || (typeof data.response === 'string' && data.response.trim() === '')) {
@@ -469,53 +485,50 @@ export function NaturalLanguageQuery({
   );
 }
 
-// Helper function to format AI response (simple version)
-// In a real app, you might use a library like react-markdown
+// Helper function to format AI response with better structure
 function formatAIResponse(text: string): string {
   if (!text) return '';
 
   let html = text;
 
+  // Remove any entity ID references (UUIDs in parentheses)
+  html = html.replace(/\s*\([a-f0-9\-]{36}\)/gi, '');
+  
+  // Remove standalone entity IDs
+  html = html.replace(/\b[a-f0-9\-]{36}\b/gi, '');
+
+  // Convert numbered lists (1. 2. 3.) to proper HTML lists
+  const numberedListPattern = /^(\d+\.\s+.*?)(?=\n\d+\.\s+|\n\n|\n[^0-9]|\n$|$)/gms;
+  if (html.match(/^\d+\.\s+/m)) {
+    html = html.replace(numberedListPattern, (match) => {
+      const items = match.split(/\n(?=\d+\.\s+)/).map(item => 
+        item.replace(/^\d+\.\s*/, '').trim()
+      );
+      return '<ol>' + items.map(item => `<li>${item}</li>`).join('') + '</ol>';
+    });
+  }
+
   // Convert markdown-style bold (**text**) to <strong>text</strong>
   html = html.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
 
   // Convert markdown headings (## Heading, ### Heading) to <h2>, <h3>
-  html = html.replace(/^###\s+(.*$)/gim, '<h3>$1</h3>');
-  html = html.replace(/^##\s+(.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^###\s+(.*$)/gim, '<h3 class="text-sm font-semibold text-slate-800 mt-3 mb-1">$1</h3>');
+  html = html.replace(/^##\s+(.*$)/gim, '<h2 class="text-base font-semibold text-slate-900 mt-4 mb-2">$1</h2>');
 
-  // Convert newlines to <br> tags for basic paragraph breaks
-  // More sophisticated would be to wrap distinct blocks in <p>
+  // Convert remaining newlines to proper paragraph breaks
+  html = html.replace(/\n\n+/g, '</p><p class="mb-2">');
   html = html.replace(/\n/g, '<br />');
-
-  // Basic list detection (lines starting with * or - space)
-  // This is a very simplified version.
-  const lines = html.split(/<br \/>/g);
-  let inList = false;
-  const processedLines = lines.map(line => {
-    if (line.match(/^(\*|-)\s+/)) {
-      const itemContent = line.replace(/^(\*|-)\s+/, '');
-      if (!inList) {
-        inList = true;
-        return `<ul><li>${itemContent}</li>`;
-      }
-      return `<li>${itemContent}</li>`;
-    } else {
-      if (inList) {
-        inList = false;
-        return `</ul>${line}`;
-      }
-      return line;
-    }
-  });
-  html = processedLines.join("<br />");
-  if (inList) {
-    html += "</ul>"; // Close list if it's the last element
+  
+  // Wrap in paragraph if not already structured
+  if (!html.includes('<p>') && !html.includes('<ol>') && !html.includes('<ul>')) {
+    html = `<p class="mb-2">${html}</p>`;
+  } else {
+    html = `<p class="mb-2">${html}</p>`;
   }
-  // Re-join with <br /> might not be ideal if <ul> creates block formatting.
-  // A proper parser would build a tree.
-  // For now, let's remove <br /> inside <li> and after </ul> if it was added just before.
-  html = html.replace(/<li><br \/>/g, '<li>').replace(/<br \/><\/ul>/g, '</ul>');
-  html = html.replace(/<br \/>(<h[23]>)/gi, '$1');
+
+  // Clean up any multiple paragraph tags
+  html = html.replace(/<\/p><p[^>]*><br \/>/g, '</p><p class="mb-2">');
+  html = html.replace(/<p[^>]*><\/p>/g, '');
 
   return html;
 }

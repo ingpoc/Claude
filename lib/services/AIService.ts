@@ -497,12 +497,32 @@ class OpenRouterProvider extends BaseAIProvider {
             completionTokens: data.usage?.completion_tokens
           }
         );
+        
+        return {
+          success: false,
+          error: `AI response was cut off due to low max_tokens setting (${request.max_tokens || this.config.max_tokens}). Please increase max_tokens in AI settings.`,
+          provider: 'openrouter'
+        };
+      }
+
+      if (!responseContent || responseContent.trim() === '') {
+        logger.error('OpenRouterProvider: Received empty response content', { 
+          finishReason, 
+          model: data.model,
+          usage: data.usage 
+        });
+        
+        return {
+          success: false,
+          error: 'AI provider returned empty response. Please try again or check your AI configuration.',
+          provider: 'openrouter'
+        };
       }
 
       return {
         success: true,
         data: { 
-          response: data.choices?.[0]?.message?.content || 'No response generated',
+          response: responseContent,
           model: data.model,
           usage: data.usage
         },

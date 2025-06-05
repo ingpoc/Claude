@@ -73,7 +73,7 @@ export default function ProjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   useEffect(() => {
     fetchProjects();
@@ -147,7 +147,7 @@ export default function ProjectsPage() {
         alert(`Error deleting project ${projectIdToDelete}.`);
       }
     }
-  }, [projects, fetchProjects]);
+  }, [projects, fetchProjects, API_BASE_URL]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
