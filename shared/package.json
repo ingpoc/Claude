@@ -1,0 +1,21 @@
+{
+  "name": "@mcp-kg/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities and types for MCP Knowledge Graph microservices",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint **/*.ts"
+  },
+  "dependencies": {
+    "zod": "^3.22.2",
+    "winston": "^3.11.0",
+    "ioredis": "^5.3.2",
+    "kafkajs": "^2.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
+  }
+}

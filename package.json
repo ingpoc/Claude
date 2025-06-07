@@ -1,15 +1,19 @@
 {
   "name": "@gurusharan3107/mcp-knowledge-graph",
   "version": "0.1.0",
-  "description": "MCP Knowledge Graph Server",
+  "description": "MCP Knowledge Graph Server with Microservice Architecture",
   "main": "dist/mcp-server.js",
   "bin": {
-    "mcp-knowledge-graph": "./mcp-only.js"
+    "mcp-knowledge-graph": "./mcp-only.js",
+    "mcp-knowledge-graph-lean": "./dist/mcp-server-lean.js"
   },
   "files": [
     "dist",
     ".next",
     "public",
+    "services",
+    "shared",
+    "scripts",
     "LICENSE",
     "README.md"
   ],
@@ -17,6 +21,7 @@
     "dev": "next dev -p 4000",
     "start": "RUN_UI=true node dist/mcp-server.js",
     "start:mcp": "node mcp-only.js",
+    "start:mcp-lean": "node dist/mcp-server-lean.js",
     "start:prod": "UI_API_PORT=4000 NODE_ENV=production RUN_UI=true node dist/mcp-server.js",
     "start-nextjs": "next dev -p 4000",
     "start:qdrant": "node -e \"const net = require('net'); const client = new net.Socket(); client.connect(6333, 'localhost', () => { console.log('Qdrant already running'); client.destroy(); process.exit(0); }); client.on('error', () => { console.log('Qdrant not running, starting...'); const { execSync } = require('child_process'); execSync('docker run -d -p 6333:6333 -p 6334:6334 -v ' + process.cwd() + '/qdrant_storage:/qdrant/storage:z qdrant/qdrant', { stdio: 'inherit' }); process.exit(0); });\"",
@@ -28,7 +33,41 @@
     "setup": "bash setup.sh",
     "diagnose": "node diagnose.js",
     "test:multi-client": "bash test-multi-client.sh",
-    "test:endpoints": "node test-endpoints.js"
+    "test:endpoints": "node test-endpoints.js",
+    
+    "microservices:install": "chmod +x scripts/*.sh && ./scripts/install-deps.sh",
+    "microservices:dev": "chmod +x scripts/*.sh && ./scripts/start-services-dev.sh",
+    "microservices:stop": "chmod +x scripts/*.sh && ./scripts/stop-services.sh",
+    "microservices:build": "npm run build:services",
+    "microservices:prod": "docker-compose up -d",
+    "microservices:prod:down": "docker-compose down",
+    "microservices:logs": "docker-compose logs -f",
+    
+    "build:services": "npm run build:api-gateway && npm run build:graph-service && npm run build:context-service && npm run build:mcp-service && npm run build:ui-service",
+    "build:api-gateway": "cd services/api-gateway && npm run build",
+    "build:graph-service": "cd services/graph-service && npm run build", 
+    "build:context-service": "cd services/context-service && npm run build",
+    "build:mcp-service": "cd services/mcp-service && npm run build",
+    "build:ui-service": "cd services/ui-service && npm run build",
+    
+    "dev:api-gateway": "cd services/api-gateway && npm run dev",
+    "dev:graph-service": "cd services/graph-service && npm run dev",
+    "dev:context-service": "cd services/context-service && npm run dev",
+    "dev:mcp-service": "cd services/mcp-service && npm run dev",
+    "dev:ui-service": "cd services/ui-service && npm run dev",
+    
+    "test:services": "npm run test:api-gateway && npm run test:graph-service && npm run test:context-service && npm run test:mcp-service",
+    "test:api-gateway": "cd services/api-gateway && npm test",
+    "test:graph-service": "cd services/graph-service && npm test",
+    "test:context-service": "cd services/context-service && npm test", 
+    "test:mcp-service": "cd services/mcp-service && npm test",
+    
+    "lint:services": "npm run lint:api-gateway && npm run lint:graph-service && npm run lint:context-service && npm run lint:mcp-service && npm run lint:ui-service",
+    "lint:api-gateway": "cd services/api-gateway && npm run lint",
+    "lint:graph-service": "cd services/graph-service && npm run lint",
+    "lint:context-service": "cd services/context-service && npm run lint",
+    "lint:mcp-service": "cd services/mcp-service && npm run lint",
+    "lint:ui-service": "cd services/ui-service && npm run lint"
   },
   "dependencies": {
     "@lmstudio/sdk": "^1.1.1",
@@ -61,7 +100,16 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "zod": "^3.22.2",
-    "zod-to-json-schema": "^3.24.5"
+    "zod-to-json-schema": "^3.24.5",
+    
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "rate-limit-redis": "^4.2.0",
+    "http-proxy-middleware": "^2.0.6",
+    "jsonwebtoken": "^9.0.2",
+    "ioredis": "^5.3.2",
+    "winston": "^3.11.0",
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "@types/dagre": "^0.7.52",
@@ -70,6 +118,10 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/uuid": "^9.0.7",
     "bufferutil": "^4.0.9",
     "concurrently": "^9.1.2",
     "dotenv": "^16.5.0",
@@ -78,5 +130,9 @@
     "jest": "^29.7.0",
     "typescript": "latest",
     "utf-8-validate": "^6.0.5"
-  }
+  },
+  "workspaces": [
+    "shared",
+    "services/*"
+  ]
 }
