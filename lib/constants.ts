@@ -1,43 +1,63 @@
-// lib/constants.ts
-
-// Constants for entity types (safe for client & server)
+// Entity Types for the knowledge graph
 export const EntityTypes = {
-  // System/Code entities
-  DOMAIN: 'domain',
   COMPONENT: 'component',
-  PAGE: 'page',
+  MODULE: 'module', 
   FUNCTION: 'function',
   CLASS: 'class',
-  API: 'api',
-  UTILITY: 'utility',
-  CONFIG: 'config',
-  
-  // Memory-specific entities
-  USER: 'user',
+  VARIABLE: 'variable',
+  CONCEPT: 'concept',
+  FEATURE: 'feature',
+  REQUIREMENT: 'requirement',
+  FILE: 'file',
+  PROJECT: 'project',
   PERSON: 'person',
   ORGANIZATION: 'organization',
-  LOCATION: 'location',
-  INTEREST: 'interest',
-  PREFERENCE: 'preference',
-  GOAL: 'goal',
-  EVENT: 'event'
-};
+  EVENT: 'event',
+  DOCUMENT: 'document',
+  API: 'api',
+  DATABASE: 'database',
+  SERVICE: 'service',
+  TOOL: 'tool',
+  FRAMEWORK: 'framework',
+  LIBRARY: 'library'
+} as const;
 
-// Constants for relationship types (safe for client & server)
+export type EntityType = typeof EntityTypes[keyof typeof EntityTypes];
+
+// Relationship Types
 export const RelationshipTypes = {
-  // System/Code relationships
-  DEPENDS_ON: 'depends_on',   
-  COMPOSED_OF: 'composed_of', 
-  CALLS: 'calls',             
-  EXTENDS: 'extends',         
+  CALLS: 'calls',
+  CONTAINS: 'contains', 
+  IMPLEMENTS: 'implements',
+  EXTENDS: 'extends',
+  USES: 'uses',
+  DEPENDS_ON: 'depends_on',
   RELATED_TO: 'related_to',
-  
-  // Memory-specific relationships
-  HAS_INTEREST: 'has_interest',
-  HAS_PREFERENCE: 'has_preference',
-  HAS_GOAL: 'has_goal',
-  KNOWS: 'knows',
-  WORKS_AT: 'works_at',
-  LOCATED_IN: 'located_in',
-  PARTICIPATED_IN: 'participated_in'
-}; 
+  PART_OF: 'part_of',
+  SIMILAR_TO: 'similar_to',
+  CREATED_BY: 'created_by',
+  OWNS: 'owns',
+  MANAGES: 'manages',
+  COLLABORATES_WITH: 'collaborates_with',
+  PRECEDES: 'precedes',
+  FOLLOWS: 'follows',
+  REFERENCES: 'references',
+  CONFIGURES: 'configures',
+  DEPLOYS: 'deploys',
+  TESTS: 'tests',
+  DOCUMENTS: 'documents',
+  COMPOSED_OF: 'composed_of'
+} as const;
+
+export type RelationshipType = typeof RelationshipTypes[keyof typeof RelationshipTypes];
+
+// Project Status
+export const ProjectStatus = {
+  ACTIVE: 'active',
+  ARCHIVED: 'archived', 
+  DRAFT: 'draft',
+  COMPLETED: 'completed',
+  ON_HOLD: 'on_hold'
+} as const;
+
+export type ProjectStatusType = typeof ProjectStatus[keyof typeof ProjectStatus];

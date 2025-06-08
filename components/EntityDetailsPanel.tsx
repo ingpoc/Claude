@@ -147,12 +147,11 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
     console.log(`[UI handleSaveObservation] Calling editObservation with: entityId=${entity.id}, observationId=${editingObservationId}, newText=${editingObservationText} (projectId=${projectId} from context)`);
 
     // Pass entity.id, observationId, newText (projectId comes from context)
-    const success = await editObservation(entity.id, editingObservationId, editingObservationText);
-    if (success) {
+    try {
+      await editObservation(entity.id, editingObservationId, editingObservationText);
       handleCancelEdit(); // Clear editing state
-    } else {
-      // Handle error (e.g., show a notification)
-      console.error("Failed to save observation");
+    } catch (error) {
+      console.error("Failed to save observation:", error);
       alert("Failed to save observation."); // Simple alert for now
     }
   };
@@ -164,12 +163,11 @@ const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
 
     if (window.confirm("Are you sure you want to delete this observation?")) {
       // Pass entity.id, observationId (projectId comes from context)
-      const success = await deleteObservation(entity.id, observationId);
-      if (success) {
-        // await refreshState(); // Removed redundant refresh call
-      } else {
-        // Handle error
-        console.error("Failed to delete observation");
+      try {
+        await deleteObservation(entity.id, observationId);
+        // Optionally handle success (e.g., refresh UI)
+      } catch (error) {
+        console.error("Failed to delete observation:", error);
         alert("Failed to delete observation."); // Simple alert for now
       }
     }

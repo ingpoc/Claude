@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "CommonJS",
+    "module": "esnext",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -40,6 +40,9 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "scripts",
+    "python-service",
+    "src/server"
   ]
 }

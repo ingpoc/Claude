@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { gsap } from 'gsap';
 import { PlusSquare, Search, Sparkles, FolderPlus, Grid3X3, List, Filter } from 'lucide-react';
-import ProjectCard from '../../components/ProjectCard';
 import EnhancedProjectCard from '../../components/EnhancedProjectCard';
 import CreateProjectModal from '../../components/CreateProjectModal';
 import { Button } from "../../components/ui/button";
@@ -26,6 +25,7 @@ export default function ProjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [pythonServiceRunning, setPythonServiceRunning] = useState(false);
   
   const headerRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
@@ -50,16 +50,35 @@ export default function ProjectsPage() {
     active: projects.filter(p => p.lastAccessed).length
   };
 
-  // Use API base URL for UI API endpoints
-  const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || '';
+  // Python service URL
+  const PYTHON_SERVICE_URL = 'http://localhost:8000';
+
+  const checkPythonService = async () => {
+    try {
+      const response = await fetch(`${PYTHON_SERVICE_URL}/health`);
+      setPythonServiceRunning(response.ok);
+      return response.ok;
+    } catch (error) {
+      setPythonServiceRunning(false);
+      return false;
+    }
+  };
 
   const fetchProjects = useCallback(async (bustCache: boolean = false) => {
     setIsLoading(true);
     try {
-      const url = `${API_BASE_URL}/api/ui/projects${bustCache ? `?t=${Date.now()}` : ''}`;
+      const serviceRunning = await checkPythonService();
+      if (!serviceRunning) {
+        console.error('Python service not running');
+        setProjects([]);
+        return;
+      }
+
+      const url = `${PYTHON_SERVICE_URL}/api/projects${bustCache ? `?t=${Date.now()}` : ''}`;
       const response = await fetch(url, {
         headers: { 'Content-Type': 'application/json' },
       });
+      
       if (!response.ok) {
         console.error('Failed to fetch projects:', response.status, response.statusText);
         setProjects([]);
@@ -73,7 +92,7 @@ export default function ProjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [API_BASE_URL]);
+  }, []);
 
   useEffect(() => {
     fetchProjects();
@@ -97,13 +116,17 @@ export default function ProjectsPage() {
 
   const handleCreateProject = async (name: string, description: string) => {
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || '';
-      const response = await fetch(`${API_BASE_URL}/api/ui/projects`, {
+      const response = await fetch(`${PYTHON_SERVICE_URL}/api/projects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, description }),
+        body: JSON.stringify({ 
+          name, 
+          description,
+          createdAt: new Date().toISOString(),
+          lastAccessed: new Date().toISOString()
+        }),
       });
 
       if (response.ok) {
@@ -111,9 +134,11 @@ export default function ProjectsPage() {
         await fetchProjects(true);
       } else {
         console.error("Failed to create project:", response.statusText);
+        alert("Failed to create project. Make sure Python service is running.");
       }
     } catch (error) {
       console.error('Error creating project:', error);
+      alert("Error creating project. Make sure Python service is running.");
     }
     setIsModalOpen(false);
   };
@@ -125,13 +150,12 @@ export default function ProjectsPage() {
       setProjects(projects.filter(p => p.id !== projectIdToDelete));
       
       try {
-        const deleteUrl = `${API_BASE_URL}/api/ui/projects/${projectIdToDelete}`;
-        const deleteResponse = await fetch(deleteUrl, {
+        const deleteResponse = await fetch(`${PYTHON_SERVICE_URL}/api/projects/${projectIdToDelete}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' }
         });
-        const success = deleteResponse.ok;
-        if (success) {
+        
+        if (deleteResponse.ok) {
           // Refresh from server to ensure data consistency
           await fetchProjects(true);
         } else {
@@ -147,11 +171,40 @@ export default function ProjectsPage() {
         alert(`Error deleting project ${projectIdToDelete}.`);
       }
     }
-  }, [projects, fetchProjects, API_BASE_URL]);
+  }, [projects, fetchProjects]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Python Service Status Alert */}
+        {!pythonServiceRunning && (
+          <div className="mb-6">
+            <Card className="bg-red-50 border-red-200">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="text-red-500">⚠️</div>
+                  <div>
+                    <h3 className="font-medium text-red-800">Python Memvid Service Not Running</h3>
+                    <p className="text-sm text-red-600 mt-1">
+                      Projects functionality requires the Python service. Start it with: 
+                      <code className="bg-red-100 px-2 py-1 rounded ml-1">python python_memvid_service.py</code>
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={checkPythonService}
+                    className="ml-auto"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Enhanced Header */}
         <div ref={headerRef} className="mb-8">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
@@ -171,7 +224,8 @@ export default function ProjectsPage() {
             
             <Button 
               onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+              disabled={!pythonServiceRunning}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
               size="lg"
             >
               <PlusSquare className="mr-2 h-5 w-5" />
@@ -192,6 +246,7 @@ export default function ProjectsPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 bg-white/80 border-gray-200/60 focus:border-blue-300 focus:ring-blue-200"
+                    disabled={!pythonServiceRunning}
                   />
                 </div>
                 
@@ -294,10 +349,12 @@ export default function ProjectsPage() {
                 <p className="text-muted-foreground mb-6">
                   {searchQuery 
                     ? `No projects match "${searchQuery}". Try adjusting your search.`
-                    : 'Create your first project to start building your knowledge graph!'
+                    : pythonServiceRunning 
+                      ? 'Create your first project to start building your knowledge graph!'
+                      : 'Start the Python service to begin using projects.'
                   }
                 </p>
-                {!searchQuery && (
+                {!searchQuery && pythonServiceRunning && (
                   <Button 
                     onClick={() => setIsModalOpen(true)}
                     className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"

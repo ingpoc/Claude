@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "outDir": "dist",
+    "strict": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false,
+    "allowImportingTsExtensions": false
+  },
+  "include": [
+    "src/server/mcp-host.ts",
+    "lib/services/Logger.ts",
+    "lib/services/MemvidService.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "components/**/*",
+    "app/**/*",
+    ".next/**/*"
+  ]
+}

@@ -1,258 +1,188 @@
-"use client";
+'use client';
 
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
-// Explicitly import only types from lib
-import type { Entity, Relationship } from '../lib/services'; 
-import {
-    createEntity,
-    createRelationship,
-    addObservation,
-    deleteEntity,
-    deleteRelationship,
-    getEntity,
-    getAllEntities,
-    getAllRelationshipsForContext,
-    updateEntityDescription,
-    getRelatedEntities as fetchRelatedEntities,
-    editObservation,
-    deleteObservation,
-    deleteProjectAction
-} from "../app/actions/knowledgeGraphActions"; // Import server actions
-// Removed server action getProject, using REST API for project metadata
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import type { Project } from '../lib/services';
 
-// Interface for RelationshipInfo
-interface RelationshipInfo {
-    from: string;
-    to: string;
-    type: string;
-}
-
-interface ProjectState {
-  projectId: string;
-  projectName: string;
-  projectDescription: string;
-  entities: Entity[];
-  relationships: RelationshipInfo[];
-}
-
-interface ProjectContextType extends Omit<ProjectState, 'projectId'> {
-  projectId: string;
-  addEntity: (name: string, type: string, description: string, observations?: string[], parentId?: string) => Promise<Entity | null>;
-  addObservation: (entityId: string, observation: string) => Promise<boolean>;
-  updateEntityDescription: (entityId: string, description: string) => Promise<boolean>;
-  addRelationship: (fromId: string, toId: string, type: string) => Promise<RelationshipInfo | null>;
-  deleteEntity: (entityId: string) => Promise<boolean>;
-  deleteRelationship: (relationshipId: string) => Promise<boolean>;
-  findEntityById: (entityId: string, bustCache?: boolean) => Promise<Entity | null>;
-  getRelatedEntities: (entityId: string) => Promise<Array<{entity: Entity, relationship: RelationshipInfo}>>;
-  refreshState: (bustCache?: boolean) => Promise<void>; 
+interface ProjectContextType {
+  currentProject: Project | null;
+  projects: Project[];
+  projectId: string | null;
+  setCurrentProject: (project: Project | null) => void;
+  refreshProjects: () => Promise<void>;
+  createProject: (name: string, description?: string) => Promise<Project>;
+  deleteProject: (projectId: string) => Promise<void>;
+  editObservation: (entityId: string, observationId: string, newText: string) => Promise<void>;
+  deleteObservation: (entityId: string, observationId: string) => Promise<void>;
   isLoading: boolean;
-  editObservation: (entityId: string, observationId: string, newText: string) => Promise<boolean>;
-  deleteObservation: (entityId: string, observationId: string) => Promise<boolean>;
-  deleteProject: (projectIdToDelete: string) => Promise<boolean>;
+  error: string | null;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-export const ProjectProvider = ({ 
-  children, 
-  projectId 
-}: { 
+interface ProjectProviderProps {
   children: ReactNode;
-  projectId: string;
-}) => {
-  // Base URL for UI API
-  const API_BASE_URL = process.env.NEXT_PUBLIC_MCP_UI_API_URL || '';
-  const [state, setState] = useState<ProjectState>({ 
-    projectId,
-    projectName: '',
-    projectDescription: '',
-    entities: [], 
-    relationships: [] 
-  });
-  const [isLoading, setIsLoading] = useState(true);
+}
 
-  const refreshState = useCallback(async (bustCache: boolean = false) => {
+export function ProjectProvider({ children }: ProjectProviderProps) {
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshProjects = async () => {
     setIsLoading(true);
+    setError(null);
+    
     try {
-      // Fetch project metadata from UI API
-      let project: { id: string; name: string; description?: string } | null = null;
-      try {
-        const projRes = await fetch(`${API_BASE_URL}/api/ui/projects/${projectId}`, {
-          headers: { 'Content-Type': 'application/json' }
-        });
-        if (projRes.ok) {
-          project = await projRes.json();
-        } else {
-          console.error(`Failed to fetch project ${projectId}:`, projRes.statusText);
-        }
-      } catch (error) {
-        console.error(`Error fetching project ${projectId}:`, error);
+      const response = await fetch('/api/projects');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch projects: ${response.statusText}`);
       }
       
-      // Call server actions to get data with cache busting if needed
-      const [entities, relationships] = await Promise.all([
-          getAllEntities(projectId, bustCache),
-          getAllRelationshipsForContext(projectId, bustCache)
-      ]);
+      const data = await response.json();
+      setProjects(data.projects || []);
       
-      setState({ 
-        projectId,
-        projectName: project?.name || projectId,
-        projectDescription: project?.description || '',
-        entities, 
-        relationships 
+      // If no current project is selected and we have projects, select the first one
+      if (!currentProject && data.projects && data.projects.length > 0) {
+        setCurrentProject(data.projects[0]);
+      }
+    } catch (err) {
+      console.error('Error fetching projects:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch projects');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createProject = async (name: string, description?: string): Promise<Project> => {
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description }),
       });
       
-      // console.log(`Refreshed state for project ${projectId}: ${entities.length} entities, ${relationships.length} relationships.`);
-    } catch (error) {
-        console.error(`Failed to load project ${projectId}:`, error);
-        setState({ 
-          projectId,
-          projectName: projectId,
-          projectDescription: '',
-          entities: [], 
-          relationships: [] 
-        }); 
-    } finally {
-       setIsLoading(false);
+      if (!response.ok) {
+        throw new Error(`Failed to create project: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const newProject = data.project;
+      
+      setProjects(prev => [...prev, newProject]);
+      setCurrentProject(newProject);
+      
+      return newProject;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create project';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
-  }, [projectId]);
+  };
 
+  const deleteProject = async (projectId: string): Promise<void> => {
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete project: ${response.statusText}`);
+      }
+      
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      
+      // If we deleted the current project, switch to another one or null
+      if (currentProject?.id === projectId) {
+        const remainingProjects = projects.filter(p => p.id !== projectId);
+        setCurrentProject(remainingProjects.length > 0 ? remainingProjects[0] : null);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete project';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const editObservation = async (entityId: string, observationId: string, newText: string): Promise<void> => {
+    setError(null);
+    
+    try {
+      // Update observation via API
+      const response = await fetch(`/api/entities/${entityId}/observations/${observationId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: newText }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update observation: ${response.statusText}`);
+      }
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update observation';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const deleteObservation = async (entityId: string, observationId: string): Promise<void> => {
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/entities/${entityId}/observations/${observationId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete observation: ${response.statusText}`);
+      }
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete observation';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  // Load projects on mount
   useEffect(() => {
-    refreshState();
-  }, [refreshState]);
-
-  // Context methods now call server actions directly
-  const addEntityAction = useCallback(async (name: string, type: string, description: string, observations?: string[], parentId?: string): Promise<Entity | null> => {
-    const newEntity = await createEntity(projectId, name, type, description, observations, parentId);
-    if (newEntity) {
-      await refreshState(true); // Bust cache after creating entity
-    }
-    return newEntity;
-  }, [projectId, refreshState]);
-
-  const addObservationAction = useCallback(async (entityId: string, observation: string): Promise<boolean> => {
-    const result = await addObservation(projectId, entityId, observation);
-    if (result) {
-       await refreshState(true); // Bust cache after adding observation
-    }
-    return !!result;
-  }, [projectId, refreshState]);
-
-  const updateEntityDescriptionAction = useCallback(async (entityId: string, description: string): Promise<boolean> => {
-    const success = await updateEntityDescription(projectId, entityId, description);
-    if (success) {
-        await refreshState(true); // Bust cache after updating entity
-    }
-    return success;
-  }, [projectId, refreshState]);
-  
-  const addRelationshipAction = useCallback(async (fromId: string, toId: string, type: string): Promise<RelationshipInfo | null> => {
-      const newRel = await createRelationship(projectId, fromId, toId, type);
-      if (newRel) {
-          await refreshState(true); // Bust cache after creating relationship
-      }
-      // Assuming the action returns the same structure
-      return newRel as RelationshipInfo | null; 
-  }, [projectId, refreshState]);
-
-  const deleteEntityAction = useCallback(async (entityId: string): Promise<boolean> => {
-      const success = await deleteEntity(projectId, entityId);
-      if (success) {
-          await refreshState(true); // Bust cache after deleting entity
-      }
-      return success;
-  }, [projectId, refreshState]);
-
-  const deleteRelationshipAction = useCallback(async (relationshipId: string): Promise<boolean> => {
-      const success = await deleteRelationship(projectId, relationshipId);
-      if (success) {
-          await refreshState(true); // Bust cache after deleting relationship
-      }
-      return success;
-  }, [projectId, refreshState]);
-
-  const editObservationAction = useCallback(async (entityId: string, observationId: string, newText: string): Promise<boolean> => {
-    const success = await editObservation(projectId, entityId, observationId, newText);
-    if (success) {
-      await refreshState(true); // Bust cache after editing observation
-    }
-    return success;
-  }, [projectId, refreshState]);
-
-  const deleteObservationAction = useCallback(async (entityId: string, observationId: string): Promise<boolean> => {
-    const success = await deleteObservation(projectId, entityId, observationId);
-    if (success) {
-      await refreshState(true); // Bust cache after deleting observation
-    }
-    return success;
-  }, [projectId, refreshState]);
-
-  const deleteProjectHandler = useCallback(async (projectIdToDelete: string): Promise<boolean> => {
-    const success = await deleteProjectAction(projectIdToDelete);
-    return success;
+    refreshProjects();
   }, []);
 
-  const findEntityByIdAction = useCallback(async (entityId: string, bustCache: boolean = false) => 
-    getEntity(projectId, entityId, bustCache)
-  , [projectId]);
-  
-  // Get related entities for a specific entity
-  const getRelatedEntitiesAction = useCallback(async (entityId: string): Promise<Array<{entity: Entity, relationship: RelationshipInfo}>> => {
-      // Use the imported fetchRelatedEntities function (renamed from getRelatedEntities to avoid conflict)
-      const relatedEntities = await fetchRelatedEntities(projectId, entityId);
-      
-      // Create empty array to store formatted relationships
-      const formattedRelationships: Array<{entity: Entity, relationship: RelationshipInfo}> = [];
-      
-      // Process each related entity
-      for (const entity of relatedEntities) {
-          formattedRelationships.push({
-              entity, // This is already an Entity type from the server action
-              relationship: {
-                  from: '',  // These would need to be populated correctly from your backend
-                  to: entityId,
-                  type: ''
-              }
-          });
-      }
-      
-      return formattedRelationships;
-  }, [projectId]);
-
-  const contextValue: ProjectContextType = {
-    projectId,
-    projectName: state.projectName,
-    projectDescription: state.projectDescription,
-    entities: state.entities,
-    relationships: state.relationships,
-    addEntity: addEntityAction,
-    addObservation: addObservationAction,
-    updateEntityDescription: updateEntityDescriptionAction,
-    addRelationship: addRelationshipAction,
-    deleteEntity: deleteEntityAction,
-    deleteRelationship: deleteRelationshipAction,
-    findEntityById: findEntityByIdAction,
-    getRelatedEntities: getRelatedEntitiesAction,
-    refreshState,
+  const value: ProjectContextType = {
+    currentProject,
+    projects,
+    projectId: currentProject?.id || null,
+    setCurrentProject,
+    refreshProjects,
+    createProject,
+    deleteProject,
+    editObservation,
+    deleteObservation,
     isLoading,
-    editObservation: editObservationAction,
-    deleteObservation: deleteObservationAction,
-    deleteProject: deleteProjectHandler,
+    error,
   };
 
   return (
-    <ProjectContext.Provider value={contextValue}>
+    <ProjectContext.Provider value={value}>
       {children}
     </ProjectContext.Provider>
   );
-};
+}
 
-export const useProject = (): ProjectContextType => {
+export function useProject() {
   const context = useContext(ProjectContext);
   if (context === undefined) {
     throw new Error('useProject must be used within a ProjectProvider');
   }
   return context;
-}; 
+}

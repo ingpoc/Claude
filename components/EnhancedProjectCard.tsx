@@ -289,4 +289,4 @@ const EnhancedProjectCard: React.FC<EnhancedProjectCardProps> = ({
   );
 };
 
-export default EnhancedProjectCard; 
+export default EnhancedProjectCard;

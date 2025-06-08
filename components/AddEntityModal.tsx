@@ -37,7 +37,7 @@ const entityTypeOptions = Object.values(EntityTypes).map(type => ({
 
 const AddEntityModal: React.FC<AddEntityModalProps> = ({ isOpen, onClose, onSubmit }) => {
   const [name, setName] = useState('');
-  const [type, setType] = useState(EntityTypes.COMPONENT);
+  const [type, setType] = useState<string>(EntityTypes.COMPONENT);
   const [description, setDescription] = useState('');
 
   // Reset form when modal is closed/opened

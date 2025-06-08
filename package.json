@@ -1,10 +1,11 @@
 {
   "name": "@gurusharan3107/mcp-knowledge-graph",
-  "version": "0.1.0",
-  "description": "MCP Knowledge Graph Server",
-  "main": "dist/mcp-server.js",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Simple MCP Knowledge Graph Server with Memvid",
+  "main": "dist/mcp-host.js",
   "bin": {
-    "mcp-knowledge-graph": "./mcp-only.js"
+    "knowledge-graph-host": "./dist/mcp-host.js"
   },
   "files": [
     "dist",
@@ -14,29 +15,29 @@
     "README.md"
   ],
   "scripts": {
-    "dev": "next dev -p 4000",
-    "start": "RUN_UI=true node dist/mcp-server.js",
-    "start:mcp": "node mcp-only.js",
-    "start:prod": "UI_API_PORT=4000 NODE_ENV=production RUN_UI=true node dist/mcp-server.js",
-    "start-nextjs": "next dev -p 4000",
-    "start:qdrant": "node -e \"const net = require('net'); const client = new net.Socket(); client.connect(6333, 'localhost', () => { console.log('Qdrant already running'); client.destroy(); process.exit(0); }); client.on('error', () => { console.log('Qdrant not running, starting...'); const { execSync } = require('child_process'); execSync('docker run -d -p 6333:6333 -p 6334:6334 -v ' + process.cwd() + '/qdrant_storage:/qdrant/storage:z qdrant/qdrant', { stdio: 'inherit' }); process.exit(0); });\"",
-    "start:all": "bash start-all.sh",
-    "build": "next build",
-    "build:server": "tsc --project tsconfig.json",
+    "dev": "next dev -p 3000",
+    "start": "node dist/mcp-host.js",
+    "start:dashboard": "next dev -p 3000",
+    "build": "tsc --project tsconfig.json && next build",
+    "build:server": "tsc --project tsconfig.server.json && chmod +x dist/src/server/mcp-host.js",
+    "build:host": "tsc mcp-host.ts --outDir dist --module esnext --target es2022 --moduleResolution bundler --allowSyntheticDefaultImports",
     "lint": "next lint",
-    "preparepackage": "npm run build:server && npm run build",
-    "setup": "bash setup.sh",
-    "diagnose": "node diagnose.js",
-    "test:multi-client": "bash test-multi-client.sh",
-    "test:endpoints": "node test-endpoints.js"
+    "mcp:host": "node dist/mcp-host.js",
+    "mcp:claude": "node dist/mcp-host.js",
+    "mcp:cursor": "node dist/mcp-host.js",
+    "mcp:cline": "node dist/mcp-host.js",
+    "python:start": "python ./python-service/python_memvid_service.py",
+    "python:check": "curl -f http://localhost:8000/health || echo 'Python service not running'",
+    "setup": "npm install",
+    "clean": "rm -rf dist shared_knowledge",
+    "start-all": "npm run build:server && npm run start"
   },
   "dependencies": {
-    "@lmstudio/sdk": "^1.1.1",
     "@modelcontextprotocol/sdk": "^1.8.0",
-    "@qdrant/js-client-rest": "^1.14.1",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-label": "^2.1.2",
+    "@radix-ui/react-progress": "^1.1.7",
     "@radix-ui/react-scroll-area": "^1.2.3",
     "@radix-ui/react-select": "^2.1.6",
     "@radix-ui/react-separator": "^1.1.2",
@@ -45,13 +46,9 @@
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cors": "^2.8.5",
-    "dagre": "^0.8.5",
-    "express": "^4.18.2",
     "gsap": "^3.13.0",
     "lucide-react": "^0.487.0",
     "next": "latest",
-    "openai": "^4.103.0",
     "postcss": "^8.5.3",
     "react": "latest",
     "react-dom": "latest",
@@ -60,23 +57,17 @@
     "tailwindcss": "^3.3.3",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
-    "zod": "^3.22.2",
-    "zod-to-json-schema": "^3.24.5"
+    "winston": "^3.11.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/dagre": "^0.7.52",
-    "@types/dotenv": "^6.1.1",
-    "@types/jest": "^29.5.14",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "bufferutil": "^4.0.9",
-    "concurrently": "^9.1.2",
+    "@types/uuid": "^9.0.7",
     "dotenv": "^16.5.0",
     "eslint": "^8.0.0",
     "eslint-config-next": "14.2.4",
-    "jest": "^29.7.0",
-    "typescript": "latest",
-    "utf-8-validate": "^6.0.5"
+    "typescript": "latest"
   }
 }

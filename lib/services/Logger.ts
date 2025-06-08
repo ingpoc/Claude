@@ -1,3 +1,10 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export enum LogLevel {
   ERROR = 'error',
   WARN = 'warn',
@@ -15,8 +22,18 @@ export interface LogContext {
 
 class Logger {
   private isDevelopment = process.env.NODE_ENV !== 'production';
-  private isMcpMode = process.env.MCP_MODE === 'true' || process.stdin.isTTY === false;
+  private isMcpMode = process.env.MCP_MODE === 'true' || process.stdin.isTTY === false || process.argv.includes('mcp-host');
   private isBrowser = typeof window !== 'undefined';
+  private logDir = path.join(__dirname, '../../logs');
+  private logFile = path.join(this.logDir, 'mcp-host.log');
+  private errorFile = path.join(this.logDir, 'error.log');
+
+  constructor() {
+    // Ensure log directory exists
+    if (!this.isBrowser && !fs.existsSync(this.logDir)) {
+      fs.mkdirSync(this.logDir, { recursive: true });
+    }
+  }
 
   private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
     const timestamp = new Date().toISOString();
@@ -24,28 +41,39 @@ class Logger {
     return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
   }
 
-  private safeLog(message: string, useStderr = false): void {
+  private writeToFile(filename: string, message: string): void {
+    try {
+      fs.appendFileSync(filename, message + '\n', 'utf8');
+    } catch (err) {
+      // Silently fail if can't write to file
+    }
+  }
+
+  private safeLog(message: string, level: LogLevel): void {
     // In browser production mode, suppress all logging
     if (this.isBrowser && !this.isDevelopment) {
       return;
     }
 
     if (this.isMcpMode && !this.isBrowser) {
-      // In MCP mode (server-side), only use stderr for errors to avoid interfering with JSON-RPC on stdout
-      if (useStderr) {
-        process.stderr.write(message + '\n');
+      // In MCP mode, write ALL logs to file, NEVER to stdout/stderr
+      const logFile = level === LogLevel.ERROR ? this.errorFile : this.logFile;
+      this.writeToFile(logFile, message);
+      
+      // Also write errors to main log file
+      if (level === LogLevel.ERROR) {
+        this.writeToFile(this.logFile, message);
       }
-      // Don't log info/debug messages in MCP mode to keep stdout clean
     } else if (!this.isBrowser) {
       // Normal server mode, use console
-      if (useStderr) {
+      if (level === LogLevel.ERROR || level === LogLevel.WARN) {
         console.error(message);
       } else {
         console.log(message);
       }
     } else if (this.isDevelopment) {
       // Browser development mode, use console
-      if (useStderr) {
+      if (level === LogLevel.ERROR || level === LogLevel.WARN) {
         console.error(message);
       } else {
         console.log(message);
@@ -55,33 +83,33 @@ class Logger {
 
   error(message: string, error?: Error | unknown, context?: LogContext): void {
     const formattedMessage = this.formatMessage(LogLevel.ERROR, message, context);
-    this.safeLog(formattedMessage, true);
+    this.safeLog(formattedMessage, LogLevel.ERROR);
     if (error instanceof Error) {
-      this.safeLog('Error details: ' + error.message, true);
-      if (this.isDevelopment) {
-        this.safeLog('Stack trace: ' + (error.stack || ''), true);
+      this.safeLog('Error details: ' + error.message, LogLevel.ERROR);
+      if (this.isDevelopment || this.isMcpMode) {
+        this.safeLog('Stack trace: ' + (error.stack || ''), LogLevel.ERROR);
       }
     } else if (error) {
-      this.safeLog('Error details: ' + String(error), true);
+      this.safeLog('Error details: ' + String(error), LogLevel.ERROR);
     }
   }
 
   warn(message: string, context?: LogContext): void {
     const formattedMessage = this.formatMessage(LogLevel.WARN, message, context);
-    this.safeLog(formattedMessage, true);
+    this.safeLog(formattedMessage, LogLevel.WARN);
   }
 
   info(message: string, context?: LogContext): void {
     const formattedMessage = this.formatMessage(LogLevel.INFO, message, context);
-    this.safeLog(formattedMessage, false);
+    this.safeLog(formattedMessage, LogLevel.INFO);
   }
 
   debug(message: string, context?: LogContext): void {
-    if (this.isDevelopment) {
+    if (this.isDevelopment || this.isMcpMode) {
       const formattedMessage = this.formatMessage(LogLevel.DEBUG, message, context);
-      this.safeLog(formattedMessage, false);
+      this.safeLog(formattedMessage, LogLevel.DEBUG);
     }
   }
 }
 
-export const logger = new Logger(); 
+export const logger = new Logger();
