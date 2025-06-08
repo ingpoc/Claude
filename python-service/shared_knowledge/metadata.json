@@ -29,9 +29,53 @@
       "createdAt": "2025-06-08T15:35:49.999280",
       "updatedAt": "2025-06-08T15:35:49.999280",
       "projectId": "default"
+    },
+    {
+      "id": "f79e76ca-360e-46b2-94dc-c71a4236486f",
+      "name": "Neural Networks",
+      "type": "concept",
+      "description": "Artificial neural networks are computing systems inspired by biological neural networks. They consist of interconnected nodes (neurons) that process information through weighted connections.",
+      "observations": [],
+      "addedBy": "System",
+      "createdAt": "2025-06-08T18:04:31.451864",
+      "updatedAt": "2025-06-08T18:04:31.451864",
+      "projectId": "50f3fe84-ed94-4ab7-9837-c6d9cb339a96"
+    },
+    {
+      "id": "0a89b28a-7546-4609-8463-e36aac7803cf",
+      "name": "Machine Learning",
+      "type": "concept",
+      "description": "Machine learning is a subset of artificial intelligence that enables systems to automatically learn and improve from experience without being explicitly programmed.",
+      "observations": [],
+      "addedBy": "System",
+      "createdAt": "2025-06-08T18:05:16.456145",
+      "updatedAt": "2025-06-08T18:05:16.456145",
+      "projectId": "50f3fe84-ed94-4ab7-9837-c6d9cb339a96"
+    },
+    {
+      "id": "b576e43f-d172-4271-80c5-29c02942977e",
+      "name": "Deep Learning",
+      "type": "concept",
+      "description": "Deep learning is a subset of machine learning that uses artificial neural networks with multiple layers to progressively extract higher level features from raw input.",
+      "observations": [],
+      "addedBy": "System",
+      "createdAt": "2025-06-08T18:05:29.700511",
+      "updatedAt": "2025-06-08T18:05:29.700511",
+      "projectId": "50f3fe84-ed94-4ab7-9837-c6d9cb339a96"
     }
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "id": "160ad8e7-6f38-435a-a2e7-a639d74289d0",
+      "sourceId": "0a89b28a-7546-4609-8463-e36aac7803cf",
+      "targetId": "b576e43f-d172-4271-80c5-29c02942977e",
+      "type": "includes",
+      "description": "Machine Learning includes Deep Learning as a subset",
+      "addedBy": "System",
+      "createdAt": "2025-06-08T18:06:04.546167",
+      "projectId": "50f3fe84-ed94-4ab7-9837-c6d9cb339a96"
+    }
+  ],
   "projects": [
     {
       "id": "default",
@@ -39,7 +83,14 @@
       "description": "Default project for entities without specific project assignment",
       "createdAt": "2025-06-08T15:24:14.774313",
       "lastAccessed": null
+    },
+    {
+      "id": "50f3fe84-ed94-4ab7-9837-c6d9cb339a96",
+      "name": "AI Research Project",
+      "description": "Research project for artificial intelligence and machine learning concepts",
+      "createdAt": "2025-06-08T18:04:13.360524",
+      "lastAccessed": "2025-06-08T18:04:13.360524"
     }
   ],
-  "updated_at": "2025-06-08T15:35:49.999508"
+  "updated_at": "2025-06-08T18:06:04.546243"
 }
