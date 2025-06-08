@@ -17,6 +17,9 @@ interface Project {
   description?: string;
   createdAt: string;
   lastAccessed?: string;
+  entityCount?: number;
+  relationshipCount?: number;
+  activityScore?: number;
 }
 
 export default function ProjectsPage() {
@@ -329,74 +332,48 @@ export default function ProjectsPage() {
         </div>
 
         {/* Projects Grid */}
-        <div ref={projectsGridRef}>
-          {isLoading && projects.length === 0 ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Loading projects...</p>
-              </div>
+        <div ref={projectsGridRef} className="mt-8">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+              <p className="mt-4 text-muted-foreground">Loading Projects...</p>
             </div>
-          ) : !isLoading && filteredProjects.length === 0 ? (
-            <Card className="bg-white/60 backdrop-blur-sm border-gray-200/60">
-              <CardContent className="p-12 text-center">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-200/20 flex items-center justify-center mx-auto mb-6">
-                  <FolderPlus className="h-10 w-10 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  {searchQuery ? 'No projects found' : 'No projects yet'}
-                </h3>
-                <p className="text-muted-foreground mb-6">
-                  {searchQuery 
-                    ? `No projects match "${searchQuery}". Try adjusting your search.`
-                    : pythonServiceRunning 
-                      ? 'Create your first project to start building your knowledge graph!'
-                      : 'Start the Python service to begin using projects.'
-                  }
-                </p>
-                {!searchQuery && pythonServiceRunning && (
-                  <Button 
-                    onClick={() => setIsModalOpen(true)}
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
-                  >
-                    <PlusSquare className="mr-2 h-4 w-4" />
-                    Create Your First Project
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className={cn(
-              "grid gap-6",
-              viewMode === 'grid' 
-                ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
-                : "grid-cols-1"
-            )}>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProjects.map((project, index) => (
-                <EnhancedProjectCard 
+                <EnhancedProjectCard
                   key={project.id}
                   id={project.id}
                   name={project.name}
-                  description={project.description || ""}
+                  description={project.description || ''}
                   lastUpdated={new Date(project.lastAccessed || project.createdAt).toLocaleDateString()}
-                  entityCount={Math.floor(Math.random() * 50) + 10}
-                  relationshipCount={Math.floor(Math.random() * 100) + 20}
-                  activityScore={Math.floor(Math.random() * 100) + 20}
-                  status={index === 0 ? 'new' : 'active'}
-                  delay={index * 0.1}
                   onDelete={() => handleDeleteProject(project.id)}
-                  variant={viewMode}
+                  delay={index * 0.05}
+                  status={index === 0 ? 'new' : 'active'}
+                  entityCount={project.entityCount || 0}
+                  relationshipCount={project.relationshipCount || 0}
+                  activityScore={project.activityScore || 0}
                 />
               ))}
             </div>
-          )}
-
-          {/* Show count when filtered */}
-          {searchQuery && filteredProjects.length > 0 && (
-            <div className="mt-6 text-center">
-              <Badge variant="secondary" className="bg-white/60 backdrop-blur-sm">
-                Showing {filteredProjects.length} of {projects.length} projects
-              </Badge>
+          ) : (
+            <div className="space-y-4">
+              {filteredProjects.map((project, index) => (
+                <EnhancedProjectCard
+                  key={project.id}
+                  id={project.id}
+                  name={project.name}
+                  description={project.description || ''}
+                  lastUpdated={new Date(project.lastAccessed || project.createdAt).toLocaleDateString()}
+                  onDelete={() => handleDeleteProject(project.id)}
+                  delay={index * 0.05}
+                  status={index === 0 ? 'new' : 'active'}
+                  entityCount={project.entityCount || 0}
+                  relationshipCount={project.relationshipCount || 0}
+                  activityScore={project.activityScore || 0}
+                  variant="list"
+                />
+              ))}
             </div>
           )}
         </div>

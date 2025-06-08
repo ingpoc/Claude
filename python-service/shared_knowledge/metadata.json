@@ -1,0 +1,45 @@
+{
+  "entities": [
+    {
+      "id": "ddfd07c3-be13-455a-9d68-5c23320061e2",
+      "name": "Claude Project",
+      "type": "Project",
+      "description": "The Claude project, a desktop application involving AI and knowledge management.",
+      "observations": [
+        {
+          "id": "obs_1749377149991",
+          "text": "Located in /Users/gurusharan/Documents/Cline/graphmemory/Claude",
+          "addedBy": "Unknown MCP Client",
+          "createdAt": "2025-06-08T10:05:49.991Z"
+        },
+        {
+          "id": "obs_1749377149992",
+          "text": "Uses OpenRouter API for AI services",
+          "addedBy": "Unknown MCP Client",
+          "createdAt": "2025-06-08T10:05:49.992Z"
+        },
+        {
+          "id": "obs_1749377149992",
+          "text": "Involves MCP Knowledge Graph for data storage",
+          "addedBy": "Unknown MCP Client",
+          "createdAt": "2025-06-08T10:05:49.992Z"
+        }
+      ],
+      "addedBy": "Unknown MCP Client",
+      "createdAt": "2025-06-08T15:35:49.999280",
+      "updatedAt": "2025-06-08T15:35:49.999280",
+      "projectId": "default"
+    }
+  ],
+  "relationships": [],
+  "projects": [
+    {
+      "id": "default",
+      "name": "Default Project",
+      "description": "Default project for entities without specific project assignment",
+      "createdAt": "2025-06-08T15:24:14.774313",
+      "lastAccessed": null
+    }
+  ],
+  "updated_at": "2025-06-08T15:35:49.999508"
+}

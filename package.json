@@ -18,19 +18,23 @@
     "dev": "next dev -p 3000",
     "start": "node dist/mcp-host.js",
     "start:dashboard": "next dev -p 3000",
+    "start:services": "./start-simple.sh",
     "build": "tsc --project tsconfig.json && next build",
-    "build:server": "tsc --project tsconfig.server.json && chmod +x dist/src/server/mcp-host.js",
+    "build:server": "tsc --project tsconfig.server.json && chmod +x dist/mcp-host-simple.js && chmod +x dist/src/server/mcp-host-enhanced.js 2>/dev/null || true",
     "build:host": "tsc mcp-host.ts --outDir dist --module esnext --target es2022 --moduleResolution bundler --allowSyntheticDefaultImports",
     "lint": "next lint",
+    "mcp:simple": "node dist/mcp-host-simple.js",
+    "mcp:enhanced": "node dist/src/server/mcp-host-enhanced.js",
     "mcp:host": "node dist/mcp-host.js",
-    "mcp:claude": "node dist/mcp-host.js",
-    "mcp:cursor": "node dist/mcp-host.js",
-    "mcp:cline": "node dist/mcp-host.js",
+    "mcp:claude": "node dist/src/server/mcp-host-enhanced.js",
+    "mcp:cursor": "node dist/src/server/mcp-host-enhanced.js",
+    "mcp:cline": "node dist/src/server/mcp-host-enhanced.js",
     "python:start": "python ./python-service/python_memvid_service.py",
     "python:check": "curl -f http://localhost:8000/health || echo 'Python service not running'",
     "setup": "npm install",
     "clean": "rm -rf dist shared_knowledge",
-    "start-all": "npm run build:server && npm run start"
+    "kill-ports": "lsof -ti:3000,8000 | xargs -r kill -9",
+    "start-all": "npm run build:server && npm run start:services"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
@@ -58,7 +62,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "winston": "^3.11.0",
-    "zod": "^3.23.8"
+    "zod": "^3.25.56"
   },
   "devDependencies": {
     "@types/node": "latest",

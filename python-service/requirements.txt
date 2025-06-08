@@ -14,3 +14,9 @@ python-multipart>=0.0.6
 
 # Optional: For enhanced development
 python-dotenv>=1.0.0
+
+# Optional: For AI providers
+openai
+google-generativeai
+anthropic
+# Note: OpenRouter can be accessed using the openai library with a custom base URL or via requests which is already included
