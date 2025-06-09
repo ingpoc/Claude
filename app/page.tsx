@@ -22,7 +22,8 @@ import {
   Bot,
   Link2,
   Tag,
-  GitBranch
+  GitBranch,
+  Send
 } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -32,6 +33,8 @@ import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Progress } from "../components/ui/progress";
 import { cn } from "../lib/utils";
+import { ScrollArea } from "../components/ui/scroll-area";
+import { useSettings } from "../lib/hooks/useSettings";
 
 interface DashboardStats {
   entities: number;
@@ -83,6 +86,17 @@ export default function Dashboard() {
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState('');
   const [selectedProject, setSelectedProject] = useState('');
   const [isQuerying, setIsQuerying] = useState(false);
+  const [chatHistory, setChatHistory] = useState<Array<{
+    id: string;
+    type: 'user' | 'assistant';
+    message: string;
+    timestamp: Date;
+    entities?: any[];
+    confidence?: number;
+  }>>([]);
+  
+  // Get AI configuration from settings
+  const { getAIConfig, isAIFeatureEnabled } = useSettings();
 
   const headerRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
@@ -206,34 +220,195 @@ export default function Dashboard() {
     }
   }, [isLoading]);
 
+  // Use configured AI model for intelligent responses
+  const generateAIResponse = async (query: string, searchResults: any, projectData: any): Promise<{ message: string; confidence: number }> => {
+    const aiConfig = getAIConfig();
+    const entities = searchResults.entities || [];
+    const projectName = projects.find(p => p.id === selectedProject)?.name || 'your project';
+    
+    // Check if AI is properly configured
+    if (!aiConfig.enabled || !aiConfig.config.apiKey) {
+      return {
+        message: `AI features are not configured. Please set up your OpenRouter API key in Settings to get intelligent responses.`,
+        confidence: 0.1
+      };
+    }
+    
+    try {
+      // Try Python backend AI endpoint first (if available)
+      try {
+        const backendResponse = await fetch('http://localhost:8000/api/ai-query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: query,
+            project_id: selectedProject,
+            ai_config: aiConfig,
+            include_context: true,
+            max_results: 10
+          })
+        });
+        
+        if (backendResponse.ok) {
+          const result = await backendResponse.json();
+          if (result.success) {
+            return {
+              message: result.response,
+              confidence: result.confidence || 0.9
+            };
+          } else {
+            console.warn('Backend AI query failed:', result.error);
+            // Fall through to direct API call
+          }
+        }
+      } catch (backendError) {
+        console.warn('Backend AI endpoint not available, using direct API call:', backendError);
+        // Fall through to direct API call
+      }
+      
+      // Fallback to direct OpenRouter API call
+      const context = `You are an AI assistant helping users understand their knowledge graph project "${projectName}". 
+
+Project Statistics:
+- Total entities: ${projectData.entityCount}
+- Total relationships: ${projectData.relationshipCount}
+- Entity types: ${projectData.entities.map((e: any) => e.type).filter((type: string, index: number, arr: string[]) => arr.indexOf(type) === index).join(', ')}
+
+Search Results for "${query}":
+${entities.map((e: any, i: number) => `${i + 1}. ${e.name} (${e.type}): ${e.description}`).join('\n')}
+
+User Question: ${query}
+
+Provide a helpful, conversational response about the search results and knowledge graph. Be specific about the entities found and suggest follow-up actions. Keep it concise but informative.`;
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${aiConfig.config.apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'MCP Knowledge Graph'
+        },
+        body: JSON.stringify({
+          model: aiConfig.config.model,
+          messages: [{ role: 'user', content: context }],
+          max_tokens: Math.min(aiConfig.config.maxTokens || 2048, 1000),
+          temperature: aiConfig.config.temperature || 0.7
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const aiMessage = result.choices?.[0]?.message?.content || 'Sorry, I couldn\'t generate a response.';
+        
+        return {
+          message: aiMessage,
+          confidence: 0.9
+        };
+      } else if (response.status === 401) {
+        return {
+          message: 'API key is invalid. Please check your OpenRouter API key in Settings.',
+          confidence: 0.1
+        };
+      } else if (response.status === 429) {
+        return {
+          message: 'Rate limit exceeded. Please try again in a moment.',
+          confidence: 0.3
+        };
+      } else {
+        throw new Error(`API error: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('AI response error:', error);
+      
+      // Fallback to simple response if AI fails
+      if (entities.length === 0) {
+        return {
+          message: `I couldn't find any entities matching "${query}" in ${projectName}. Try asking about specific concepts, types, or relationships in your knowledge graph.`,
+          confidence: 0.3
+        };
+      }
+      
+      const simpleResponse = `I found ${entities.length} entities matching "${query}" in ${projectName}:\n\n${entities.slice(0, 3).map((e: any) => `• **${e.name}** (${e.type}) - ${e.description}`).join('\n')}${entities.length > 3 ? `\n\n...and ${entities.length - 3} more entities.` : ''}`;
+      
+      return {
+        message: simpleResponse + '\n\n(Note: AI features unavailable - using basic search results)',
+        confidence: 0.6
+      };
+    }
+  };
+
   const handleNaturalLanguageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!naturalLanguageQuery.trim() || !selectedProject || isQuerying) return;
     
+    const userQuery = naturalLanguageQuery.trim();
     setIsQuerying(true);
     
+    // Add user message to chat
+    const userMessage = {
+      id: Date.now().toString(),
+      type: 'user' as const,
+      message: userQuery,
+      timestamp: new Date()
+    };
+    setChatHistory(prev => [...prev, userMessage]);
+    setNaturalLanguageQuery('');
+    
     try {
-      // Use the Python backend's search API
-      const response = await fetch(`http://localhost:8000/api/search?q=${encodeURIComponent(naturalLanguageQuery)}&project_id=${selectedProject}&limit=10`);
+      // Fetch project entities and relationships for context
+      const [entitiesResponse, relationshipsResponse, searchResponse] = await Promise.all([
+        fetch(`http://localhost:8000/api/entities?project_id=${selectedProject}`),
+        fetch(`http://localhost:8000/api/relationships?project_id=${selectedProject}`),
+        fetch(`http://localhost:8000/api/search?q=${encodeURIComponent(userQuery)}&project_id=${selectedProject}&limit=10`)
+      ]);
       
-      if (response.ok) {
-        const results = await response.json();
+      if (searchResponse.ok) {
+        const searchResults = await searchResponse.json();
+        const projectEntities = entitiesResponse.ok ? await entitiesResponse.json() : [];
+        const projectRelationships = relationshipsResponse.ok ? await relationshipsResponse.json() : [];
         
-        // Display results in a simple alert for now (or you could add a results modal)
-        const resultText = results.entities && results.entities.length > 0 
-          ? `Found ${results.entities.length} entities:\n${results.entities.map((e: any) => `• ${e.name} (${e.type}): ${e.description}`).join('\n')}`
-          : 'No matching entities found for your query.';
+        const projectData = {
+          entities: projectEntities,
+          relationships: projectRelationships,
+          entityCount: projectEntities.length,
+          relationshipCount: projectRelationships.length
+        };
         
-        alert(`Natural Language Query Results:\n\n${resultText}`);
+        const aiResponse = await generateAIResponse(userQuery, searchResults, projectData);
         
-        // Clear the query
-        setNaturalLanguageQuery('');
+        // Add AI response to chat
+        const assistantMessage = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant' as const,
+          message: aiResponse.message,
+          timestamp: new Date(),
+          entities: searchResults.entities || [],
+          confidence: aiResponse.confidence
+        };
+        setChatHistory(prev => [...prev, assistantMessage]);
       } else {
-        alert('Search failed. Please make sure the Python service is running.');
+        const errorMessage = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant' as const,
+          message: 'I\'m having trouble accessing the knowledge graph. Please make sure the Python service is running at http://localhost:8000.',
+          timestamp: new Date(),
+          confidence: 0.1
+        };
+        setChatHistory(prev => [...prev, errorMessage]);
       }
     } catch (error) {
       console.error('Query failed:', error);
-      alert('Search failed. Please make sure the Python service is running at http://localhost:8000');
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant' as const,
+        message: 'I encountered an error while processing your query. Please check that the Python service is running.',
+        timestamp: new Date(),
+        confidence: 0.1
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
     } finally {
       setIsQuerying(false);
     }
@@ -388,9 +563,21 @@ export default function Dashboard() {
           <div className="lg:col-span-2">
             <Card className="bg-white shadow-lg">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-indigo-600" />
-                  Natural Language Query
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-indigo-600" />
+                    Natural Language Query
+                  </div>
+                  {chatHistory.length > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setChatHistory([])}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      Clear Chat
+                    </Button>
+                  )}
                 </CardTitle>
                 {projects.length > 0 && (
                   <>
@@ -428,62 +615,121 @@ export default function Dashboard() {
                     </Button>
                   </div>
                 ) : (
-                  <>
-                    <div className="flex items-center justify-center py-8 text-gray-400">
-                      <MessageSquare className="h-12 w-12 mb-4" />
-                    </div>
-                    <p className="text-center text-gray-500 mb-4">
-                      Ask me anything about your knowledge graph
-                    </p>
-                    <p className="text-center text-sm text-gray-400 mb-4">
-                      Try these examples:
-                    </p>
-                    <div className="space-y-2">
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start text-left h-auto py-3"
-                        onClick={() => setNaturalLanguageQuery("Show me all entities in this project")}
-                      >
-                        <Search className="h-4 w-4 mr-2 text-gray-400" />
-                        Show me all entities in this project
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start text-left h-auto py-3"
-                        onClick={() => setNaturalLanguageQuery("What relationships exist between entities?")}
-                      >
-                        <Search className="h-4 w-4 mr-2 text-gray-400" />
-                        What relationships exist between entities?
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start text-left h-auto py-3"
-                        onClick={() => setNaturalLanguageQuery("Find entities without relationships")}
-                      >
-                        <Search className="h-4 w-4 mr-2 text-gray-400" />
-                        Find entities without relationships
-                      </Button>
-                    </div>
-                    
-                    <form onSubmit={handleNaturalLanguageSubmit} className="mt-6">
-                      <div className="flex gap-2">
-                        <Input
-                          value={naturalLanguageQuery}
-                          onChange={(e) => setNaturalLanguageQuery(e.target.value)}
-                          placeholder="Ask about your knowledge graph... (Press Enter to send)"
-                          className="flex-1"
-                          disabled={!selectedProject}
-                        />
-                        <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={!selectedProject || isQuerying}>
-                          {isQuerying ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                          ) : (
-                            <Search className="h-4 w-4" />
+                  <div className="flex flex-col h-96">
+                    {/* Chat History */}
+                    <ScrollArea className="flex-1 mb-4 p-4 border rounded-lg bg-gray-50">
+                      {chatHistory.length === 0 ? (
+                        <div className="text-center py-8">
+                          <Bot className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                          <p className="text-gray-500 mb-4">
+                            Ask me anything about your knowledge graph
+                          </p>
+                          <div className="space-y-2 text-left">
+                            <button
+                              onClick={() => setNaturalLanguageQuery("Show me all entities in this project")}
+                              className="block w-full text-left p-2 rounded hover:bg-gray-100 text-sm text-gray-600"
+                            >
+                              • Show me all entities in this project
+                            </button>
+                            <button
+                              onClick={() => setNaturalLanguageQuery("What relationships exist between entities?")}
+                              className="block w-full text-left p-2 rounded hover:bg-gray-100 text-sm text-gray-600"
+                            >
+                              • What relationships exist between entities?
+                            </button>
+                            <button
+                              onClick={() => setNaturalLanguageQuery("Find entities without relationships")}
+                              className="block w-full text-left p-2 rounded hover:bg-gray-100 text-sm text-gray-600"
+                            >
+                              • Find entities without relationships
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {chatHistory.map((message) => (
+                            <div key={message.id} className={cn(
+                              "flex items-start gap-3",
+                              message.type === 'user' ? 'justify-end' : 'justify-start'
+                            )}>
+                              {message.type === 'assistant' && (
+                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                  <Bot className="h-4 w-4 text-blue-600" />
+                                </div>
+                              )}
+                              <div className={cn(
+                                "max-w-[70%] rounded-lg p-3",
+                                message.type === 'user' 
+                                  ? 'bg-blue-600 text-white ml-auto' 
+                                  : 'bg-white border border-gray-200'
+                              )}>
+                                <div className={cn(
+                                  "text-sm whitespace-pre-wrap",
+                                  message.type === 'user' ? 'text-white' : 'text-gray-700'
+                                )}>
+                                  {message.message.split('**').map((part, index) => 
+                                    index % 2 === 1 ? <strong key={index}>{part}</strong> : part
+                                  )}
+                                </div>
+                                {message.confidence && (
+                                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                    <TrendingUp className="h-3 w-3" />
+                                    <span>{Math.round(message.confidence * 100)}% confidence</span>
+                                  </div>
+                                )}
+                                <div className={cn(
+                                  "text-xs mt-1",
+                                  message.type === 'user' ? 'text-blue-200' : 'text-gray-400'
+                                )}>
+                                  {message.timestamp.toLocaleTimeString()}
+                                </div>
+                              </div>
+                              {message.type === 'user' && (
+                                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                  <Users className="h-4 w-4 text-gray-600" />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {isQuerying && (
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <Bot className="h-4 w-4 text-blue-600" />
+                              </div>
+                              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                                  Thinking...
+                                </div>
+                              </div>
+                            </div>
                           )}
-                        </Button>
-                      </div>
+                        </div>
+                      )}
+                    </ScrollArea>
+                    
+                    {/* Chat Input */}
+                    <form onSubmit={handleNaturalLanguageSubmit} className="flex gap-2">
+                      <Input
+                        value={naturalLanguageQuery}
+                        onChange={(e) => setNaturalLanguageQuery(e.target.value)}
+                        placeholder="Ask about your knowledge graph... (Press Enter to send)"
+                        className="flex-1"
+                        disabled={!selectedProject || isQuerying}
+                      />
+                      <Button 
+                        type="submit" 
+                        className="bg-blue-600 hover:bg-blue-700" 
+                        disabled={!selectedProject || isQuerying || !naturalLanguageQuery.trim()}
+                      >
+                        {isQuerying ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </Button>
                     </form>
-                  </>
+                  </div>
                 )}
               </CardContent>
             </Card>

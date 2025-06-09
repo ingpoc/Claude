@@ -72,7 +72,7 @@ export function NaturalLanguageQuery({
   
   // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL
   // Use the settings hook to check AI feature availability
-  const { isAIFeatureEnabled, loading: settingsLoading } = useSettings();
+  const { isAIFeatureEnabled, getAIConfig, loading: settingsLoading } = useSettings();
 
   // Update selectedProjectId if initialProjectId changes and is valid
   useEffect(() => {
@@ -153,53 +153,67 @@ export function NaturalLanguageQuery({
     }
 
     try {
-      const response = await fetch(`/api/projects/${targetProjectId}/query`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API request failed (${response.status}): ${errorText}`);
-      }
-
-      const responseText = await response.text();
-      if (!responseText || responseText.trim() === '') {
-        throw new Error('Empty response from API');
-      }
-
-      let data;
+      // Try Python backend AI endpoint first (if available)
       try {
-        data = JSON.parse(responseText);
-      } catch (jsonError) {
-        console.error('Failed to parse JSON response:', { responseText, jsonError });
-        throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`);
+        const backendResponse = await fetch('http://localhost:8000/api/ai-query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: query.trim(),
+            project_id: targetProjectId === '_determine_' ? null : targetProjectId,
+            ai_config: getAIConfig(),
+            include_context: true,
+            max_results: 10
+          })
+        });
+        
+        if (backendResponse.ok) {
+          const data = await backendResponse.json();
+          if (data.success) {
+            const newResult: QueryResult = {
+              id: Date.now().toString(),
+              query: data.query,
+              response: data.response,
+              timestamp: new Date(data.timestamp),
+              entities: data.entities || [],
+              relationships: data.relationships || [],
+              confidence: data.confidence || 0.9,
+              queryType: data.queryType || 'ai_processed'
+            };
+            
+            setResults(prev => [newResult, ...prev]);
+            setQuery('');
+            
+            // Scroll to bottom
+            setTimeout(() => {
+              if (scrollAreaRef.current) {
+                scrollAreaRef.current.scrollTop = 0;
+              }
+            }, 100);
+            
+            return; // Success, exit early
+          } else {
+            console.warn('Backend AI query failed:', data.error);
+            // Fall through to demo response
+          }
+        }
+      } catch (backendError) {
+        console.warn('Backend AI endpoint not available:', backendError);
+        // Fall through to demo response
       }
-      console.log("Received data from /query API:", data);
-
-      if (!data.success) {
-        console.error('Query API call returned success=false', { dataReceived: data });
-        throw new Error(data.error || 'Failed to process query');
-      }
-
-      if (!data.response || (typeof data.response === 'string' && data.response.trim() === '')) {
-        console.warn("Query API successful, but AI response text is empty.", { data });
-      }
-
-      const newResult: QueryResult = {
-        id: Date.now().toString(),
-        query: data.query,
-        response: data.response,
-        timestamp: new Date(data.timestamp),
-        entities: data.entities || [],
-        relationships: data.relationships || [],
-        confidence: data.confidence || 0.7,
-        queryType: data.queryType || 'general'
-      };
       
+      // Fallback to demo response if AI is not available
+      console.log('Using demo response for query:', query.trim());
+      const newResult: QueryResult = {
+        ...mockResults[0],
+        id: Date.now().toString(),
+        query: query.trim(),
+        response: `Demo response for "${query.trim()}": ${mockResults[0].response}\n\n*Note: Configure your OpenRouter API key in Settings to get real AI responses.*`,
+        timestamp: new Date(),
+        confidence: 0.5
+      };
       setResults(prev => [newResult, ...prev]);
       setQuery('');
       

@@ -673,6 +673,174 @@ async def delete_project(project_id: str):
         raise HTTPException(status_code=404, detail=f"Project with ID {project_id} not found.")
     return {"message": f"Project {project_id} and its contents deleted successfully."}
 
+# AI Query Model
+class AIQueryRequest(BaseModel):
+    query: str
+    project_id: Optional[str] = None
+    ai_config: Dict[str, Any]
+    include_context: bool = True
+    max_results: int = 10
+
+@app.post("/api/ai-query")
+async def ai_query(request: AIQueryRequest):
+    """AI-powered natural language query endpoint"""
+    try:
+        # Get project context
+        project_entities = []
+        project_relationships = []
+        project_name = "your project"
+        
+        if request.project_id:
+            project_entities = await kg.list_entities(project_id=request.project_id)
+            project_relationships = await kg.list_relationships(project_id=request.project_id)
+            project = await kg.get_project(request.project_id)
+            if project:
+                # Handle both dict and Pydantic model objects
+                if hasattr(project, 'name'):
+                    project_name = project.name
+                elif isinstance(project, dict):
+                    project_name = project.get("name", "your project")
+                else:
+                    project_name = "your project"
+        
+        # Search for relevant entities
+        search_results = await kg.search_entities(
+            query=request.query,
+            limit=request.max_results,
+            project_id=request.project_id
+        )
+        
+        # Extract AI config
+        ai_config = request.ai_config
+        logging.info(f"Received AI config: enabled={ai_config.get('enabled')}, has_api_key={bool(ai_config.get('config', {}).get('apiKey'))}")
+        
+        if not ai_config.get("enabled"):
+            return {
+                "success": False,
+                "error": "AI features are disabled in settings",
+                "query": request.query,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        if not ai_config.get("config", {}).get("apiKey"):
+            return {
+                "success": False,
+                "error": "OpenRouter API key not configured in settings",
+                "query": request.query,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Import requests for OpenRouter API call
+        try:
+            import requests
+        except ImportError:
+            logging.error("requests library not installed. Install with: pip install requests")
+            return {
+                "success": False,
+                "error": "requests library not available for AI processing",
+                "query": request.query,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Create context for AI
+        context_info = f"""You are an AI assistant helping users understand their knowledge graph project "{project_name}".
+
+Project Statistics:
+- Total entities: {len(project_entities)}
+- Total relationships: {len(project_relationships)}
+- Entity types: {', '.join(set(e.type for e in project_entities))}
+
+Search Results for "{request.query}":
+{chr(10).join(f"{i+1}. {e.get('name', 'Unknown')} ({e.get('type', 'unknown')}): {e.get('description', 'No description')}" for i, e in enumerate(search_results[:5]))}
+
+User Question: {request.query}
+
+Provide a helpful, conversational response about the search results and knowledge graph. Be specific about the entities found and suggest follow-up actions. Keep it concise but informative."""
+        
+        # Call OpenRouter API
+        try:
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {ai_config['config']['apiKey']}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "http://localhost:3000",
+                    "X-Title": "MCP Knowledge Graph"
+                },
+                json={
+                    "model": ai_config["config"].get("model", "meta-llama/llama-3.2-3b-instruct:free"),
+                    "messages": [{"role": "user", "content": context_info}],
+                    "max_tokens": min(ai_config["config"].get("maxTokens", 2048), 1000),
+                    "temperature": ai_config["config"].get("temperature", 0.7)
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                ai_message = result.get("choices", [{}])[0].get("message", {}).get("content", "Sorry, I couldn't generate a response.")
+                
+                return {
+                    "success": True,
+                    "response": ai_message,
+                    "query": request.query,
+                    "entities": [e.get("name", "Unknown") for e in search_results[:5]],
+                    "confidence": 0.9,
+                    "queryType": "ai_processed",
+                    "timestamp": datetime.now().isoformat(),
+                    "project_context": {
+                        "name": project_name,
+                        "entity_count": len(project_entities),
+                        "relationship_count": len(project_relationships)
+                    }
+                }
+            elif response.status_code == 401:
+                return {
+                    "success": False,
+                    "error": "Invalid API key. Please check your OpenRouter configuration.",
+                    "query": request.query,
+                    "timestamp": datetime.now().isoformat()
+                }
+            elif response.status_code == 429:
+                return {
+                    "success": False,
+                    "error": "Rate limit exceeded. Please try again in a moment.",
+                    "query": request.query,
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"AI service error: {response.status_code}",
+                    "query": request.query,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+        except requests.exceptions.Timeout:
+            return {
+                "success": False,
+                "error": "AI service timeout. Please try again.",
+                "query": request.query,
+                "timestamp": datetime.now().isoformat()
+            }
+        except requests.exceptions.RequestException as e:
+            logging.error(f"AI API request failed: {e}")
+            return {
+                "success": False,
+                "error": "Failed to connect to AI service",
+                "query": request.query,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logging.error(f"AI query processing failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": f"Internal server error during AI processing: {str(e)}",
+            "query": request.query,
+            "timestamp": datetime.now().isoformat()
+        }
+
 def main():
     """Main function to run the service"""
     host = os.getenv("HOST", "127.0.0.1")
