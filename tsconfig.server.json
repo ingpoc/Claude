@@ -9,6 +9,7 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "outDir": "dist",
+    "rootDir": "src/server",
     "strict": false,
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -16,9 +17,7 @@
     "allowImportingTsExtensions": false
   },
   "include": [
-    "src/server/mcp-host.ts",
-    "lib/services/Logger.ts",
-    "lib/services/MemvidService.ts"
+    "src/server/mcp-host.ts"
   ],
   "exclude": [
     "node_modules",

@@ -84,6 +84,50 @@
       "createdAt": "2025-06-09T18:33:17.480718",
       "updatedAt": "2025-06-09T18:33:17.480718",
       "projectId": "default"
+    },
+    {
+      "id": "7f7bd241-9036-4fc3-9b16-52ff7f8e8bb0",
+      "name": "Hydrogen Atom",
+      "type": "Particle",
+      "description": "The simplest atom consisting of one proton and one electron",
+      "observations": [],
+      "addedBy": "unknown",
+      "createdAt": "2025-06-09T22:12:04.090384",
+      "updatedAt": "2025-06-09T22:12:04.090384",
+      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+    },
+    {
+      "id": "9abe5575-1a21-4f32-8565-b831970b3bc3",
+      "name": "Proton",
+      "type": "Subatomic Particle",
+      "description": "A subatomic particle with positive electric charge found in atomic nuclei",
+      "observations": [],
+      "addedBy": "unknown",
+      "createdAt": "2025-06-09T22:12:19.599419",
+      "updatedAt": "2025-06-09T22:12:19.599419",
+      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+    },
+    {
+      "id": "313b27d0-efd7-4fec-9140-e92eeae5d813",
+      "name": "Up Quark",
+      "type": "Fundamental Particle",
+      "description": "A fundamental particle and a basic constituent of matter, carrying fractional electric charge",
+      "observations": [],
+      "addedBy": "unknown",
+      "createdAt": "2025-06-09T22:12:33.404547",
+      "updatedAt": "2025-06-09T22:12:33.404547",
+      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+    },
+    {
+      "id": "addd4dc2-8cee-4af3-bdac-d4065ab05272",
+      "name": "Down Quark",
+      "type": "Fundamental Particle",
+      "description": "A fundamental particle similar to up quarks but with different charge properties",
+      "observations": [],
+      "addedBy": "unknown",
+      "createdAt": "2025-06-09T22:12:45.894796",
+      "updatedAt": "2025-06-09T22:12:45.894796",
+      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
     }
   ],
   "relationships": [
@@ -96,6 +140,36 @@
       "addedBy": "System",
       "createdAt": "2025-06-08T18:06:04.546167",
       "projectId": "50f3fe84-ed94-4ab7-9837-c6d9cb339a96"
+    },
+    {
+      "id": "d9862c2c-f324-4289-b4f4-a53aa613c23c",
+      "sourceId": "7f7bd241-9036-4fc3-9b16-52ff7f8e8bb0",
+      "targetId": "9abe5575-1a21-4f32-8565-b831970b3bc3",
+      "type": "contains",
+      "description": "Hydrogen atom contains a proton in its nucleus",
+      "addedBy": "unknown",
+      "createdAt": "2025-06-09T22:13:03.156308",
+      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+    },
+    {
+      "id": "73847b33-0bb6-4039-b782-b27c6026149a",
+      "sourceId": "9abe5575-1a21-4f32-8565-b831970b3bc3",
+      "targetId": "313b27d0-efd7-4fec-9140-e92eeae5d813",
+      "type": "composed_of",
+      "description": "Proton is composed of two up quarks and one down quark",
+      "addedBy": "unknown",
+      "createdAt": "2025-06-09T22:13:18.598040",
+      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+    },
+    {
+      "id": "44af1590-4ce2-411b-88f2-4c88a5a630ca",
+      "sourceId": "9abe5575-1a21-4f32-8565-b831970b3bc3",
+      "targetId": "addd4dc2-8cee-4af3-bdac-d4065ab05272",
+      "type": "composed_of",
+      "description": "Proton also contains down quarks as part of its composition",
+      "addedBy": "unknown",
+      "createdAt": "2025-06-09T22:13:32.291746",
+      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
     }
   ],
   "projects": [
@@ -128,5 +202,5 @@
       "lastAccessed": "2025-06-09T18:34:38.485439"
     }
   ],
-  "updated_at": "2025-06-09T18:34:38.485656"
+  "updated_at": "2025-06-09T22:13:32.292109"
 }

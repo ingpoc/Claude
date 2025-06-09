@@ -38,9 +38,51 @@
     },
     {
       "id": 6,
-      "text": "Relationship: includes\nFrom: 0a89b28a-7546-4609-8463-e36aac7803cf \nTo: b576e43f-d172-4271-80c5-29c02942977e\nProject: 50f3fe84-ed94-4ab7-9837-c6d9cb339a96\nDescription: Machine Learning includes Deep Learning as a subset\nAdded by: System\nCreated: 2025-06-08T18:06:04.546167\n",
+      "text": "Entity: Hydrogen Atom (Particle)\nProject: 85f7645f-b3ef-4ff4-98f9-0dbd87441499\nDescription: The simplest atom consisting of one proton and one electron\nAdded by: unknown\nCreated: 2025-06-09T22:12:04.090384\n\nObservations:\n\n",
       "frame": 6,
+      "length": 222
+    },
+    {
+      "id": 7,
+      "text": "Entity: Proton (Subatomic Particle)\nProject: 85f7645f-b3ef-4ff4-98f9-0dbd87441499\nDescription: A subatomic particle with positive electric charge found in atomic nuclei\nAdded by: unknown\nCreated: 2025-06-09T22:12:19.599419\n\nObservations:\n\n",
+      "frame": 7,
+      "length": 239
+    },
+    {
+      "id": 8,
+      "text": "Entity: Up Quark (Fundamental Particle)\nProject: 85f7645f-b3ef-4ff4-98f9-0dbd87441499\nDescription: A fundamental particle and a basic constituent of matter, carrying fractional electric charge\nAdded by: unknown\nCreated: 2025-06-09T22:12:33.404547\n\nObservations:\n\n",
+      "frame": 8,
+      "length": 263
+    },
+    {
+      "id": 9,
+      "text": "Entity: Down Quark (Fundamental Particle)\nProject: 85f7645f-b3ef-4ff4-98f9-0dbd87441499\nDescription: A fundamental particle similar to up quarks but with different charge properties\nAdded by: unknown\nCreated: 2025-06-09T22:12:45.894796\n\nObservations:\n\n",
+      "frame": 9,
+      "length": 252
+    },
+    {
+      "id": 10,
+      "text": "Relationship: includes\nFrom: 0a89b28a-7546-4609-8463-e36aac7803cf \nTo: b576e43f-d172-4271-80c5-29c02942977e\nProject: 50f3fe84-ed94-4ab7-9837-c6d9cb339a96\nDescription: Machine Learning includes Deep Learning as a subset\nAdded by: System\nCreated: 2025-06-08T18:06:04.546167\n",
+      "frame": 10,
       "length": 272
+    },
+    {
+      "id": 11,
+      "text": "Relationship: contains\nFrom: 7f7bd241-9036-4fc3-9b16-52ff7f8e8bb0 \nTo: 9abe5575-1a21-4f32-8565-b831970b3bc3\nProject: 85f7645f-b3ef-4ff4-98f9-0dbd87441499\nDescription: Hydrogen atom contains a proton in its nucleus\nAdded by: unknown\nCreated: 2025-06-09T22:13:03.156308\n",
+      "frame": 11,
+      "length": 268
+    },
+    {
+      "id": 12,
+      "text": "Relationship: composed_of\nFrom: 9abe5575-1a21-4f32-8565-b831970b3bc3 \nTo: 313b27d0-efd7-4fec-9140-e92eeae5d813\nProject: 85f7645f-b3ef-4ff4-98f9-0dbd87441499\nDescription: Proton is composed of two up quarks and one down quark\nAdded by: unknown\nCreated: 2025-06-09T22:13:18.598040\n",
+      "frame": 12,
+      "length": 279
+    },
+    {
+      "id": 13,
+      "text": "Relationship: composed_of\nFrom: 9abe5575-1a21-4f32-8565-b831970b3bc3 \nTo: addd4dc2-8cee-4af3-bdac-d4065ab05272\nProject: 85f7645f-b3ef-4ff4-98f9-0dbd87441499\nDescription: Proton also contains down quarks as part of its composition\nAdded by: unknown\nCreated: 2025-06-09T22:13:32.291746\n",
+      "frame": 13,
+      "length": 284
     }
   ],
   "chunk_to_frame": {
@@ -50,7 +92,14 @@
     "3": 3,
     "4": 4,
     "5": 5,
-    "6": 6
+    "6": 6,
+    "7": 7,
+    "8": 8,
+    "9": 9,
+    "10": 10,
+    "11": 11,
+    "12": 12,
+    "13": 13
   },
   "frame_to_chunks": {
     "0": [
@@ -73,6 +122,27 @@
     ],
     "6": [
       6
+    ],
+    "7": [
+      7
+    ],
+    "8": [
+      8
+    ],
+    "9": [
+      9
+    ],
+    "10": [
+      10
+    ],
+    "11": [
+      11
+    ],
+    "12": [
+      12
+    ],
+    "13": [
+      13
     ]
   },
   "config": {

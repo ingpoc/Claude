@@ -395,7 +395,7 @@ Created: {relationship.createdAt}
         
         try:
             # Use memvid semantic search with enhanced scoring
-            search_results = await self.retriever.search(query, limit * 2)  # Get more results for filtering
+            search_results = self.retriever.search(query, limit * 2)  # Get more results for filtering
             
             # Convert results to entity format with relevance scores
             results = []

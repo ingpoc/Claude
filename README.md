@@ -28,9 +28,10 @@ A comprehensive knowledge graph system that combines the Model Context Protocol 
 ├── components/                   # React components
 │   ├── ui/                      # UI components (graphs, forms, etc.)
 │   └── *.tsx                    # Entity, project, and dashboard components
-├── src/server/                   # MCP server implementations
-│   ├── mcp-host-simple.ts       # Basic MCP server
-│   └── mcp-host-enhanced.ts     # Full-featured MCP server
+├── src/server/                   # MCP server source
+│   └── mcp-host.ts              # TypeScript source file
+├── dist/                         # Built files
+│   └── mcp-host.js              # Production MCP server (compiled from TypeScript)
 ├── python-service/               # Backend service
 │   ├── python_memvid_service.py # Main Python API server
 │   ├── requirements.txt         # Python dependencies
@@ -89,7 +90,7 @@ npm run dev
   "mcpServers": {
     "knowledge-graph": {
       "command": "node",
-      "args": ["/absolute/path/to/dist/mcp-host-simple.js"],
+      "args": ["/absolute/path/to/dist/mcp-host.js"],
       "env": { "NODE_ENV": "development" }
     }
   }
@@ -101,7 +102,7 @@ npm run dev
 {
   "name": "knowledge-graph",
   "command": "node", 
-  "args": ["/absolute/path/to/dist/mcp-host-simple.js"]
+  "args": ["/absolute/path/to/dist/mcp-host.js"]
 }
 ```
 
