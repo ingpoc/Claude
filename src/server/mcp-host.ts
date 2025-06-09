@@ -12,6 +12,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  InitializeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
 // Types
@@ -33,14 +34,11 @@ interface Project {
   createdAt: string;
 }
 
-// Client detection
-function detectClientInfo() {
-  const processName = process.env.MCP_CLIENT_NAME || 'unknown';
-  return {
-    name: processName,
-    version: '1.0.0'
-  };
-}
+// Client information captured from MCP initialize
+let clientInfo = {
+  name: 'unknown',
+  version: 'unknown'
+};
 
 // Backend service
 class BackendService {
@@ -76,7 +74,6 @@ class BackendService {
 
 // Initialize
 const backend = new BackendService();
-const clientInfo = detectClientInfo();
 
 const server = new Server({
   name: "knowledge-graph",
@@ -89,8 +86,6 @@ const server = new Server({
 
 // Health check
 async function initializeServer() {
-  console.error(`🔌 MCP Client: ${clientInfo.name} v${clientInfo.version}`);
-  
   const isHealthy = await backend.checkHealth();
   if (!isHealthy) {
     console.error('❌ Backend service not available at http://localhost:8000');
@@ -100,6 +95,30 @@ async function initializeServer() {
   
   console.error('✅ Connected to backend service');
 }
+
+// Initialize handler - captures client information from MCP protocol
+server.setRequestHandler(InitializeRequestSchema, async (request) => {
+  const { params } = request;
+  
+  // Capture client info from the initialize request
+  if (params.clientInfo) {
+    clientInfo.name = params.clientInfo.name || 'unknown';
+    clientInfo.version = params.clientInfo.version || 'unknown';
+  }
+  
+  console.error(`🔌 MCP Client Connected: ${clientInfo.name} v${clientInfo.version}`);
+  
+  return {
+    protocolVersion: "2024-11-05",
+    capabilities: {
+      tools: {}
+    },
+    serverInfo: {
+      name: "knowledge-graph",
+      version: "1.0.0"
+    }
+  };
+});
 
 // Tools list handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {

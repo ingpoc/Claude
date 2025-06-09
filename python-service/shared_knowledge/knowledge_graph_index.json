@@ -62,9 +62,9 @@
     },
     {
       "id": 10,
-      "text": "Entity: Test User (person)\nProject: default\nDescription: A test user for observation testing\nAdded by: test-client\nCreated: 2025-06-09T22:41:50.775816\n\nObservations:\n- User was very helpful during onboarding process (by unknown)\n- User showed excellent problem-solving skills (by unknown)\n",
+      "text": "Entity: Test User (person)\nProject: default\nDescription: A test user for observation testing\nAdded by: test-client\nCreated: 2025-06-09T22:41:50.775816\n\nObservations:\n- User was very helpful during onboarding process (by unknown)\n- User showed excellent problem-solving skills (by unknown)\n- Testing Cursor client detection (by Cursor)\n",
       "frame": 10,
-      "length": 289
+      "length": 335
     },
     {
       "id": 11,

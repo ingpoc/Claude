@@ -146,11 +146,17 @@
           "text": "User showed excellent problem-solving skills",
           "addedBy": "unknown",
           "createdAt": "2025-06-09T22:43:20.125193"
+        },
+        {
+          "id": "obs_1749490026413753_4820c8c3",
+          "text": "Testing Cursor client detection",
+          "addedBy": "Cursor",
+          "createdAt": "2025-06-09T22:57:06.413805"
         }
       ],
       "addedBy": "test-client",
       "createdAt": "2025-06-09T22:41:50.775816",
-      "updatedAt": "2025-06-09T22:43:20.125204",
+      "updatedAt": "2025-06-09T22:57:06.413811",
       "projectId": "default"
     }
   ],
@@ -226,5 +232,5 @@
       "lastAccessed": "2025-06-09T18:34:38.485439"
     }
   ],
-  "updated_at": "2025-06-09T22:43:20.125380"
+  "updated_at": "2025-06-09T22:57:06.414328"
 }
