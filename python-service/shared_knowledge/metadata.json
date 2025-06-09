@@ -62,6 +62,28 @@
       "createdAt": "2025-06-08T18:05:29.700511",
       "updatedAt": "2025-06-08T18:05:29.700511",
       "projectId": "50f3fe84-ed94-4ab7-9837-c6d9cb339a96"
+    },
+    {
+      "id": "999637e3-4a55-4e42-a742-e0edb8f1308d",
+      "name": "Test Entity",
+      "type": "test",
+      "description": "Test entity to trigger video rebuild",
+      "observations": [],
+      "addedBy": "CLI Test",
+      "createdAt": "2025-06-09T18:26:45.656779",
+      "updatedAt": "2025-06-09T18:26:45.656779",
+      "projectId": "default"
+    },
+    {
+      "id": "ce16f2e8-39d9-4208-b80e-7262d572a430",
+      "name": "Memvid Test",
+      "type": "test",
+      "description": "Testing memvid video generation",
+      "observations": [],
+      "addedBy": "Debug Test",
+      "createdAt": "2025-06-09T18:33:17.480718",
+      "updatedAt": "2025-06-09T18:33:17.480718",
+      "projectId": "default"
     }
   ],
   "relationships": [
@@ -90,7 +112,21 @@
       "description": "Research project for artificial intelligence and machine learning concepts",
       "createdAt": "2025-06-08T18:04:13.360524",
       "lastAccessed": "2025-06-08T18:04:13.360524"
+    },
+    {
+      "id": "85f7645f-b3ef-4ff4-98f9-0dbd87441499",
+      "name": "Atom to Quark",
+      "description": "Atom to Quark Migration",
+      "createdAt": "2025-06-09T18:31:20.211788",
+      "lastAccessed": "2025-06-09T18:31:20.211788"
+    },
+    {
+      "id": "64350d38-4bd9-4945-8431-28fc81b4a3ac",
+      "name": "Test project",
+      "description": "test description",
+      "createdAt": "2025-06-09T18:34:38.485439",
+      "lastAccessed": "2025-06-09T18:34:38.485439"
     }
   ],
-  "updated_at": "2025-06-08T18:06:04.546243"
+  "updated_at": "2025-06-09T18:34:38.485656"
 }

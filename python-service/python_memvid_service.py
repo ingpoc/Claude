@@ -37,7 +37,7 @@ except ImportError:
     MEMVID_AVAILABLE = False
     # Mock classes for development
     class MemvidEncoder:
-        def add_chunk(self, text, metadata): pass
+        def add_chunks(self, text, metadata): pass
         async def build_video(self, video_path, index_path): pass
     
     class MemvidRetriever:
@@ -185,7 +185,10 @@ class MemvidKnowledgeGraph:
         try:
             encoder = MemvidEncoder()
             
-            # Add entities to video
+            # Collect all text chunks
+            chunks = []
+            
+            # Add entities to chunks
             for entity in self.entities.values():
                 entity_text = f"""Entity: {entity.name} ({entity.type})
 Project: {entity.projectId}
@@ -196,19 +199,9 @@ Created: {entity.createdAt}
 Observations:
 {chr(10).join([f"- {obs.get('text', '')} (by {obs.get('addedBy', 'unknown')})" for obs in entity.observations])}
 """
-                
-                metadata = {
-                    'id': entity.id,
-                    'type': 'entity',
-                    'entity_type': entity.type,
-                    'project_id': entity.projectId,
-                    'added_by': entity.addedBy,
-                    'created_at': entity.createdAt
-                }
-                
-                encoder.add_chunk(entity_text, metadata)
+                chunks.append(entity_text)
             
-            # Add relationships to video
+            # Add relationships to chunks
             for relationship in self.relationships.values():
                 rel_text = f"""Relationship: {relationship.type}
 From: {relationship.sourceId} 
@@ -218,22 +211,14 @@ Description: {relationship.description or 'No description'}
 Added by: {relationship.addedBy}
 Created: {relationship.createdAt}
 """
-                
-                metadata = {
-                    'id': relationship.id,
-                    'type': 'relationship',
-                    'relationship_type': relationship.type,
-                    'source_id': relationship.sourceId,
-                    'target_id': relationship.targetId,
-                    'project_id': relationship.projectId,
-                    'added_by': relationship.addedBy,
-                    'created_at': relationship.createdAt
-                }
-                
-                encoder.add_chunk(rel_text, metadata)
+                chunks.append(rel_text)
             
-            # Build the video
-            await encoder.build_video(str(self.video_path), str(self.index_path))
+            # Add all chunks at once
+            if chunks:
+                encoder.add_chunks(chunks)
+            
+            # Build the video (not async)
+            encoder.build_video(str(self.video_path), str(self.index_path))
             
             # Reload retriever
             self.retriever = MemvidRetriever(str(self.video_path), str(self.index_path))
@@ -242,6 +227,8 @@ Created: {relationship.createdAt}
             
         except Exception as e:
             logging.error(f"❌ Error rebuilding video: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Entity Operations
     async def create_entity(self, entity: Entity) -> Entity:

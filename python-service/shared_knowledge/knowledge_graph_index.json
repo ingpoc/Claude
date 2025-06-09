@@ -1,0 +1,121 @@
+{
+  "metadata": [
+    {
+      "id": 0,
+      "text": "Entity: Claude Project (Project)\nProject: default\nDescription: The Claude project, a desktop application involving AI and knowledge management.\nAdded by: Unknown MCP Client\nCreated: 2025-06-08T15:35:49.999280\n\nObservations:\n- Located in /Users/gurusharan/Documents/Cline/graphmemory/Claude (by Unknown MCP Client)\n- Uses OpenRouter API for AI services (by Unknown MCP Client)\n- Involves MCP Knowledge Graph for data storage (by Unknown MCP Client)\n",
+      "frame": 0,
+      "length": 448
+    },
+    {
+      "id": 1,
+      "text": "Entity: Neural Networks (concept)\nProject: 50f3fe84-ed94-4ab7-9837-c6d9cb339a96\nDescription: Artificial neural networks are computing systems inspired by biological neural networks. They consist of interconnected nodes (neurons) that process information through weighted connections.\nAdded by: System\nCreated: 2025-06-08T18:04:31.451864\n\nObservations:\n\n",
+      "frame": 1,
+      "length": 353
+    },
+    {
+      "id": 2,
+      "text": "Entity: Machine Learning (concept)\nProject: 50f3fe84-ed94-4ab7-9837-c6d9cb339a96\nDescription: Machine learning is a subset of artificial intelligence that enables systems to automatically learn and improve from experience without being explicitly programmed.\nAdded by: System\nCreated: 2025-06-08T18:05:16.456145\n\nObservations:\n\n",
+      "frame": 2,
+      "length": 328
+    },
+    {
+      "id": 3,
+      "text": "Entity: Deep Learning (concept)\nProject: 50f3fe84-ed94-4ab7-9837-c6d9cb339a96\nDescription: Deep learning is a subset of machine learning that uses artificial neural networks with multiple layers to progressively extract higher level features from raw input.\nAdded by: System\nCreated: 2025-06-08T18:05:29.700511\n\nObservations:\n\n",
+      "frame": 3,
+      "length": 327
+    },
+    {
+      "id": 4,
+      "text": "Entity: Test Entity (test)\nProject: default\nDescription: Test entity to trigger video rebuild\nAdded by: CLI Test\nCreated: 2025-06-09T18:26:45.656779\n\nObservations:\n\n",
+      "frame": 4,
+      "length": 165
+    },
+    {
+      "id": 5,
+      "text": "Entity: Memvid Test (test)\nProject: default\nDescription: Testing memvid video generation\nAdded by: Debug Test\nCreated: 2025-06-09T18:33:17.480718\n\nObservations:\n\n",
+      "frame": 5,
+      "length": 162
+    },
+    {
+      "id": 6,
+      "text": "Relationship: includes\nFrom: 0a89b28a-7546-4609-8463-e36aac7803cf \nTo: b576e43f-d172-4271-80c5-29c02942977e\nProject: 50f3fe84-ed94-4ab7-9837-c6d9cb339a96\nDescription: Machine Learning includes Deep Learning as a subset\nAdded by: System\nCreated: 2025-06-08T18:06:04.546167\n",
+      "frame": 6,
+      "length": 272
+    }
+  ],
+  "chunk_to_frame": {
+    "0": 0,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "5": 5,
+    "6": 6
+  },
+  "frame_to_chunks": {
+    "0": [
+      0
+    ],
+    "1": [
+      1
+    ],
+    "2": [
+      2
+    ],
+    "3": [
+      3
+    ],
+    "4": [
+      4
+    ],
+    "5": [
+      5
+    ],
+    "6": [
+      6
+    ]
+  },
+  "config": {
+    "qr": {
+      "version": 35,
+      "error_correction": "M",
+      "box_size": 5,
+      "border": 3,
+      "fill_color": "black",
+      "back_color": "white"
+    },
+    "codec": "h265",
+    "chunking": {
+      "chunk_size": 1024,
+      "overlap": 32
+    },
+    "retrieval": {
+      "top_k": 5,
+      "batch_size": 100,
+      "max_workers": 4,
+      "cache_size": 1000
+    },
+    "embedding": {
+      "model": "all-MiniLM-L6-v2",
+      "dimension": 384
+    },
+    "index": {
+      "type": "Flat",
+      "nlist": 100
+    },
+    "llm": {
+      "model": "gemini-2.0-flash-exp",
+      "max_tokens": 8192,
+      "temperature": 0.1,
+      "context_window": 32000
+    },
+    "chat": {
+      "max_history": 10,
+      "context_chunks": 5
+    },
+    "performance": {
+      "prefetch_frames": 50,
+      "decode_timeout": 10
+    }
+  }
+}
