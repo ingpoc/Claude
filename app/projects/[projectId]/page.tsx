@@ -17,6 +17,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import { Progress } from "../../../components/ui/progress";
 import { Separator } from "../../../components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../../components/ui/dialog";
+import { Label } from "../../../components/ui/label";
+import { Textarea } from "../../../components/ui/textarea";
+import { GraphVisualization, NaturalLanguageQuery, SmartSuggestionsPanel } from "../../../components/ui";
 
 interface Project {
   id: string;
@@ -81,6 +85,11 @@ export default function EnhancedProjectDetailPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
+  const [showAddEntityModal, setShowAddEntityModal] = useState(false);
+  const [showCreateRelationshipModal, setShowCreateRelationshipModal] = useState(false);
+  const [newEntity, setNewEntity] = useState({ name: '', type: '', description: '' });
+  const [newRelationship, setNewRelationship] = useState({ sourceId: '', targetId: '', type: '', description: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Animation refs
   const headerRef = useRef<HTMLDivElement>(null);
@@ -89,7 +98,7 @@ export default function EnhancedProjectDetailPage() {
 
   useEffect(() => {
     loadProjectData();
-  }, [projectId]);
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // GSAP animations
@@ -209,6 +218,70 @@ export default function EnhancedProjectDetailPage() {
     return entityScore + relationshipScore + observationScore;
   };
 
+  const handleCreateEntity = async () => {
+    if (!newEntity.name || !newEntity.type || !newEntity.description || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/entities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...newEntity,
+          projectId: projectId,
+          addedBy: 'User'
+        }),
+      });
+      
+      if (response.ok) {
+        setNewEntity({ name: '', type: '', description: '' });
+        setShowAddEntityModal(false);
+        loadProjectData(); // Refresh the data
+      } else {
+        alert('Failed to create entity. Please make sure the Python service is running.');
+      }
+    } catch (error) {
+      console.error('Failed to create entity:', error);
+      alert('Failed to create entity. Please make sure the Python service is running.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateRelationship = async () => {
+    if (!newRelationship.sourceId || !newRelationship.targetId || !newRelationship.type || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/relationships', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...newRelationship,
+          projectId: projectId,
+          addedBy: 'User'
+        }),
+      });
+      
+      if (response.ok) {
+        setNewRelationship({ sourceId: '', targetId: '', type: '', description: '' });
+        setShowCreateRelationshipModal(false);
+        loadProjectData(); // Refresh the data
+      } else {
+        alert('Failed to create relationship. Please make sure the Python service is running.');
+      }
+    } catch (error) {
+      console.error('Failed to create relationship:', error);
+      alert('Failed to create relationship. Please make sure the Python service is running.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
@@ -225,7 +298,7 @@ export default function EnhancedProjectDetailPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Project Not Found</h1>
-          <p className="text-gray-600 mb-6">The project you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-6">The project you&apos;re looking for doesn&apos;t exist.</p>
           <Button onClick={() => router.push('/projects')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Projects
@@ -421,21 +494,45 @@ export default function EnhancedProjectDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <Button className="w-full justify-start" variant="outline">
+                    <Button 
+                      className="w-full justify-start" 
+                      variant="outline"
+                      onClick={() => setShowAddEntityModal(true)}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Add Entity
                     </Button>
-                    <Button className="w-full justify-start" variant="outline">
+                    <Button 
+                      className="w-full justify-start" 
+                      variant="outline"
+                      onClick={() => setShowCreateRelationshipModal(true)}
+                    >
                       <GitBranch className="h-4 w-4 mr-2" />
                       Create Relationship
                     </Button>
-                    <Button className="w-full justify-start" variant="outline">
+                    <Button 
+                      className="w-full justify-start" 
+                      variant="outline"
+                      onClick={() => setActiveTab('query')}
+                    >
                       <MessageSquare className="h-4 w-4 mr-2" />
                       Natural Query
                     </Button>
-                    <Button className="w-full justify-start" variant="outline">
+                    <Button 
+                      className="w-full justify-start" 
+                      variant="outline"
+                      onClick={() => setActiveTab('suggestions')}
+                    >
                       <Sparkles className="h-4 w-4 mr-2" />
                       AI Suggestions
+                    </Button>
+                    <Button 
+                      className="w-full justify-start" 
+                      variant="outline"
+                      onClick={() => setActiveTab('graph')}
+                    >
+                      <Network className="h-4 w-4 mr-2" />
+                      View Graph
                     </Button>
                   </CardContent>
                 </Card>
@@ -500,7 +597,7 @@ export default function EnhancedProjectDetailPage() {
                     <p className="text-gray-600 mb-6">
                       {searchQuery || typeFilter !== 'all' 
                         ? 'Try adjusting your search or filter criteria.'
-                        : 'This project doesn\'t have any entities yet.'}
+                        : 'This project doesn&apos;t have any entities yet.'}
                     </p>
                     <Button>
                       <Plus className="h-4 w-4 mr-2" />
@@ -573,76 +670,62 @@ export default function EnhancedProjectDetailPage() {
               )}
             </TabsContent>
 
-            <TabsContent value="relationships" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Network className="h-5 w-5" />
-                    Knowledge Graph Relationships
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {relationships.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Network className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Relationships</h3>
-                      <p className="text-gray-600 mb-6">Connect entities to build your knowledge graph.</p>
-                      <Button>
-                        <GitBranch className="h-4 w-4 mr-2" />
-                        Create Relationship
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {relationships.map((relationship) => {
-                        const sourceEntity = entities.find(e => e.id === relationship.sourceId);
-                        const targetEntity = entities.find(e => e.id === relationship.targetId);
-                        
-                        return (
-                          <div key={relationship.id} className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg hover:shadow-md transition-shadow">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                                    {sourceEntity?.name.charAt(0) || '?'}
-                                  </div>
-                                  <span className="font-medium text-blue-600">
-                                    {sourceEntity?.name || 'Unknown Entity'}
-                                  </span>
-                                </div>
-                                
-                                <div className="flex items-center gap-2">
-                                  <ArrowLeft className="h-4 w-4 text-gray-400 rotate-180" />
-                                  <Badge variant="outline" className="mx-2 bg-white">
-                                    {relationship.type}
-                                  </Badge>
-                                  <ArrowLeft className="h-4 w-4 text-gray-400 rotate-180" />
-                                </div>
-                                
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                                    {targetEntity?.name.charAt(0) || '?'}
-                                  </div>
-                                  <span className="font-medium text-purple-600">
-                                    {targetEntity?.name || 'Unknown Entity'}
-                                  </span>
-                                </div>
-                              </div>
-                              {relationship.description && (
-                                <p className="text-xs text-gray-600 mt-2 ml-10">{relationship.description}</p>
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500 flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {formatTimeAgo(relationship.createdAt)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+            <TabsContent value="graph" className="space-y-6">
+              <GraphVisualization
+                projectId={projectId}
+                data={{
+                  nodes: entities.map(entity => ({
+                    id: entity.id,
+                    name: entity.name,
+                    type: entity.type,
+                    description: entity.description,
+                    observations: entity.observations || []
+                  })),
+                  links: relationships.map(rel => ({
+                    id: rel.id,
+                    from: rel.sourceId,
+                    to: rel.targetId,
+                    type: rel.type,
+                    description: rel.description,
+                    sourceId: rel.sourceId,
+                    targetId: rel.targetId
+                  }))
+                }}
+                onNodeClick={(entity) => {
+                  console.log('Node clicked:', entity);
+                  // Could open entity details modal
+                }}
+                onEdgeClick={(relationship) => {
+                  console.log('Edge clicked:', relationship);
+                  // Could open relationship details modal
+                }}
+                height="600px"
+              />
+            </TabsContent>
+
+            <TabsContent value="query" className="space-y-6">
+              <NaturalLanguageQuery
+                projectId={projectId}
+                onEntityClick={(entityId) => {
+                  console.log('Navigate to entity:', entityId);
+                  // Could navigate to entity or open details
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="suggestions" className="space-y-6">
+              <SmartSuggestionsPanel
+                projectId={projectId}
+                onActionClick={(suggestion) => {
+                  console.log('Suggestion action:', suggestion);
+                  // Could implement suggestion actions
+                  if (suggestion.type === 'entity_creation') {
+                    setActiveTab('entities');
+                  } else if (suggestion.type === 'relationship_suggestion') {
+                    setActiveTab('graph');
+                  }
+                }}
+              />
             </TabsContent>
 
             <TabsContent value="activity" className="space-y-6">
@@ -690,6 +773,135 @@ export default function EnhancedProjectDetailPage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Add Entity Modal */}
+      <Dialog open={showAddEntityModal} onOpenChange={setShowAddEntityModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Entity</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="entity-name">Name</Label>
+              <Input
+                id="entity-name"
+                value={newEntity.name}
+                onChange={(e) => setNewEntity({ ...newEntity, name: e.target.value })}
+                placeholder="Entity name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="entity-type">Type</Label>
+              <Input
+                id="entity-type"
+                value={newEntity.type}
+                onChange={(e) => setNewEntity({ ...newEntity, type: e.target.value })}
+                placeholder="e.g., function, class, concept"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="entity-description">Description</Label>
+              <Textarea
+                id="entity-description"
+                value={newEntity.description}
+                onChange={(e) => setNewEntity({ ...newEntity, description: e.target.value })}
+                placeholder="Describe this entity"
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowAddEntityModal(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateEntity}
+                disabled={!newEntity.name || !newEntity.type || !newEntity.description || isSubmitting}
+              >
+                {isSubmitting ? 'Creating...' : 'Create Entity'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Relationship Modal */}
+      <Dialog open={showCreateRelationshipModal} onOpenChange={setShowCreateRelationshipModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Relationship</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="source-entity">Source Entity</Label>
+              <Select value={newRelationship.sourceId} onValueChange={(value) => setNewRelationship({ ...newRelationship, sourceId: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select source entity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {entities.map((entity) => (
+                    <SelectItem key={entity.id} value={entity.id}>
+                      {entity.name} ({entity.type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="target-entity">Target Entity</Label>
+              <Select value={newRelationship.targetId} onValueChange={(value) => setNewRelationship({ ...newRelationship, targetId: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target entity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {entities.map((entity) => (
+                    <SelectItem key={entity.id} value={entity.id}>
+                      {entity.name} ({entity.type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="relationship-type">Relationship Type</Label>
+              <Input
+                id="relationship-type"
+                value={newRelationship.type}
+                onChange={(e) => setNewRelationship({ ...newRelationship, type: e.target.value })}
+                placeholder="e.g., depends_on, implements, uses"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="relationship-description">Description (Optional)</Label>
+              <Textarea
+                id="relationship-description"
+                value={newRelationship.description}
+                onChange={(e) => setNewRelationship({ ...newRelationship, description: e.target.value })}
+                placeholder="Describe this relationship"
+                rows={2}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowCreateRelationshipModal(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateRelationship}
+                disabled={!newRelationship.sourceId || !newRelationship.targetId || !newRelationship.type || isSubmitting}
+              >
+                {isSubmitting ? 'Creating...' : 'Create Relationship'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

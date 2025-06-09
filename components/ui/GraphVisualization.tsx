@@ -1,6 +1,20 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import ReactFlow, {
+  MiniMap,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  Node,
+  Edge,
+  Connection,
+  Position,
+  MarkerType,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { Card } from './card';
 import { Button } from './button';
 import { Badge } from './badge';
@@ -10,8 +24,9 @@ import {
   Search, 
   Filter, 
   Download,
-  Maximize2,
-  Network
+  Network,
+  Grid3X3,
+  List
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -29,6 +44,8 @@ interface Relationship {
   to: string;
   type: string;
   description?: string;
+  sourceId?: string;
+  targetId?: string;
 }
 
 interface GraphData {
@@ -44,6 +61,46 @@ export interface GraphVisualizationProps {
   onEdgeClick?: (edge: Relationship) => void;
   className?: string;
   height?: string;
+}
+
+// Custom node component for better styling
+function CustomNode({ data }: { data: any }) {
+  const getNodeColor = (type: string) => {
+    const colors: Record<string, { bg: string; border: string; text: string }> = {
+      'function': { bg: 'bg-blue-100', border: 'border-blue-400', text: 'text-blue-800' },
+      'class': { bg: 'bg-green-100', border: 'border-green-400', text: 'text-green-800' },
+      'variable': { bg: 'bg-yellow-100', border: 'border-yellow-400', text: 'text-yellow-800' },
+      'module': { bg: 'bg-purple-100', border: 'border-purple-400', text: 'text-purple-800' },
+      'file': { bg: 'bg-gray-100', border: 'border-gray-400', text: 'text-gray-800' },
+      'concept': { bg: 'bg-orange-100', border: 'border-orange-400', text: 'text-orange-800' },
+    };
+    return colors[type.toLowerCase()] || { bg: 'bg-gray-100', border: 'border-gray-400', text: 'text-gray-800' };
+  };
+
+  const colors = getNodeColor(data.type);
+  
+  return (
+    <div className={cn(
+      "px-4 py-3 rounded-lg border-2 shadow-sm min-w-[120px] max-w-[200px]",
+      colors.bg,
+      colors.border,
+      "hover:shadow-md transition-shadow cursor-pointer"
+    )}>
+      <div className="space-y-1">
+        <div className={cn("font-medium text-sm truncate", colors.text)}>
+          {data.label}
+        </div>
+        <Badge variant="secondary" className="text-xs">
+          {data.type}
+        </Badge>
+        {data.connections > 0 && (
+          <div className="text-xs text-gray-600">
+            {data.connections} connections
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function EntityCard({ 
@@ -138,6 +195,10 @@ function RelationshipItem({
   );
 }
 
+const nodeTypes = {
+  custom: CustomNode,
+};
+
 export function GraphVisualization({
   projectId,
   data,
@@ -149,7 +210,9 @@ export function GraphVisualization({
 }: GraphVisualizationProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'graph' | 'grid' | 'list'>('graph');
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   // Get unique entity types for filtering
   const entityTypes = useMemo(() => {
@@ -165,12 +228,95 @@ export function GraphVisualization({
     data.nodes.forEach(node => connections.set(node.id, 0));
     
     data.links.forEach(link => {
-      connections.set(link.from, (connections.get(link.from) || 0) + 1);
-      connections.set(link.to, (connections.get(link.to) || 0) + 1);
+      const fromId = link.from || link.sourceId;
+      const toId = link.to || link.targetId;
+      if (fromId) connections.set(fromId, (connections.get(fromId) || 0) + 1);
+      if (toId) connections.set(toId, (connections.get(toId) || 0) + 1);
     });
     
     return connections;
   }, [data]);
+
+  // Convert data to ReactFlow format
+  const { reactFlowNodes, reactFlowEdges } = useMemo(() => {
+    if (!data) return { reactFlowNodes: [], reactFlowEdges: [] };
+
+    // Create a simple layout by positioning nodes in a circle or grid
+    const nodeCount = data.nodes.length;
+    const radius = Math.max(200, nodeCount * 25);
+    const centerX = 300;
+    const centerY = 300;
+
+    const reactFlowNodes: Node[] = data.nodes.map((entity, index) => {
+      let x: number, y: number;
+      
+      if (nodeCount <= 10) {
+        // Circle layout for small graphs
+        const angle = (index * 2 * Math.PI) / nodeCount;
+        x = centerX + radius * Math.cos(angle);
+        y = centerY + radius * Math.sin(angle);
+      } else {
+        // Grid layout for larger graphs
+        const cols = Math.ceil(Math.sqrt(nodeCount));
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        x = col * 250 + 100;
+        y = row * 150 + 100;
+      }
+
+      return {
+        id: entity.id,
+        type: 'custom',
+        position: { x, y },
+        data: {
+          label: entity.name,
+          type: entity.type,
+          description: entity.description,
+          connections: entityConnections.get(entity.id) || 0,
+          entity: entity
+        },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      };
+    });
+
+    const reactFlowEdges: Edge[] = data.links.map((link, index) => {
+      const fromId = link.from || link.sourceId;
+      const toId = link.to || link.targetId;
+      
+      return {
+        id: link.id || `edge-${index}`,
+        source: fromId,
+        target: toId,
+        type: 'smoothstep',
+        animated: true,
+        label: link.type,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 20,
+          height: 20,
+        },
+        style: {
+          strokeWidth: 2,
+          stroke: '#6366f1',
+        },
+        labelStyle: {
+          fontSize: 12,
+          fill: '#374151',
+          fontWeight: 500,
+        },
+        data: { relationship: link }
+      };
+    });
+
+    return { reactFlowNodes, reactFlowEdges };
+  }, [data, entityConnections]);
+
+  // Update ReactFlow nodes and edges when data changes
+  useEffect(() => {
+    setNodes(reactFlowNodes);
+    setEdges(reactFlowEdges);
+  }, [reactFlowNodes, reactFlowEdges, setNodes, setEdges]);
 
   // Filter entities based on search and type filters
   const filteredEntities = useMemo(() => {
@@ -194,10 +340,30 @@ export function GraphVisualization({
     if (!data) return [];
     
     const visibleEntityIds = new Set(filteredEntities.map(entity => entity.id));
-    return data.links.filter(link => 
-      visibleEntityIds.has(link.from) && visibleEntityIds.has(link.to)
-    );
+    return data.links.filter(link => {
+      const fromId = link.from || link.sourceId;
+      const toId = link.to || link.targetId;
+      return fromId && toId && visibleEntityIds.has(fromId) && visibleEntityIds.has(toId);
+    });
   }, [data, filteredEntities]);
+
+  // Handle ReactFlow events
+  const onConnect = useCallback(
+    (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges]
+  );
+
+  const onNodeClickHandler = useCallback((_event: React.MouseEvent, node: Node) => {
+    if (onNodeClick && node.data.entity) {
+      onNodeClick(node.data.entity);
+    }
+  }, [onNodeClick]);
+
+  const onEdgeClickHandler = useCallback((_event: React.MouseEvent, edge: Edge) => {
+    if (onEdgeClick && edge.data?.relationship) {
+      onEdgeClick(edge.data.relationship);
+    }
+  }, [onEdgeClick]);
 
   const handleTypeFilter = (type: string) => {
     const newTypes = new Set(selectedTypes);
@@ -299,11 +465,28 @@ export function GraphVisualization({
         
         <div className="flex items-center gap-2">
           <Button 
-            variant="outline" 
+            variant={viewMode === 'graph' ? 'default' : 'outline'}
             size="sm" 
-            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+            onClick={() => setViewMode('graph')}
           >
-            {viewMode === 'grid' ? 'List' : 'Grid'}
+            <Network className="w-4 h-4 mr-2" />
+            Graph
+          </Button>
+          <Button 
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm" 
+            onClick={() => setViewMode('grid')}
+          >
+            <Grid3X3 className="w-4 h-4 mr-2" />
+            Grid
+          </Button>
+          <Button 
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="sm" 
+            onClick={() => setViewMode('list')}
+          >
+            <List className="w-4 h-4 mr-2" />
+            List
           </Button>
           <Button variant="outline" size="sm" onClick={downloadGraph}>
             <Download className="w-4 h-4 mr-2" />
@@ -323,48 +506,96 @@ export function GraphVisualization({
         )}
       </div>
 
-      {/* Entities Grid/List */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium">Entities</h3>
-        {viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredEntities.map(entity => (
-              <EntityCard
-                key={entity.id}
-                entity={entity}
-                connections={entityConnections.get(entity.id) || 0}
-                onClick={() => onNodeClick?.(entity)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredEntities.map(entity => (
-              <div key={entity.id} className="flex items-center gap-4 p-3 border rounded-lg bg-card">
-                <Badge variant="secondary">{entity.type}</Badge>
-                <div className="flex-1">
-                  <div className="font-medium">{entity.name}</div>
-                  {entity.description && (
-                    <div className="text-sm text-muted-foreground">{entity.description}</div>
-                  )}
+      {/* View Content */}
+      {viewMode === 'graph' ? (
+        <Card className="w-full" style={{ height: height }}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClickHandler}
+            onEdgeClick={onEdgeClickHandler}
+            nodeTypes={nodeTypes}
+            fitView
+            attributionPosition="bottom-left"
+            className="bg-gray-50"
+          >
+            <Controls className="bg-white border border-gray-200 rounded-lg shadow-sm" />
+            <MiniMap 
+              className="bg-white border border-gray-200 rounded-lg shadow-sm"
+              nodeStrokeColor={(n) => {
+                const colors = {
+                  'function': '#3b82f6',
+                  'class': '#10b981',
+                  'variable': '#f59e0b',
+                  'module': '#8b5cf6',
+                  'file': '#6b7280',
+                  'concept': '#f97316',
+                };
+                return colors[n.data?.type as keyof typeof colors] || '#6b7280';
+              }}
+              nodeColor={(n) => {
+                const colors = {
+                  'function': '#dbeafe',
+                  'class': '#d1fae5',
+                  'variable': '#fef3c7',
+                  'module': '#ede9fe',
+                  'file': '#f3f4f6',
+                  'concept': '#fed7aa',
+                };
+                return colors[n.data?.type as keyof typeof colors] || '#f3f4f6';
+              }}
+            />
+            <Background color="#aaa" gap={16} />
+          </ReactFlow>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">Entities</h3>
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredEntities.map(entity => (
+                <EntityCard
+                  key={entity.id}
+                  entity={entity}
+                  connections={entityConnections.get(entity.id) || 0}
+                  onClick={() => onNodeClick?.(entity)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredEntities.map(entity => (
+                <div key={entity.id} className="flex items-center gap-4 p-3 border rounded-lg bg-card">
+                  <Badge variant="secondary">{entity.type}</Badge>
+                  <div className="flex-1">
+                    <div className="font-medium">{entity.name}</div>
+                    {entity.description && (
+                      <div className="text-sm text-muted-foreground">{entity.description}</div>
+                    )}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {entityConnections.get(entity.id) || 0} connections
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {entityConnections.get(entity.id) || 0} connections
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Relationships */}
-      {filteredRelationships.length > 0 && (
+      {/* Relationships - only show in grid/list views */}
+      {viewMode !== 'graph' && filteredRelationships.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Relationships</h3>
           <div className="space-y-2">
             {filteredRelationships.map(relationship => {
-              const fromEntity = data.nodes.find(n => n.id === relationship.from);
-              const toEntity = data.nodes.find(n => n.id === relationship.to);
+              const fromId = relationship.from || relationship.sourceId;
+              const toId = relationship.to || relationship.targetId;
+              const fromEntity = data.nodes.find(n => n.id === fromId);
+              const toEntity = data.nodes.find(n => n.id === toId);
               
               return (
                 <RelationshipItem

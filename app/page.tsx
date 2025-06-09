@@ -82,15 +82,15 @@ export default function Dashboard() {
   const [pythonServiceStatus, setPythonServiceStatus] = useState<'checking' | 'running' | 'stopped'>('checking');
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState('');
   const [selectedProject, setSelectedProject] = useState('');
+  const [isQuerying, setIsQuerying] = useState(false);
 
   const headerRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const contextRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadAllData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAllData = async () => {
     setIsLoading(true);
@@ -208,14 +208,34 @@ export default function Dashboard() {
 
   const handleNaturalLanguageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!naturalLanguageQuery.trim() || !selectedProject) return;
+    if (!naturalLanguageQuery.trim() || !selectedProject || isQuerying) return;
+    
+    setIsQuerying(true);
     
     try {
-      // This would integrate with your AI service
-      console.log('Natural language query:', naturalLanguageQuery, 'for project:', selectedProject);
-      // TODO: Implement actual natural language query
+      // Use the Python backend's search API
+      const response = await fetch(`http://localhost:8000/api/search?q=${encodeURIComponent(naturalLanguageQuery)}&project_id=${selectedProject}&limit=10`);
+      
+      if (response.ok) {
+        const results = await response.json();
+        
+        // Display results in a simple alert for now (or you could add a results modal)
+        const resultText = results.entities && results.entities.length > 0 
+          ? `Found ${results.entities.length} entities:\n${results.entities.map((e: any) => `• ${e.name} (${e.type}): ${e.description}`).join('\n')}`
+          : 'No matching entities found for your query.';
+        
+        alert(`Natural Language Query Results:\n\n${resultText}`);
+        
+        // Clear the query
+        setNaturalLanguageQuery('');
+      } else {
+        alert('Search failed. Please make sure the Python service is running.');
+      }
     } catch (error) {
       console.error('Query failed:', error);
+      alert('Search failed. Please make sure the Python service is running at http://localhost:8000');
+    } finally {
+      setIsQuerying(false);
     }
   };
 
@@ -454,8 +474,12 @@ export default function Dashboard() {
                           className="flex-1"
                           disabled={!selectedProject}
                         />
-                        <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={!selectedProject}>
-                          <Search className="h-4 w-4" />
+                        <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={!selectedProject || isQuerying}>
+                          {isQuerying ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                          ) : (
+                            <Search className="h-4 w-4" />
+                          )}
                         </Button>
                       </div>
                     </form>

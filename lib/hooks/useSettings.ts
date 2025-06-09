@@ -10,10 +10,10 @@ interface FeatureSettings {
 
 export function useSettings() {
   const [features, setFeatures] = useState<Record<FeatureName, boolean>>({
-    naturalLanguageQuery: false,
-    smartEntityExtraction: false,
-    intelligentSuggestions: false,
-    conversationAnalysis: false,
+    naturalLanguageQuery: true,  // Enable by default for local use
+    smartEntityExtraction: true,
+    intelligentSuggestions: true,
+    conversationAnalysis: true,
   });
   const [loading, setLoading] = useState(true);
 
@@ -25,6 +25,16 @@ export function useSettings() {
         if (parsed.features) {
           setFeatures(parsed.features);
         }
+      } else {
+        // Set default enabled features and save to localStorage
+        const defaultFeatures = {
+          naturalLanguageQuery: true,
+          smartEntityExtraction: true,
+          intelligentSuggestions: true,
+          conversationAnalysis: true,
+        };
+        localStorage.setItem('mcp-knowledge-graph-settings', JSON.stringify({ features: defaultFeatures }));
+        setFeatures(defaultFeatures);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
