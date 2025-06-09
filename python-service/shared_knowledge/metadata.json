@@ -128,6 +128,30 @@
       "createdAt": "2025-06-09T22:12:45.894796",
       "updatedAt": "2025-06-09T22:12:45.894796",
       "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+    },
+    {
+      "id": "00ccb8bb-df05-46b2-ae92-7430f1b8723c",
+      "name": "Test User",
+      "type": "person",
+      "description": "A test user for observation testing",
+      "observations": [
+        {
+          "id": "obs_1749489136450153_9be9e596",
+          "text": "User was very helpful during onboarding process",
+          "addedBy": "unknown",
+          "createdAt": "2025-06-09T22:42:16.450178"
+        },
+        {
+          "id": "obs_1749489200125138_6c4dcf0a",
+          "text": "User showed excellent problem-solving skills",
+          "addedBy": "unknown",
+          "createdAt": "2025-06-09T22:43:20.125193"
+        }
+      ],
+      "addedBy": "test-client",
+      "createdAt": "2025-06-09T22:41:50.775816",
+      "updatedAt": "2025-06-09T22:43:20.125204",
+      "projectId": "default"
     }
   ],
   "relationships": [
@@ -202,5 +226,5 @@
       "lastAccessed": "2025-06-09T18:34:38.485439"
     }
   ],
-  "updated_at": "2025-06-09T22:13:32.292109"
+  "updated_at": "2025-06-09T22:43:20.125380"
 }

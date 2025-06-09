@@ -178,6 +178,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["name", "description"]
         }
+      },
+      {
+        name: "add_observation",
+        description: "Add an observation to an entity",
+        inputSchema: {
+          type: "object",
+          properties: {
+            entityId: { type: "string", description: "ID of the entity to add observation to" },
+            text: { type: "string", description: "The observation text" }
+          },
+          required: ["entityId", "text"]
+        }
       }
     ]
   };
@@ -251,11 +263,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "get_entity":
         const entity = await backend.request(`/api/entities/${args.entityId}`);
         
+        let observationsText = '';
+        if (entity.observations && entity.observations.length > 0) {
+          observationsText = `\n\n**Observations (${entity.observations.length}):**\n` + 
+            entity.observations.map((obs: any, index: number) => 
+              `${index + 1}. ${obs.text} (by ${obs.addedBy} at ${obs.createdAt})`
+            ).join('\n');
+        }
+        
         return {
           content: [
             {
               type: "text",
-              text: `📋 **${entity.name}** (${entity.type})\n\n${entity.description}\n\nID: ${entity.id}\nProject: ${entity.projectId}\nCreated: ${entity.createdAt}\nAdded by: ${entity.addedBy}`
+              text: `📋 **${entity.name}** (${entity.type})\n\n${entity.description}\n\nID: ${entity.id}\nProject: ${entity.projectId}\nCreated: ${entity.createdAt}\nAdded by: ${entity.addedBy}${observationsText}`
             }
           ]
         };
@@ -317,6 +337,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: `📁 Created project: ${projectResponse.name}\nID: ${projectResponse.id}\nDescription: ${projectResponse.description}`
+            }
+          ]
+        };
+
+      case "add_observation":
+        const observationResponse = await backend.request(`/api/entities/${args.entityId}/observations`, {
+          method: 'POST',
+          body: JSON.stringify({
+            entityId: args.entityId,
+            text: args.text,
+            addedBy: clientInfo.name
+          })
+        });
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `📝 Added observation to entity ${args.entityId}\nObservation ID: ${observationResponse.observation_id || observationResponse.id || 'success'}`
             }
           ]
         };
