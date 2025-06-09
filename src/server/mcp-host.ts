@@ -211,6 +211,76 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
+        name: "find_related_entities",
+        description: "Find entities related to a specific entity through relationships",
+        inputSchema: {
+          type: "object",
+          properties: {
+            entityId: { type: "string", description: "ID of the entity to find relationships for" },
+            direction: { type: "string", enum: ["outgoing", "incoming", "both"], description: "Direction of relationships to follow (default: both)" },
+            relationshipType: { type: "string", description: "Filter by specific relationship type (optional)" },
+            depth: { type: "number", description: "Depth of traversal (1-3, default: 1)" },
+            projectId: { type: "string", description: "Filter by project ID (optional)" }
+          },
+          required: ["entityId"]
+        }
+      },
+      {
+        name: "list_relationships",
+        description: "List relationships with optional filtering",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: { type: "string", description: "Filter by project ID (optional)" },
+            relationshipType: { type: "string", description: "Filter by relationship type (optional)" },
+            entityId: { type: "string", description: "Filter relationships involving specific entity (optional)" }
+          },
+          required: []
+        }
+      },
+      {
+        name: "search_observations",
+        description: "Search for observations across all entities",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Search query for observation content" },
+            limit: { type: "number", description: "Maximum number of results (default: 10)" },
+            projectId: { type: "string", description: "Filter by project ID (optional)" },
+            entityId: { type: "string", description: "Filter by specific entity ID (optional)" },
+            addedBy: { type: "string", description: "Filter by who added the observation (optional)" }
+          },
+          required: ["query"]
+        }
+      },
+      {
+        name: "update_entity",
+        description: "Update an existing entity's properties",
+        inputSchema: {
+          type: "object",
+          properties: {
+            entityId: { type: "string", description: "ID of the entity to update" },
+            name: { type: "string", description: "New name for the entity (optional)" },
+            type: { type: "string", description: "New type for the entity (optional)" },
+            description: { type: "string", description: "New description for the entity (optional)" },
+            projectId: { type: "string", description: "Move entity to different project (optional)" }
+          },
+          required: ["entityId"]
+        }
+      },
+      {
+        name: "get_analytics",
+        description: "Get comprehensive analytics and statistics for the knowledge graph",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: { type: "string", description: "Get analytics for specific project (optional)" },
+            includeDetails: { type: "boolean", description: "Include detailed breakdowns (default: false)" }
+          },
+          required: []
+        }
+      },
+      {
         name: "add_observation",
         description: "Add an observation to an entity",
         inputSchema: {
@@ -413,6 +483,239 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: `📋 Found ${entitiesList.length} entities${filterText}:\n\n${formattedEntities}`
+            }
+          ]
+        };
+
+      case "find_related_entities":
+        const relatedParams = new URLSearchParams();
+        
+        if (args.direction) {
+          relatedParams.set('direction', String(args.direction));
+        }
+        
+        if (args.relationshipType) {
+          relatedParams.set('relationship_type', String(args.relationshipType));
+        }
+        
+        if (args.depth) {
+          relatedParams.set('depth', String(args.depth));
+        }
+        
+        if (args.projectId) {
+          relatedParams.set('project_id', String(args.projectId));
+        }
+        
+        const relatedEntities = await backend.request(`/api/entities/${args.entityId}/related?${relatedParams}`);
+        
+        if (relatedEntities.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `🔗 No related entities found for entity ${args.entityId}`
+              }
+            ]
+          };
+        }
+        
+        const formattedRelated = relatedEntities.map((item: any, index: number) => {
+          const entity = item.entity;
+          const relationship = item.relationship;
+          const direction = item.direction;
+          
+          return `${index + 1}. **${entity.name}** (${entity.type})\n   ${entity.description}\n   🔗 ${direction} via "${relationship.type}": ${relationship.description || 'No description'}\n   Entity ID: ${entity.id}`;
+        }).join('\n\n');
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `🔗 Found ${relatedEntities.length} related entities:\n\n${formattedRelated}`
+            }
+          ]
+        };
+
+      case "list_relationships":
+        const relationshipParams = new URLSearchParams();
+        
+        if (args.projectId) {
+          relationshipParams.set('project_id', String(args.projectId));
+        }
+        
+        if (args.relationshipType) {
+          relationshipParams.set('type', String(args.relationshipType));
+        }
+        
+        if (args.entityId) {
+          relationshipParams.set('entity_id', String(args.entityId));
+        }
+        
+        const relationships = await backend.request(`/api/relationships?${relationshipParams}`);
+        
+        if (relationships.length === 0) {
+          const filterText = args.projectId || args.relationshipType || args.entityId ? 
+            ' (with current filters)' : '';
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: `🔗 No relationships found${filterText}`
+              }
+            ]
+          };
+        }
+        
+        const formattedRelationships = relationships.map((rel: any, index: number) => 
+          `${index + 1}. **${rel.type}**\n   From: ${rel.sourceId}\n   To: ${rel.targetId}\n   Description: ${rel.description || 'No description'}\n   Project: ${rel.projectId}\n   ID: ${rel.id}`
+        ).join('\n\n');
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `🔗 Found ${relationships.length} relationships:\n\n${formattedRelationships}`
+            }
+          ]
+        };
+
+      case "search_observations":
+        const obsSearchParams = new URLSearchParams({
+          q: String(args.query || ''),
+          limit: String(args.limit || 10)
+        });
+        
+        if (args.projectId) {
+          obsSearchParams.set('project_id', String(args.projectId));
+        }
+        
+        if (args.entityId) {
+          obsSearchParams.set('entity_id', String(args.entityId));
+        }
+        
+        if (args.addedBy) {
+          obsSearchParams.set('added_by', String(args.addedBy));
+        }
+        
+        const observationResults = await backend.request(`/api/observations/search?${obsSearchParams}`);
+        
+        if (observationResults.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `📝 No observations found for query: "${args.query}"`
+              }
+            ]
+          };
+        }
+        
+        const formattedObservations = observationResults.map((obs: any, index: number) => 
+          `${index + 1}. **Entity**: ${obs.entity_name} (${obs.entity_type})\n   **Observation**: ${obs.text}\n   **Added by**: ${obs.addedBy} on ${obs.createdAt}\n   **Entity ID**: ${obs.entityId}`
+        ).join('\n\n');
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `📝 Found ${observationResults.length} observations:\n\n${formattedObservations}`
+            }
+          ]
+        };
+
+      case "update_entity":
+        const updateData: any = {};
+        
+        // Only include fields that are provided
+        if (args.name !== undefined) updateData.name = args.name;
+        if (args.type !== undefined) updateData.type = args.type;
+        if (args.description !== undefined) updateData.description = args.description;
+        if (args.projectId !== undefined) updateData.projectId = args.projectId;
+        
+        if (Object.keys(updateData).length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "❌ No update fields provided. Please specify at least one field to update."
+              }
+            ]
+          };
+        }
+        
+        const updatedEntity = await backend.request(`/api/entities/${args.entityId}`, {
+          method: 'PUT',
+          body: JSON.stringify(updateData)
+        });
+        
+        const changedFields = Object.keys(updateData).join(', ');
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `✅ Updated entity: ${updatedEntity.name} (${updatedEntity.type})\nID: ${updatedEntity.id}\nUpdated fields: ${changedFields}\nProject: ${updatedEntity.projectId}`
+            }
+          ]
+        };
+
+      case "get_analytics":
+        const analyticsParams = new URLSearchParams();
+        
+        if (args.projectId) {
+          analyticsParams.set('project_id', String(args.projectId));
+        }
+        
+        if (args.includeDetails) {
+          analyticsParams.set('include_details', String(args.includeDetails));
+        }
+        
+        const analytics = await backend.request(`/api/analytics?${analyticsParams}`);
+        
+        let analyticsText = `📊 **Knowledge Graph Analytics**\n\n`;
+        analyticsText += `📈 **Summary Statistics:**\n`;
+        analyticsText += `   • Total Entities: ${analytics.total_entities}\n`;
+        analyticsText += `   • Total Relationships: ${analytics.total_relationships}\n`;
+        analyticsText += `   • Total Observations: ${analytics.total_observations}\n`;
+        analyticsText += `   • Total Projects: ${analytics.total_projects}\n\n`;
+        
+        if (analytics.entity_types && Object.keys(analytics.entity_types).length > 0) {
+          analyticsText += `🏷️ **Entity Types:**\n`;
+          for (const [type, count] of Object.entries(analytics.entity_types)) {
+            analyticsText += `   • ${type}: ${count}\n`;
+          }
+          analyticsText += `\n`;
+        }
+        
+        if (analytics.relationship_types && Object.keys(analytics.relationship_types).length > 0) {
+          analyticsText += `🔗 **Relationship Types:**\n`;
+          for (const [type, count] of Object.entries(analytics.relationship_types)) {
+            analyticsText += `   • ${type}: ${count}\n`;
+          }
+          analyticsText += `\n`;
+        }
+        
+        if (analytics.project_stats && analytics.project_stats.length > 0) {
+          analyticsText += `📁 **Project Statistics:**\n`;
+          for (const project of analytics.project_stats) {
+            analyticsText += `   • **${project.name}**: ${project.entity_count} entities, ${project.relationship_count} relationships\n`;
+          }
+          analyticsText += `\n`;
+        }
+        
+        if (analytics.top_contributors && analytics.top_contributors.length > 0) {
+          analyticsText += `👥 **Top Contributors:**\n`;
+          for (const contributor of analytics.top_contributors) {
+            analyticsText += `   • ${contributor.name}: ${contributor.entities} entities, ${contributor.observations} observations\n`;
+          }
+        }
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: analyticsText
             }
           ]
         };

@@ -86,50 +86,6 @@
       "projectId": "default"
     },
     {
-      "id": "7f7bd241-9036-4fc3-9b16-52ff7f8e8bb0",
-      "name": "Hydrogen Atom",
-      "type": "Particle",
-      "description": "The simplest atom consisting of one proton and one electron",
-      "observations": [],
-      "addedBy": "unknown",
-      "createdAt": "2025-06-09T22:12:04.090384",
-      "updatedAt": "2025-06-09T22:12:04.090384",
-      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
-    },
-    {
-      "id": "9abe5575-1a21-4f32-8565-b831970b3bc3",
-      "name": "Proton",
-      "type": "Subatomic Particle",
-      "description": "A subatomic particle with positive electric charge found in atomic nuclei",
-      "observations": [],
-      "addedBy": "unknown",
-      "createdAt": "2025-06-09T22:12:19.599419",
-      "updatedAt": "2025-06-09T22:12:19.599419",
-      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
-    },
-    {
-      "id": "313b27d0-efd7-4fec-9140-e92eeae5d813",
-      "name": "Up Quark",
-      "type": "Fundamental Particle",
-      "description": "A fundamental particle and a basic constituent of matter, carrying fractional electric charge",
-      "observations": [],
-      "addedBy": "unknown",
-      "createdAt": "2025-06-09T22:12:33.404547",
-      "updatedAt": "2025-06-09T22:12:33.404547",
-      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
-    },
-    {
-      "id": "addd4dc2-8cee-4af3-bdac-d4065ab05272",
-      "name": "Down Quark",
-      "type": "Fundamental Particle",
-      "description": "A fundamental particle similar to up quarks but with different charge properties",
-      "observations": [],
-      "addedBy": "unknown",
-      "createdAt": "2025-06-09T22:12:45.894796",
-      "updatedAt": "2025-06-09T22:12:45.894796",
-      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
-    },
-    {
       "id": "00ccb8bb-df05-46b2-ae92-7430f1b8723c",
       "name": "Test User",
       "type": "person",
@@ -158,6 +114,380 @@
       "createdAt": "2025-06-09T22:41:50.775816",
       "updatedAt": "2025-06-09T22:57:06.413811",
       "projectId": "default"
+    },
+    {
+      "id": "63c4fd88-a774-4089-a7f3-b9623faaa714",
+      "name": "Atom to Quark Transfer Task",
+      "type": "task",
+      "description": "User request to transfer Atom to Quark knowledge from mcp-knowledge-graph to mcp-memvid system",
+      "observations": [
+        {
+          "id": "obs_1749490616983215_fb6b948b",
+          "text": "**ATOM TO QUARK KNOWLEDGE TRANSFER COMPLETED - June 9, 2025**\n\n**TASK**: Transfer all Atom to Quark knowledge from mcp-knowledge-graph to mcp-memvid knowledge graph system.\n\n**FINDINGS**: \n\u2022 Located \"Atom to Quark\" project in mcp-knowledge-graph (ID: 85f7645f-b3ef-4ff4-98f9-0dbd87441499)\n\u2022 Project exists but is completely empty - zero entities, relationships, or observations\n\u2022 No knowledge content available to transfer\n\n**ACTIONS COMPLETED**:\n\u2705 Created new \"Atom to Quark\" project in mcp-memvid system (ID: aced1846-ab9a-46ae-a489-9efb070eb1dc)\n\u2705 Added comprehensive description covering atomic to quantum particle journey\n\u2705 Project is ready for knowledge population\n\n**STATUS**: Transfer task complete. Original project was empty, so new project created and ready for user to populate with atomic physics and quantum mechanics knowledge.\n\n**NEXT STEPS**: User can now add entities about atoms, electrons, protons, neutrons, quarks, leptons, and fundamental forces to the new project.",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-09T23:06:56.983285"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-09T23:06:33.693671",
+      "updatedAt": "2025-06-09T23:06:56.983293",
+      "projectId": "default"
+    },
+    {
+      "id": "61f1376d-3fb0-4bb2-88c5-39cb2af5b886",
+      "name": "Atom Framework",
+      "type": "framework",
+      "description": "TIAA's legacy framework with XML-based configuration, supports Spring 4+, monolithic architecture",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:35:15.292227",
+      "updatedAt": "2025-06-10T01:35:15.292227",
+      "projectId": "default"
+    },
+    {
+      "id": "33baf836-80fb-4e59-a8c2-741aae1db26c",
+      "name": "Quark Framework",
+      "type": "framework",
+      "description": "TIAA's modern framework with annotation-based Java configuration, requires Spring 5.2.0+, modular architecture",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:35:43.540382",
+      "updatedAt": "2025-06-10T01:35:43.540382",
+      "projectId": "default"
+    },
+    {
+      "id": "d66dcd93-b0fc-4383-bf0a-19ed015d0567",
+      "name": "PSSTrans Project",
+      "type": "application",
+      "description": "PSSTrans application currently being migrated from Atom to Quark framework",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:36:00.491764",
+      "updatedAt": "2025-06-10T01:36:00.491764",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "b863729e-481e-4c80-ad08-9b03d6c7e087",
+      "name": "PlanFocusHome Project",
+      "type": "application",
+      "description": "Successfully migrated PlanFocus application that serves as reference implementation for PSSTrans migration",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:36:12.452630",
+      "updatedAt": "2025-06-10T01:36:12.452630",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "9ea2899f-e4b7-4c7c-a473-430a2ae9f277",
+      "name": "XML to Annotation Migration",
+      "type": "migration_phase",
+      "description": "First phase of migration: converting XML-based Spring configuration to annotation-based Java configuration",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:36:23.628637",
+      "updatedAt": "2025-06-10T01:36:23.628637",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "108402ad-5a01-40d5-8b03-f2646553aa5a",
+      "name": "Atom to Quark Class Migration",
+      "type": "migration_phase",
+      "description": "Second phase: replacing Atom dependencies with Quark equivalents and updating class imports",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:36:34.620353",
+      "updatedAt": "2025-06-10T01:36:34.620353",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "c69779e5-caa8-433c-8ef3-b4b1510e1a3a",
+      "name": "Migration Automation Toolkit",
+      "type": "tool",
+      "description": "Python-based automation toolkit for migrating projects from Atom to Quark framework, includes class extraction and mapping capabilities",
+      "observations": [
+        {
+          "id": "obs_1749501267452658_360c6fed",
+          "text": "Toolkit Capabilities: Extracts 192 classes from atom-core JAR, identifies 43 potential Quark equivalents automatically, generates CSV documentation, handles complex path structures, includes extract_classes.py, map_classes.py, and run_migration.py scripts",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:04:27.452722"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:36:46.974544",
+      "updatedAt": "2025-06-10T02:04:27.452734",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "d5d9fb4a-8d24-4aac-a2b2-87ff660e5de6",
+      "name": "User Profile Management",
+      "type": "functional_area",
+      "description": "Handles user authentication, profile loading, and security context management",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:36:58.864106",
+      "updatedAt": "2025-06-10T01:36:58.864106",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "63c69e3b-ae17-4e97-8e33-cb2dec5398de",
+      "name": "Content Management",
+      "type": "functional_area",
+      "description": "Integration with Fatwire CMS for dynamic content retrieval and caching",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:37:11.306417",
+      "updatedAt": "2025-06-10T01:37:11.306417",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "9cccffdf-f71a-4496-bbfa-c37b2058063e",
+      "name": "AtomUIContext to TiaaUIContext",
+      "type": "class_mapping",
+      "description": "Atom: org.tiaa.atom.web.ui.AtomUIContext \u2192 Quark: org.tiaa.quark.web.security.ui.TiaaUIContext",
+      "observations": [
+        {
+          "id": "obs_1749501224193913_d6149962",
+          "text": "Migration Details: AtomUIContext handles user context and session management in Atom. TiaaUIContext is the Quark equivalent with similar functionality but different package structure. Requires updating all @Autowired references and method calls.",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:03:44.193971"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:37:48.711199",
+      "updatedAt": "2025-06-10T02:03:44.193979",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "72335dd3-eadc-49f6-a5d4-efcf376d1a27",
+      "name": "PlanSponsorContactLoader Migration",
+      "type": "class_mapping",
+      "description": "Atom: org.tiaa.atom.profile.loader.PlanSponsorContactLoader \u2192 Quark: org.tiaa.quark.profile.planfocus.loader.PlanSponsorContactLoader",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:38:00.462503",
+      "updatedAt": "2025-06-10T01:38:00.462503",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "be0e908c-44d9-49ec-afd6-d94ca10c434c",
+      "name": "Server Startup Issues",
+      "type": "issue_category",
+      "description": "Updated description for testing",
+      "observations": [
+        {
+          "id": "obs_1749501238922101_d087957e",
+          "text": "Common Startup Problems: ClassNotFoundException for missing Quark classes, NoSuchMethodError for changed method signatures, property placeholder resolution failures like NumberFormatException, bean instantiation problems, JNDI resource access failures",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:03:58.922150"
+        },
+        {
+          "id": "obs_1749501252734112_573f2e37",
+          "text": "Common Solutions: Use @Value annotations for property resolution, replace WorkManagerTaskExecutor with ThreadPoolTaskExecutor, ensure component scanning includes org.tiaa.quark packages, configure PropertySourcesPlaceholderConfigurer bean, check web.xml for correct context configuration",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:04:12.734165"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:38:13.514058",
+      "updatedAt": "2025-06-10T02:46:43.386231",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "e775c64e-5dd7-4994-bd6e-bacc1bce3dcb",
+      "name": "Automation Code Location",
+      "type": "location",
+      "description": "Local filesystem location where automation code is stored: /Users/gurusharan/Documents/AtomtoQuark",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:38:39.088387",
+      "updatedAt": "2025-06-10T01:38:39.088387",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "cb61f382-9b35-45ae-9989-18d384026647",
+      "name": "PSSTrans Project",
+      "type": "application",
+      "description": "PSSTrans application currently being migrated from Atom to Quark framework",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:40:41.774471",
+      "updatedAt": "2025-06-10T01:40:41.774471",
+      "projectId": "default"
+    },
+    {
+      "id": "7e079081-b587-4675-87b4-a0ffb2bd550f",
+      "name": "PlanFocusHome Project",
+      "type": "application",
+      "description": "Successfully migrated PlanFocus application that serves as reference implementation",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:41:06.676559",
+      "updatedAt": "2025-06-10T01:41:06.676559",
+      "projectId": "default"
+    },
+    {
+      "id": "f143d66d-1f0a-47cb-a7db-9294b2f88c2c",
+      "name": "Atom Framework",
+      "type": "framework",
+      "description": "TIAA's legacy framework with XML-based configuration",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:41:20.640891",
+      "updatedAt": "2025-06-10T02:22:47.371547",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "cc064c87-0f5f-4b4b-9cc1-cfe1cb539841",
+      "name": "Quark Framework",
+      "type": "framework",
+      "description": "TIAA's modern framework with annotation-based Java configuration",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:41:34.995236",
+      "updatedAt": "2025-06-10T01:41:34.995236",
+      "projectId": "default"
+    },
+    {
+      "id": "83613dd4-8ffc-4fea-bb62-f932d2354113",
+      "name": "User Profile Management",
+      "type": "functional_area",
+      "description": "User Profile Management functionality in Atom to Quark migration",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:42:07.645865",
+      "updatedAt": "2025-06-10T01:42:07.645865",
+      "projectId": "default"
+    },
+    {
+      "id": "f9bff048-636b-4eb6-bf08-9e5574837f81",
+      "name": "PSSTrans Application",
+      "type": "application",
+      "description": "PSSTrans project currently undergoing Atom to Quark migration",
+      "observations": [
+        {
+          "id": "obs_1749501041407509_688a041f",
+          "text": "Test observation fixed",
+          "addedBy": "test",
+          "createdAt": "2025-06-10T02:00:41.407531"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:58:52.685168",
+      "updatedAt": "2025-06-10T02:00:41.407534",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "c85707bd-1f78-4683-a41f-802b0f1a2770",
+      "name": "Migration Automation Toolkit",
+      "type": "tool",
+      "description": "Python automation toolkit for Atom to Quark migration",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:59:28.197424",
+      "updatedAt": "2025-06-10T01:59:28.197424",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "b7b94bdc-35a9-4b02-a775-bc39a21614fd",
+      "name": "PSSTrans Application - Primary",
+      "type": "application",
+      "description": "PSSTrans project currently undergoing Atom to Quark migration - UPDATED DESCRIPTION",
+      "observations": [
+        {
+          "id": "obs_1749501131712981_c2e02f30",
+          "text": "Migration Status: XML to Annotation migration completed successfully",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:02:11.713039"
+        },
+        {
+          "id": "obs_1749501144072815_4655f52f",
+          "text": "Current Issues: Server startup problems after dependencies migration. All Atom dependencies removed and Quark dependencies added. Import statements updated to use Quark classes.",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:02:24.072867"
+        },
+        {
+          "id": "obs_1749501281883812_65b6338b",
+          "text": "Next Steps: Resolve server startup issues by checking ClassPath, verify bean configurations, ensure all Quark dependencies are properly added, check for missing component scanning configurations",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:04:41.883881"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T02:01:56.569403",
+      "updatedAt": "2025-06-10T02:22:33.689672",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "12e98010-c0c7-40d7-9c65-82b21023362f",
+      "name": "Atom Framework",
+      "type": "framework",
+      "description": "TIAA's legacy framework with XML-based configuration, monolithic architecture",
+      "observations": [
+        {
+          "id": "obs_1749501182948440_f23f95c6",
+          "text": "Framework Characteristics: XML-based configuration using applicationContext.xml and servletContext.xml. Supports Spring 4+ versions. Monolithic architecture with tightly coupled components. Key annotations: @EnableAtomWeb, @EnableAtomProfile, @EnableAtomContent, @EnableAtomWebSecurity",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:03:02.948494"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T02:02:49.310075",
+      "updatedAt": "2025-06-10T02:03:02.948505",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "cf6cff3e-f00a-4072-9838-ce1da76c8e84",
+      "name": "Quark Framework",
+      "type": "framework",
+      "description": "TIAA's modern framework with annotation-based Java configuration, modular architecture",
+      "observations": [
+        {
+          "id": "obs_1749501209933221_89fb3df4",
+          "text": "Framework Requirements: Requires Spring 5.2.0+ and Gradle 7.4.2+. Modular architecture with independent libraries: user-profile-common, user-profile-planfocus, content-management, web-security-management, entitlement-management, preference-management",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:03:29.933306"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T02:03:15.787691",
+      "updatedAt": "2025-06-10T02:03:29.933319",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "fde3e0ec-ea48-47ea-8a23-67d1704f3084",
+      "name": "Test Entity",
+      "type": "test",
+      "description": "Test entity",
+      "observations": [
+        {
+          "id": "obs_1749502555474001_ac557c24",
+          "text": "",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:25:55.474063"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T02:25:42.648977",
+      "updatedAt": "2025-06-10T02:25:55.474075",
+      "projectId": "nonexistent-project-id"
+    },
+    {
+      "id": "c4b3a5f3-ed82-4768-9c5f-307d482e81ac",
+      "name": "Validation Test Entity",
+      "type": "test_validation",
+      "description": "Test case for comprehensive validation",
+      "observations": [
+        {
+          "id": "obs_1749503847967761_8294aa74",
+          "text": "This is a test observation to validate the full workflow of entity creation and observation addition.",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-10T02:47:27.967852"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T02:47:14.819593",
+      "updatedAt": "2025-06-10T02:47:27.967869",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
     }
   ],
   "relationships": [
@@ -172,34 +502,64 @@
       "projectId": "50f3fe84-ed94-4ab7-9837-c6d9cb339a96"
     },
     {
-      "id": "d9862c2c-f324-4289-b4f4-a53aa613c23c",
-      "sourceId": "7f7bd241-9036-4fc3-9b16-52ff7f8e8bb0",
-      "targetId": "9abe5575-1a21-4f32-8565-b831970b3bc3",
-      "type": "contains",
-      "description": "Hydrogen atom contains a proton in its nucleus",
-      "addedBy": "unknown",
-      "createdAt": "2025-06-09T22:13:03.156308",
-      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+      "id": "6ddb4dd2-9491-49da-9d18-25a73e203005",
+      "sourceId": "d66dcd93-b0fc-4383-bf0a-19ed015d0567",
+      "targetId": "108402ad-5a01-40d5-8b03-f2646553aa5a",
+      "type": "undergoes",
+      "description": "PSSTrans is being migrated from Atom to Quark framework",
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:37:24.815718",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
     },
     {
-      "id": "73847b33-0bb6-4039-b782-b27c6026149a",
-      "sourceId": "9abe5575-1a21-4f32-8565-b831970b3bc3",
-      "targetId": "313b27d0-efd7-4fec-9140-e92eeae5d813",
-      "type": "composed_of",
-      "description": "Proton is composed of two up quarks and one down quark",
-      "addedBy": "unknown",
-      "createdAt": "2025-06-09T22:13:18.598040",
-      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+      "id": "2398056d-d68c-466b-89b7-d665be0757ad",
+      "sourceId": "d66dcd93-b0fc-4383-bf0a-19ed015d0567",
+      "targetId": "be0e908c-44d9-49ec-afd6-d94ca10c434c",
+      "type": "experiencing",
+      "description": "PSSTrans is currently experiencing server startup issues during migration",
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:38:26.163803",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
     },
     {
-      "id": "44af1590-4ce2-411b-88f2-4c88a5a630ca",
-      "sourceId": "9abe5575-1a21-4f32-8565-b831970b3bc3",
-      "targetId": "addd4dc2-8cee-4af3-bdac-d4065ab05272",
-      "type": "composed_of",
-      "description": "Proton also contains down quarks as part of its composition",
-      "addedBy": "unknown",
-      "createdAt": "2025-06-09T22:13:32.291746",
-      "projectId": "85f7645f-b3ef-4ff4-98f9-0dbd87441499"
+      "id": "d91eb959-efca-4b59-ae85-88f0e4bf1ccb",
+      "sourceId": "c69779e5-caa8-433c-8ef3-b4b1510e1a3a",
+      "targetId": "e775c64e-5dd7-4994-bd6e-bacc1bce3dcb",
+      "type": "stored_at",
+      "description": "Migration toolkit is stored at specified location",
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T01:38:52.824412",
+      "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "fc575191-99fe-472c-b66c-5ab251e21e9d",
+      "sourceId": "b7b94bdc-35a9-4b02-a775-bc39a21614fd",
+      "targetId": "be0e908c-44d9-49ec-afd6-d94ca10c434c",
+      "type": "experiencing",
+      "description": "PSSTrans is currently experiencing server startup issues",
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T02:20:54.777253",
+      "projectId": "default"
+    },
+    {
+      "id": "21b5af94-6df9-454d-ae3c-896a7517ae1c",
+      "sourceId": "nonexistent-source",
+      "targetId": "nonexistent-target",
+      "type": "test",
+      "description": "Test relationship",
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T02:26:07.869471",
+      "projectId": "default"
+    },
+    {
+      "id": "3c6d5a47-8b6b-408b-bef4-fb8c1af294e6",
+      "sourceId": "c4b3a5f3-ed82-4768-9c5f-307d482e81ac",
+      "targetId": "b7b94bdc-35a9-4b02-a775-bc39a21614fd",
+      "type": "validates",
+      "description": "Test relationship to validate functionality",
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-10T02:47:53.815923",
+      "projectId": "default"
     }
   ],
   "projects": [
@@ -218,19 +578,19 @@
       "lastAccessed": "2025-06-08T18:04:13.360524"
     },
     {
-      "id": "85f7645f-b3ef-4ff4-98f9-0dbd87441499",
-      "name": "Atom to Quark",
-      "description": "Atom to Quark Migration",
-      "createdAt": "2025-06-09T18:31:20.211788",
-      "lastAccessed": "2025-06-09T18:31:20.211788"
-    },
-    {
       "id": "64350d38-4bd9-4945-8431-28fc81b4a3ac",
       "name": "Test project",
       "description": "test description",
       "createdAt": "2025-06-09T18:34:38.485439",
       "lastAccessed": "2025-06-09T18:34:38.485439"
+    },
+    {
+      "id": "8bf1433b-66c7-47ab-9335-3e20c966ec99",
+      "name": "Atom to Quark Migration",
+      "description": "TIAA's migration project from legacy Atom framework to modern Quark framework, including automation tools and implementation guides",
+      "createdAt": "2025-06-10T01:35:06.144670",
+      "lastAccessed": "2025-06-10T01:35:06.144670"
     }
   ],
-  "updated_at": "2025-06-09T22:57:06.414328"
+  "updated_at": "2025-06-10T02:47:53.816136"
 }

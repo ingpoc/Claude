@@ -335,14 +335,6 @@ Created: {relationship.createdAt}
         await self._rebuild_video()
         return relationship
 
-    async def list_relationships(self, project_id: Optional[str] = None) -> List[Relationship]:
-        """List all relationships, optionally filtering by project"""
-        rels_list = list(self.relationships.values())
-        
-        if project_id:
-            rels_list = [r for r in rels_list if r.projectId == project_id]
-            
-        return rels_list
 
     async def delete_relationship(self, relationship_id: str) -> bool:
         """Delete a relationship"""
@@ -355,6 +347,7 @@ Created: {relationship.createdAt}
 
     async def search_entities(self, query: str, limit: int = 10, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Enhanced semantic search with mem0-inspired relevance scoring"""
+        # Use hybrid approach: memvid + text matching
         if not self.retriever:
             # Enhanced fallback search with relevance scoring
             results = []
@@ -394,35 +387,83 @@ Created: {relationship.createdAt}
             return results[:limit]
         
         try:
-            # Use memvid semantic search with enhanced scoring
-            search_results = self.retriever.search(query, limit * 2)  # Get more results for filtering
-            
-            # Convert results to entity format with relevance scores
+            # Use text-based search ONLY - memvid was adding noise
             results = []
-            for result in search_results:
-                # Extract entity ID from metadata
-                if hasattr(result, 'metadata') and 'id' in result.metadata:
-                    entity_id = result.metadata['id']
-                    if entity_id in self.entities:
-                        entity = self.entities[entity_id]
-                        
-                        # Filter by project if specified
-                        if project_id and entity.projectId != project_id:
-                            continue
-                            
-                        entity_dict = entity.model_dump()
-                        # Add memvid score if available
-                        if hasattr(result, 'score'):
-                            entity_dict['_relevance_score'] = result.score
-                        else:
-                            entity_dict['_relevance_score'] = 0.8  # Default high score for memvid results
-                        results.append(entity_dict)
+            query_lower = query.lower()
+            query_words = set(query_lower.split())
             
+            for entity in self.entities.values():
+                # Filter by project if specified
+                if project_id and entity.projectId != project_id:
+                    continue
+                    
+                # Calculate relevance score using STRICT matching
+                score = 0.0
+                entity_text = f"{entity.name} {entity.description} {' '.join([obs.get('text', '') for obs in entity.observations])}"
+                entity_words = set(entity_text.lower().split())
+                
+                # Exact phrase matching (highest priority)
+                if query_lower in entity.name.lower():
+                    score += 1.0
+                elif query_lower in entity.description.lower():
+                    score += 0.8
+                elif any(query_lower in obs.get('text', '').lower() for obs in entity.observations):
+                    score += 0.6
+                
+                # Word overlap scoring (only if we have phrase matches)
+                if score > 0:
+                    common_words = query_words.intersection(entity_words)
+                    if common_words:
+                        score += len(common_words) / len(query_words) * 0.3
+                
+                # Only include results with meaningful scores (> 0.5)
+                if score >= 0.5:
+                    entity_dict = entity.model_dump()
+                    entity_dict['_relevance_score'] = score
+                    results.append(entity_dict)
+            
+            # Sort by relevance score
+            results.sort(key=lambda x: x['_relevance_score'], reverse=True)
             return results[:limit]
             
         except Exception as e:
-            logging.warning(f"⚠️  Search error: {e}")
-            return []
+            logging.warning(f"⚠️  Memvid search error, falling back to text search: {e}")
+            # Fall back to pure text search
+            results = []
+            query_lower = query.lower()
+            query_words = set(query_lower.split())
+            
+            for entity in self.entities.values():
+                # Filter by project if specified
+                if project_id and entity.projectId != project_id:
+                    continue
+                    
+                # Calculate relevance score
+                score = 0.0
+                entity_text = f"{entity.name} {entity.description} {' '.join([obs.get('text', '') for obs in entity.observations])}"
+                entity_words = set(entity_text.lower().split())
+                
+                # Word overlap scoring
+                common_words = query_words.intersection(entity_words)
+                if common_words:
+                    score += len(common_words) / len(query_words) * 0.6
+                
+                # Exact phrase matching
+                if query_lower in entity.name.lower():
+                    score += 0.3
+                elif query_lower in entity.description.lower():
+                    score += 0.2
+                elif any(query_lower in obs.get('text', '').lower() for obs in entity.observations):
+                    score += 0.1
+                
+                if score > 0:
+                    entity_dict = entity.model_dump()
+                    entity_dict['_relevance_score'] = score
+                    results.append(entity_dict)
+            
+            # Sort by relevance score
+            results.sort(key=lambda x: x['_relevance_score'], reverse=True)
+            return results[:limit]
 
     async def get_relevant_memories(self, query: str, limit: int = 3, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """mem0-inspired: Get the most relevant memories for context injection"""
@@ -435,6 +476,89 @@ Created: {relationship.createdAt}
         ]
         
         return relevant_memories[:limit]
+
+    # Relationship Querying
+    async def find_related_entities(self, entity_id: str, direction: str = "both", 
+                                  relationship_type: Optional[str] = None, 
+                                  depth: int = 1, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Find entities related to a specific entity through relationships"""
+        if entity_id not in self.entities:
+            return []
+        
+        visited = set()
+        results = []
+        
+        def traverse(current_entity_id: str, current_depth: int):
+            if current_depth > depth or current_entity_id in visited:
+                return
+            
+            visited.add(current_entity_id)
+            
+            for rel_id, rel in self.relationships.items():
+                # Filter by project if specified
+                if project_id and rel.projectId != project_id:
+                    continue
+                
+                # Filter by relationship type if specified
+                if relationship_type and rel.type != relationship_type:
+                    continue
+                
+                target_entity_id = None
+                rel_direction = None
+                
+                # Check direction and find target entity
+                if direction in ["outgoing", "both"] and rel.sourceId == current_entity_id:
+                    target_entity_id = rel.targetId
+                    rel_direction = "outgoing"
+                elif direction in ["incoming", "both"] and rel.targetId == current_entity_id:
+                    target_entity_id = rel.sourceId
+                    rel_direction = "incoming"
+                
+                if target_entity_id and target_entity_id in self.entities:
+                    target_entity = self.entities[target_entity_id]
+                    
+                    # Add to results if not the starting entity
+                    if target_entity_id != entity_id:
+                        results.append({
+                            "entity": target_entity.model_dump(),
+                            "relationship": rel.model_dump(),
+                            "direction": rel_direction,
+                            "depth": current_depth
+                        })
+                    
+                    # Continue traversal if depth allows
+                    if current_depth < depth:
+                        traverse(target_entity_id, current_depth + 1)
+        
+        traverse(entity_id, 1)
+        
+        # Remove duplicates based on entity ID
+        seen_entities = set()
+        unique_results = []
+        for result in results:
+            entity_id_key = result["entity"]["id"]
+            if entity_id_key not in seen_entities:
+                seen_entities.add(entity_id_key)
+                unique_results.append(result)
+        
+        return unique_results
+
+    async def list_relationships(self, project_id: Optional[str] = None, 
+                               relationship_type: Optional[str] = None,
+                               entity_id: Optional[str] = None) -> List[Relationship]:
+        """List relationships with optional filtering"""
+        relationships_list = list(self.relationships.values())
+        
+        if project_id:
+            relationships_list = [r for r in relationships_list if r.projectId == project_id]
+            
+        if relationship_type:
+            relationships_list = [r for r in relationships_list if r.type == relationship_type]
+            
+        if entity_id:
+            relationships_list = [r for r in relationships_list if r.sourceId == entity_id or r.targetId == entity_id]
+            
+        return relationships_list
 
     # Project Operations
     async def create_project(self, project: Project) -> Project:
@@ -581,6 +705,34 @@ async def add_observation(entity_id: str, observation: Observation):
         raise HTTPException(status_code=404, detail="Entity not found")
     return {"observation_id": obs_id}
 
+@app.get("/api/observations/search")
+async def search_observations(
+    q: str = Query(..., description="Search query for observation content"),
+    limit: int = Query(10, description="Maximum number of results"),
+    project_id: Optional[str] = Query(None, description="Filter by project ID"),
+    entity_id: Optional[str] = Query(None, description="Filter by specific entity ID"),
+    added_by: Optional[str] = Query(None, description="Filter by who added the observation")
+):
+    """Search for observations across all entities"""
+    results = await kg.search_observations(
+        query=q,
+        limit=limit,
+        project_id=project_id,
+        entity_id=entity_id,
+        added_by=added_by
+    )
+    
+    return results
+
+@app.get("/api/analytics")
+async def get_analytics(
+    project_id: Optional[str] = Query(None, description="Filter analytics by project ID"),
+    include_details: bool = Query(False, description="Include detailed analytics")
+):
+    """Get comprehensive analytics and statistics for the knowledge graph"""
+    analytics = await kg.get_analytics(project_id=project_id, include_details=include_details)
+    return analytics
+
 # Relationship Endpoints  
 @app.post("/api/relationships", response_model=Relationship)
 async def create_relationship(relationship: Relationship):
@@ -588,9 +740,180 @@ async def create_relationship(relationship: Relationship):
     return await kg.create_relationship(relationship)
 
 @app.get("/api/relationships")
-async def list_relationships(project_id: Optional[str] = Query(None)):
-    """List relationships"""
-    return await kg.list_relationships(project_id)
+async def list_relationships(
+    project_id: Optional[str] = Query(None),
+    type: Optional[str] = Query(None, alias="type"),
+    entity_id: Optional[str] = Query(None)
+):
+    """List relationships with optional filtering"""
+    return await kg.list_relationships(project_id, type, entity_id)
+
+@app.get("/api/entities/{entity_id}/related")
+async def find_related_entities(
+    entity_id: str,
+    direction: str = Query("both", regex="^(outgoing|incoming|both)$"),
+    relationship_type: Optional[str] = Query(None),
+    depth: int = Query(1, ge=1, le=3),
+    project_id: Optional[str] = Query(None)
+):
+    """Find entities related to a specific entity through relationships"""
+    if entity_id not in kg.entities:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    
+    related_entities = await kg.find_related_entities(
+        entity_id=entity_id,
+        direction=direction,
+        relationship_type=relationship_type,
+        depth=depth,
+        project_id=project_id
+    )
+    
+    return related_entities
+        
+        for entity in self.entities.values():
+            # Filter by project if specified
+            if project_id and entity.projectId != project_id:
+                continue
+            
+            # Filter by entity if specified
+            if entity_id and entity.id != entity_id:
+                continue
+            
+            # Search through entity's observations
+            for obs in entity.observations:
+                # Filter by added_by if specified
+                if added_by and obs.get('addedBy', '').lower() != added_by.lower():
+                    continue
+                
+                obs_text = obs.get('text', '').lower()
+                
+                # Calculate relevance score
+                score = 0.0
+                
+                # Exact phrase matching
+                if query_lower in obs_text:
+                    score += 0.6
+                
+                # Word overlap scoring
+                obs_words = set(obs_text.split())
+                common_words = query_words.intersection(obs_words)
+                if common_words:
+                    score += len(common_words) / len(query_words) * 0.4
+                
+                if score > 0:
+                    results.append({
+                        'id': obs.get('id', ''),
+                        'text': obs.get('text', ''),
+                        'addedBy': obs.get('addedBy', ''),
+                        'createdAt': obs.get('createdAt', ''),
+                        'entityId': entity.id,
+                        'entity_name': entity.name,
+                        'entity_type': entity.type,
+                        'entity_description': entity.description,
+                        'projectId': entity.projectId,
+                        '_relevance_score': score
+                    })
+        
+        # Sort by relevance score
+        results.sort(key=lambda x: x['_relevance_score'], reverse=True)
+        return results[:limit]
+
+    # Analytics and Statistics
+    async def get_analytics(self, project_id: Optional[str] = None, include_details: bool = False) -> Dict[str, Any]:
+        """Get comprehensive analytics for the knowledge graph"""
+        # Filter entities and relationships by project if specified
+        entities = list(self.entities.values())
+        relationships = list(self.relationships.values())
+        
+        if project_id:
+            entities = [e for e in entities if e.projectId == project_id]
+            relationships = [r for r in relationships if r.projectId == project_id]
+        
+        # Basic counts
+        total_entities = len(entities)
+        total_relationships = len(relationships)
+        total_observations = sum(len(e.observations) for e in entities)
+        total_projects = len(self.projects) if not project_id else 1
+        
+        # Entity type breakdown
+        entity_types = {}
+        for entity in entities:
+            entity_types[entity.type] = entity_types.get(entity.type, 0) + 1
+        
+        # Relationship type breakdown
+        relationship_types = {}
+        for rel in relationships:
+            relationship_types[rel.type] = relationship_types.get(rel.type, 0) + 1
+        
+        # Project statistics
+        project_stats = []
+        projects_to_analyze = [self.projects[project_id]] if project_id else self.projects.values()
+        
+        for project in projects_to_analyze:
+            project_entities = [e for e in self.entities.values() if e.projectId == project.id]
+            project_relationships = [r for r in self.relationships.values() if r.projectId == project.id]
+            
+            project_stats.append({
+                'id': project.id,
+                'name': project.name,
+                'entity_count': len(project_entities),
+                'relationship_count': len(project_relationships),
+                'observation_count': sum(len(e.observations) for e in project_entities)
+            })
+        
+        # Top contributors
+        contributors = {}
+        for entity in entities:
+            name = entity.addedBy
+            if name not in contributors:
+                contributors[name] = {'entities': 0, 'observations': 0}
+            contributors[name]['entities'] += 1
+            contributors[name]['observations'] += len(entity.observations)
+        
+        # Add relationship contributions
+        for rel in relationships:
+            name = rel.addedBy
+            if name not in contributors:
+                contributors[name] = {'entities': 0, 'observations': 0}
+            # Count relationships as half an entity for contribution scoring
+            contributors[name]['entities'] += 0.5
+        
+        top_contributors = [
+            {'name': name, 'entities': int(stats['entities']), 'observations': stats['observations']}
+            for name, stats in sorted(contributors.items(), 
+                                    key=lambda x: x[1]['entities'] + x[1]['observations'], 
+                                    reverse=True)[:5]
+        ]
+        
+        analytics = {
+            'total_entities': total_entities,
+            'total_relationships': total_relationships,
+            'total_observations': total_observations,
+            'total_projects': total_projects,
+            'entity_types': entity_types,
+            'relationship_types': relationship_types,
+            'project_stats': project_stats,
+            'top_contributors': top_contributors
+        }
+        
+        if include_details:
+            # Add more detailed analytics
+            analytics['avg_observations_per_entity'] = total_observations / total_entities if total_entities > 0 else 0
+            analytics['avg_relationships_per_entity'] = total_relationships / total_entities if total_entities > 0 else 0
+            
+            # Entity connectivity (how many relationships each entity has)
+            entity_connectivity = {}
+            for rel in relationships:
+                entity_connectivity[rel.sourceId] = entity_connectivity.get(rel.sourceId, 0) + 1
+                entity_connectivity[rel.targetId] = entity_connectivity.get(rel.targetId, 0) + 1
+            
+            if entity_connectivity:
+                analytics['most_connected_entities'] = sorted(
+                    [(entity_id, count) for entity_id, count in entity_connectivity.items()],
+                    key=lambda x: x[1], reverse=True
+                )[:5]
+        
+        return analytics
 
 @app.delete("/api/relationships/{relationship_id}")
 async def delete_relationship(relationship_id: str):
