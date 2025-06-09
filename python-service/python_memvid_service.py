@@ -317,7 +317,11 @@ Created: {relationship.createdAt}
         if not entity:
             return None
         
-        observation_id = f"obs_{uuid.uuid4().hex[:12]}"
+        # Generate truly unique observation ID using timestamp and random
+        timestamp = int(datetime.now().timestamp() * 1000000)  # microseconds
+        random_suffix = uuid.uuid4().hex[:8]
+        observation_id = f"obs_{timestamp}_{random_suffix}"
+        
         new_observation = {
             "id": observation_id,
             "text": text,
