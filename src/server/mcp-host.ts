@@ -199,13 +199,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
+        name: "list_entities",
+        description: "List all entities, optionally filtered by type or project",
+        inputSchema: {
+          type: "object",
+          properties: {
+            type: { type: "string", description: "Filter by entity type (optional)" },
+            projectId: { type: "string", description: "Filter by project ID (optional)" }
+          },
+          required: []
+        }
+      },
+      {
         name: "add_observation",
         description: "Add an observation to an entity",
         inputSchema: {
           type: "object",
           properties: {
             entityId: { type: "string", description: "ID of the entity to add observation to" },
-            text: { type: "string", description: "The observation text" }
+            text: { type: "string", description: "The observation text" },
+            projectId: { type: "string", description: "Project ID (optional)" }
           },
           required: ["entityId", "text"]
         }
@@ -253,7 +266,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           searchParams.set('project_id', String(args.projectId));
         }
         
-        const searchResults = await backend.request(`/api/search?${searchParams}`);
+        const searchResponse = await backend.request(`/api/search?${searchParams}`);
+        const searchResults = searchResponse.entities || searchResponse || [];
         
         if (searchResults.length === 0) {
           return {
@@ -356,6 +370,49 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: `📁 Created project: ${projectResponse.name}\nID: ${projectResponse.id}\nDescription: ${projectResponse.description}`
+            }
+          ]
+        };
+
+      case "list_entities":
+        const listParams = new URLSearchParams();
+        
+        if (args.type) {
+          listParams.set('type', String(args.type));
+        }
+        
+        if (args.projectId) {
+          listParams.set('project_id', String(args.projectId));
+        }
+        
+        const entitiesList = await backend.request(`/api/entities?${listParams}`);
+        
+        if (entitiesList.length === 0) {
+          const filterText = args.type || args.projectId ? 
+            ` (filtered by ${args.type ? `type: ${args.type}` : ''}${args.type && args.projectId ? ', ' : ''}${args.projectId ? `project: ${args.projectId}` : ''})` : '';
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: `📋 No entities found${filterText}`
+              }
+            ]
+          };
+        }
+        
+        const formattedEntities = entitiesList.map((entity: any, index: number) => 
+          `${index + 1}. **${entity.name}** (${entity.type})\n   ${entity.description}\n   ID: ${entity.id}\n   Project: ${entity.projectId}`
+        ).join('\n\n');
+        
+        const filterText = args.type || args.projectId ? 
+          ` (filtered by ${args.type ? `type: ${args.type}` : ''}${args.type && args.projectId ? ', ' : ''}${args.projectId ? `project: ${args.projectId}` : ''})` : '';
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `📋 Found ${entitiesList.length} entities${filterText}:\n\n${formattedEntities}`
             }
           ]
         };
