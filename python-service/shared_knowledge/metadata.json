@@ -4,7 +4,7 @@
       "id": "ddfd07c3-be13-455a-9d68-5c23320061e2",
       "name": "Claude Project",
       "type": "Project",
-      "description": "The Claude project, a desktop application involving AI and knowledge management.",
+      "description": "Updated description from final testing",
       "observations": [
         {
           "id": "obs_1749377149991",
@@ -23,11 +23,17 @@
           "text": "Involves MCP Knowledge Graph for data storage",
           "addedBy": "Unknown MCP Client",
           "createdAt": "2025-06-08T10:05:49.992Z"
+        },
+        {
+          "id": "obs_1749838250751537_4297b53c",
+          "text": "Test observation from comprehensive testing",
+          "addedBy": "final-four-test",
+          "createdAt": "2025-06-13T23:40:50.751561"
         }
       ],
       "addedBy": "Unknown MCP Client",
       "createdAt": "2025-06-08T15:35:49.999280",
-      "updatedAt": "2025-06-08T15:35:49.999280",
+      "updatedAt": "2025-06-13T23:41:01.394857",
       "projectId": "default"
     },
     {
@@ -488,6 +494,46 @@
       "createdAt": "2025-06-10T02:47:14.819593",
       "updatedAt": "2025-06-10T02:47:27.967869",
       "projectId": "8bf1433b-66c7-47ab-9335-3e20c966ec99"
+    },
+    {
+      "id": "3573ee5b-dd5a-4c64-a26d-79508e691226",
+      "name": "Test Entity A",
+      "type": "test_concept",
+      "description": "Updated description for testing update functionality in mcp-memvid tool",
+      "observations": [
+        {
+          "id": "obs_1749836131009921_11a03137",
+          "text": "Testing observation functionality - this is a detailed note about Test Entity A and its purpose in evaluating the mcp-memvid tool capabilities.",
+          "addedBy": "claude-ai",
+          "createdAt": "2025-06-13T23:05:31.009959"
+        }
+      ],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-13T23:04:07.224432",
+      "updatedAt": "2025-06-13T23:06:45.348144",
+      "projectId": "default"
+    },
+    {
+      "id": "7711c3e2-1923-45b9-b196-08106952170d",
+      "name": "Test Entity B",
+      "type": "test_concept",
+      "description": "Second test entity for relationship testing",
+      "observations": [],
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-13T23:04:25.170383",
+      "updatedAt": "2025-06-13T23:04:25.170383",
+      "projectId": "default"
+    },
+    {
+      "id": "7655a8af-1d63-4060-9db9-f2f5c7f5b4f8",
+      "name": "Test Entity Without Session",
+      "type": "test",
+      "description": "Testing if session validation works",
+      "observations": [],
+      "addedBy": "claude",
+      "createdAt": "2025-06-13T23:20:13.680429",
+      "updatedAt": "2025-06-13T23:20:13.680429",
+      "projectId": "default"
     }
   ],
   "relationships": [
@@ -560,6 +606,26 @@
       "addedBy": "claude-ai",
       "createdAt": "2025-06-10T02:47:53.815923",
       "projectId": "default"
+    },
+    {
+      "id": "5cf41db0-f10b-49fd-9680-3d59a6738961",
+      "sourceId": "3573ee5b-dd5a-4c64-a26d-79508e691226",
+      "targetId": "7711c3e2-1923-45b9-b196-08106952170d",
+      "type": "connects_to",
+      "description": "Testing relationship creation functionality",
+      "addedBy": "claude-ai",
+      "createdAt": "2025-06-13T23:04:48.038260",
+      "projectId": "default"
+    },
+    {
+      "id": "7430554c-f5a8-4f2c-945a-254379cde368",
+      "sourceId": "4db99001-7b2c-4c01-8173-7f47eae1b8e7",
+      "targetId": "ce82d110-1e89-4442-8779-94957047f1aa",
+      "type": "test_relationship",
+      "description": "Testing relationship creation",
+      "addedBy": "comprehensive-test-client",
+      "createdAt": "2025-06-13T23:37:28.810691",
+      "projectId": "default"
     }
   ],
   "projects": [
@@ -585,5 +651,5 @@
       "lastAccessed": "2025-06-10T01:35:06.144670"
     }
   ],
-  "updated_at": "2025-06-10T02:53:13.130601"
+  "updated_at": "2025-06-14T00:04:33.564683"
 }

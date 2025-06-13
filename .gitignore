@@ -158,3 +158,6 @@ venv.bak/
 *.mp4
 
 .env.local.example
+.mcp-sessions/
+test*.js
+python-service/shared_knowledge/**

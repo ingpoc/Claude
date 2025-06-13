@@ -2,9 +2,9 @@
   "metadata": [
     {
       "id": 0,
-      "text": "Entity: Claude Project (Project)\nProject: default\nDescription: The Claude project, a desktop application involving AI and knowledge management.\nAdded by: Unknown MCP Client\nCreated: 2025-06-08T15:35:49.999280\n\nObservations:\n- Located in /Users/gurusharan/Documents/Cline/graphmemory/Claude (by Unknown MCP Client)\n- Uses OpenRouter API for AI services (by Unknown MCP Client)\n- Involves MCP Knowledge Graph for data storage (by Unknown MCP Client)\n",
+      "text": "Entity: Claude Project (Project)\nProject: default\nDescription: Updated description from final testing\nAdded by: Unknown MCP Client\nCreated: 2025-06-08T15:35:49.999280\n\nObservations:\n- Located in /Users/gurusharan/Documents/Cline/graphmemory/Claude (by Unknown MCP Client)\n- Uses OpenRouter API for AI services (by Unknown MCP Client)\n- Involves MCP Knowledge Graph for data storage (by Unknown MCP Client)\n- Test observation from comprehensive testing (by final-four-test)\n",
       "frame": 0,
-      "length": 448
+      "length": 473
     },
     {
       "id": 1,
@@ -200,45 +200,75 @@
     },
     {
       "id": 33,
-      "text": "Relationship: includes\nFrom: 0a89b28a-7546-4609-8463-e36aac7803cf \nTo: b576e43f-d172-4271-80c5-29c02942977e\nProject: 50f3fe84-ed94-4ab7-9837-c6d9cb339a96\nDescription: Machine Learning includes Deep Learning as a subset\nAdded by: System\nCreated: 2025-06-08T18:06:04.546167\n",
+      "text": "Entity: Test Entity A (test_concept)\nProject: default\nDescription: Updated description for testing update functionality in mcp-memvid tool\nAdded by: claude-ai\nCreated: 2025-06-13T23:04:07.224432\n\nObservations:\n- Testing observation functionality - this is a detailed note about Test Entity A and its purpose in evaluating the mcp-memvid tool capabilities. (by claude-ai)\n",
       "frame": 33,
-      "length": 272
+      "length": 371
     },
     {
       "id": 34,
-      "text": "Relationship: undergoes\nFrom: d66dcd93-b0fc-4383-bf0a-19ed015d0567 \nTo: 108402ad-5a01-40d5-8b03-f2646553aa5a\nProject: 8bf1433b-66c7-47ab-9335-3e20c966ec99\nDescription: PSSTrans is being migrated from Atom to Quark framework\nAdded by: claude-ai\nCreated: 2025-06-10T01:37:24.815718\n",
+      "text": "Entity: Test Entity B (test_concept)\nProject: default\nDescription: Second test entity for relationship testing\nAdded by: claude-ai\nCreated: 2025-06-13T23:04:25.170383\n\nObservations:\n\n",
       "frame": 34,
-      "length": 280
+      "length": 183
     },
     {
       "id": 35,
-      "text": "Relationship: experiencing\nFrom: d66dcd93-b0fc-4383-bf0a-19ed015d0567 \nTo: be0e908c-44d9-49ec-afd6-d94ca10c434c\nProject: 8bf1433b-66c7-47ab-9335-3e20c966ec99\nDescription: PSSTrans is currently experiencing server startup issues during migration\nAdded by: claude-ai\nCreated: 2025-06-10T01:38:26.163803\n",
+      "text": "Entity: Test Entity Without Session (test)\nProject: default\nDescription: Testing if session validation works\nAdded by: claude\nCreated: 2025-06-13T23:20:13.680429\n\nObservations:\n\n",
       "frame": 35,
-      "length": 301
+      "length": 178
     },
     {
       "id": 36,
-      "text": "Relationship: stored_at\nFrom: c69779e5-caa8-433c-8ef3-b4b1510e1a3a \nTo: e775c64e-5dd7-4994-bd6e-bacc1bce3dcb\nProject: 8bf1433b-66c7-47ab-9335-3e20c966ec99\nDescription: Migration toolkit is stored at specified location\nAdded by: claude-ai\nCreated: 2025-06-10T01:38:52.824412\n",
+      "text": "Relationship: includes\nFrom: 0a89b28a-7546-4609-8463-e36aac7803cf \nTo: b576e43f-d172-4271-80c5-29c02942977e\nProject: 50f3fe84-ed94-4ab7-9837-c6d9cb339a96\nDescription: Machine Learning includes Deep Learning as a subset\nAdded by: System\nCreated: 2025-06-08T18:06:04.546167\n",
       "frame": 36,
-      "length": 274
+      "length": 272
     },
     {
       "id": 37,
-      "text": "Relationship: experiencing\nFrom: b7b94bdc-35a9-4b02-a775-bc39a21614fd \nTo: be0e908c-44d9-49ec-afd6-d94ca10c434c\nProject: default\nDescription: PSSTrans is currently experiencing server startup issues\nAdded by: claude-ai\nCreated: 2025-06-10T02:20:54.777253\n",
+      "text": "Relationship: undergoes\nFrom: d66dcd93-b0fc-4383-bf0a-19ed015d0567 \nTo: 108402ad-5a01-40d5-8b03-f2646553aa5a\nProject: 8bf1433b-66c7-47ab-9335-3e20c966ec99\nDescription: PSSTrans is being migrated from Atom to Quark framework\nAdded by: claude-ai\nCreated: 2025-06-10T01:37:24.815718\n",
       "frame": 37,
-      "length": 255
+      "length": 280
     },
     {
       "id": 38,
-      "text": "Relationship: test\nFrom: nonexistent-source \nTo: nonexistent-target\nProject: default\nDescription: Test relationship\nAdded by: claude-ai\nCreated: 2025-06-10T02:26:07.869471\n",
+      "text": "Relationship: experiencing\nFrom: d66dcd93-b0fc-4383-bf0a-19ed015d0567 \nTo: be0e908c-44d9-49ec-afd6-d94ca10c434c\nProject: 8bf1433b-66c7-47ab-9335-3e20c966ec99\nDescription: PSSTrans is currently experiencing server startup issues during migration\nAdded by: claude-ai\nCreated: 2025-06-10T01:38:26.163803\n",
       "frame": 38,
-      "length": 172
+      "length": 301
     },
     {
       "id": 39,
-      "text": "Relationship: validates\nFrom: c4b3a5f3-ed82-4768-9c5f-307d482e81ac \nTo: b7b94bdc-35a9-4b02-a775-bc39a21614fd\nProject: default\nDescription: Test relationship to validate functionality\nAdded by: claude-ai\nCreated: 2025-06-10T02:47:53.815923\n",
+      "text": "Relationship: stored_at\nFrom: c69779e5-caa8-433c-8ef3-b4b1510e1a3a \nTo: e775c64e-5dd7-4994-bd6e-bacc1bce3dcb\nProject: 8bf1433b-66c7-47ab-9335-3e20c966ec99\nDescription: Migration toolkit is stored at specified location\nAdded by: claude-ai\nCreated: 2025-06-10T01:38:52.824412\n",
       "frame": 39,
+      "length": 274
+    },
+    {
+      "id": 40,
+      "text": "Relationship: experiencing\nFrom: b7b94bdc-35a9-4b02-a775-bc39a21614fd \nTo: be0e908c-44d9-49ec-afd6-d94ca10c434c\nProject: default\nDescription: PSSTrans is currently experiencing server startup issues\nAdded by: claude-ai\nCreated: 2025-06-10T02:20:54.777253\n",
+      "frame": 40,
+      "length": 255
+    },
+    {
+      "id": 41,
+      "text": "Relationship: test\nFrom: nonexistent-source \nTo: nonexistent-target\nProject: default\nDescription: Test relationship\nAdded by: claude-ai\nCreated: 2025-06-10T02:26:07.869471\n",
+      "frame": 41,
+      "length": 172
+    },
+    {
+      "id": 42,
+      "text": "Relationship: validates\nFrom: c4b3a5f3-ed82-4768-9c5f-307d482e81ac \nTo: b7b94bdc-35a9-4b02-a775-bc39a21614fd\nProject: default\nDescription: Test relationship to validate functionality\nAdded by: claude-ai\nCreated: 2025-06-10T02:47:53.815923\n",
+      "frame": 42,
       "length": 239
+    },
+    {
+      "id": 43,
+      "text": "Relationship: connects_to\nFrom: 3573ee5b-dd5a-4c64-a26d-79508e691226 \nTo: 7711c3e2-1923-45b9-b196-08106952170d\nProject: default\nDescription: Testing relationship creation functionality\nAdded by: claude-ai\nCreated: 2025-06-13T23:04:48.038260\n",
+      "frame": 43,
+      "length": 241
+    },
+    {
+      "id": 44,
+      "text": "Relationship: test_relationship\nFrom: 4db99001-7b2c-4c01-8173-7f47eae1b8e7 \nTo: ce82d110-1e89-4442-8779-94957047f1aa\nProject: default\nDescription: Testing relationship creation\nAdded by: comprehensive-test-client\nCreated: 2025-06-13T23:37:28.810691\n",
+      "frame": 44,
+      "length": 249
     }
   ],
   "chunk_to_frame": {
@@ -281,7 +311,12 @@
     "36": 36,
     "37": 37,
     "38": 38,
-    "39": 39
+    "39": 39,
+    "40": 40,
+    "41": 41,
+    "42": 42,
+    "43": 43,
+    "44": 44
   },
   "frame_to_chunks": {
     "0": [
@@ -403,6 +438,21 @@
     ],
     "39": [
       39
+    ],
+    "40": [
+      40
+    ],
+    "41": [
+      41
+    ],
+    "42": [
+      42
+    ],
+    "43": [
+      43
+    ],
+    "44": [
+      44
     ]
   },
   "config": {

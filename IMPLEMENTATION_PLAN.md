@@ -1,4 +1,4 @@
-# MCP–Memvid Integration – Implementation Plan
+npm # MCP–Memvid Integration – Implementation Plan
 
 _Last updated: 2025-06-13_
 

@@ -13,7 +13,17 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   InitializeRequestSchema,
+  PingRequestSchema,
+  ListResourcesRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
+import { promises as fs } from "fs";
+import path from "path";
+import { randomUUID } from "crypto";
+import { fileURLToPath } from "url";
+import { SessionManager, SessionData } from "./utils/SessionManager.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Types
 interface Entity {
@@ -40,6 +50,9 @@ let clientInfo = {
   version: 'unknown'
 };
 
+// Global session state - tracks the current active session per client
+let currentSessionId: string | null = null;
+
 // Backend service
 class BackendService {
   private baseUrl = process.env.BACKEND_URL || 'http://localhost:8000';
@@ -64,7 +77,7 @@ class BackendService {
   
   async checkHealth() {
     try {
-      await this.request('/health');
+      await this.request('/');
       return true;
     } catch {
       return false;
@@ -74,307 +87,433 @@ class BackendService {
 
 // Initialize
 const backend = new BackendService();
+const sessionManager = new SessionManager();
 
-const server = new Server({
-  name: "knowledge-graph",
-  version: "1.0.0"
-}, {
-  capabilities: {
-    tools: {}
-  }
-});
+const server = new Server(
+  {
+    name: "knowledge-graph",
+    version: "1.0.0",
+  },
+  {
+    capabilities: {
+      logging: {},
+      tools: {},
+      resources: {},
+    },
+  },
+);
 
 // Health check
 async function initializeServer() {
+  // Allow skipping the backend health check when running inside Cursor or CI
+  if (process.env.SKIP_HEALTH_CHECK === "1") {
+    console.error("⚠️  Skipping backend health check (SKIP_HEALTH_CHECK=1)");
+    return;
+  }
+
   const isHealthy = await backend.checkHealth();
   if (!isHealthy) {
-    console.error('❌ Backend service not available at http://localhost:8000');
-    console.error('🔧 Please start services: npm run start:services');
+    console.error("❌ Backend service not available at http://localhost:8000");
+    console.error("🔧 Please start services: npm run start:services or set SKIP_HEALTH_CHECK=1");
     process.exit(1);
   }
-  
-  console.error('✅ Connected to backend service');
+
+  console.error("✅ Connected to backend service");
 }
+
+// ----------------------------------------------------------------------------
+// Session persistence helpers
+// ----------------------------------------------------------------------------
+
+const SESSIONS_DIR = path.join(__dirname, "..", "..", ".mcp-sessions");
+const SESSION_TTL_DAYS = 7;
+
+async function ensureSessionsDir() {
+  try {
+    await fs.mkdir(SESSIONS_DIR, { recursive: true });
+  } catch {
+    // ignore
+  }
+}
+
+interface SessionRecord {
+  sessionId: string;
+  createdAt: string;
+  lastSeen: string;
+  clientInfo: typeof clientInfo;
+}
+
+async function loadSession(sessionId: string): Promise<SessionRecord | null> {
+  try {
+    const p = path.join(SESSIONS_DIR, `${sessionId}.json`);
+    const raw = await fs.readFile(p, "utf8");
+    return JSON.parse(raw) as SessionRecord;
+  } catch {
+    return null;
+  }
+}
+
+async function saveSession(record: SessionRecord) {
+  const p = path.join(SESSIONS_DIR, `${record.sessionId}.json`);
+  await fs.writeFile(p, JSON.stringify(record, null, 2), "utf8");
+}
+
+async function cleanupExpiredSessions() {
+  try {
+    const entries = await fs.readdir(SESSIONS_DIR);
+    const now = Date.now();
+    const ttlMs = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
+    await Promise.all(entries.map(async (file) => {
+      if (!file.endsWith(".json")) return;
+      const p = path.join(SESSIONS_DIR, file);
+      try {
+        const stat = await fs.stat(p);
+        if (now - stat.mtimeMs > ttlMs) {
+          await fs.unlink(p);
+        }
+      } catch {
+        /* ignore */
+      }
+    }));
+  } catch {
+    // ignore
+  }
+}
+
+await ensureSessionsDir();
+await cleanupExpiredSessions();
 
 // Initialize handler - captures client information from MCP protocol
 server.setRequestHandler(InitializeRequestSchema, async (request) => {
   const { params } = request;
   
-  // Capture client info from the initialize request
-  if (params.clientInfo) {
-    clientInfo.name = params.clientInfo.name || 'unknown';
-    clientInfo.version = params.clientInfo.version || 'unknown';
+  console.error(`📡 MCP Initialize request received`);
+  console.error(`📡 Client info: ${JSON.stringify(params.clientInfo)}`);
+
+  // Skip health check during initialization to avoid connection issues
+  console.error(`📡 Skipping health check during initialization for better Cursor compatibility`);
+
+  // Session handling
+  let sessionId: string;
+  if (params.sessionInfo && (params.sessionInfo as any).sessionId) {
+    sessionId = (params.sessionInfo as any).sessionId as string;
+  } else {
+    sessionId = randomUUID();
   }
-  
-  console.error(`🔌 MCP Client Connected: ${clientInfo.name} v${clientInfo.version}`);
-  
-  return {
+
+  // Capture client info
+  if (params.clientInfo) {
+    clientInfo.name = params.clientInfo.name || "unknown";
+    clientInfo.version = params.clientInfo.version || "unknown";
+  }
+
+  const nowIso = new Date().toISOString();
+  await saveSession({
+    sessionId,
+    createdAt: nowIso,
+    lastSeen: nowIso,
+    clientInfo: { ...clientInfo },
+  });
+
+  console.error(`🔌 MCP Client Connected: ${clientInfo.name} v${clientInfo.version} – session ${sessionId}`);
+
+  const response = {
     protocolVersion: "2024-11-05",
     capabilities: {
-      tools: {}
+      logging: {},
+      resources: { listChanged: true, subscribe: false },
+      tools: { 
+        listChanged: true,
+        tools: TOOL_DESCRIPTORS
+      },
     },
     serverInfo: {
       name: "knowledge-graph",
-      version: "1.0.0"
-    }
+      version: "1.0.0",
+    },
+    sessionInfo: {
+      sessionId,
+      resumeSupported: true,
+    },
+  };
+  
+  console.error(`📡 Sending initialize response: ${JSON.stringify(response)}`);
+  return response;
+});
+
+// Ping handler (optional utility as per MCP spec)
+try {
+  server.setRequestHandler(PingRequestSchema, async () => ({}));
+} catch {
+  // If schema is not available in current SDK version, silently ignore
+}
+
+// Resources list handler – expose Memvid index JSON
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  const indexPath = process.env.MEMVID_INDEX_PATH || path.join(process.cwd(), "python-service/shared_knowledge/knowledge_graph_index.json");
+
+  return {
+    resources: [
+      {
+        uri: `file://${indexPath}`,
+        name: "Memvid Index",
+        mimeType: "application/json",
+      },
+    ],
   };
 });
 
+// ----------------------------------------------------------------------------
+// Tool descriptors (single source of truth)
+// ----------------------------------------------------------------------------
+
+export const TOOL_DESCRIPTORS = [
+  {
+    name: "init_session",
+    description: "Initialize session with project context - REQUIRED FIRST STEP",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectId: {
+          type: "string",
+          description: "Project ID to initialize (optional, defaults to 'default')"
+        },
+        codebaseIdentifier: {
+          type: "string", 
+          description: "Optional codebase identifier for context"
+        }
+      },
+    },
+  },
+  {
+    name: "create_entity",
+    description: "Create a new entity in the knowledge graph",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Name of the entity" },
+        type: { type: "string", description: "Type/category of the entity" },
+        description: { type: "string", description: "Description of the entity" },
+        projectId: { type: "string", description: "Project ID (optional, defaults to 'default')" }
+      },
+      required: ["name", "type", "description"],
+    },
+  },
+  {
+    name: "search_entities",
+    description: "Search for entities in the knowledge graph",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query" },
+        limit: { type: "number", description: "Maximum number of results (default: 10)" },
+        projectId: { type: "string", description: "Project ID to search within (optional)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "get_entity",
+    description: "Get detailed information about a specific entity",
+    inputSchema: {
+      type: "object",
+      properties: {
+        entityId: { type: "string", description: "ID of the entity to retrieve" }
+      },
+      required: ["entityId"],
+    },
+  },
+  {
+    name: "create_relationship",
+    description: "Create a relationship between two entities",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sourceId: { type: "string", description: "ID of the source entity" },
+        targetId: { type: "string", description: "ID of the target entity" },
+        type: { type: "string", description: "Type of relationship" },
+        description: { type: "string", description: "Description of the relationship" },
+        projectId: { type: "string", description: "Project ID (optional, defaults to 'default')" }
+      },
+      required: ["sourceId", "targetId", "type"],
+    },
+  },
+  {
+    name: "list_projects",
+    description: "List all projects in the knowledge graph",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "create_project",
+    description: "Create a new project",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Name of the project" },
+        description: { type: "string", description: "Description of the project" }
+      },
+      required: ["name", "description"],
+    },
+  },
+  {
+    name: "list_entities",
+    description: "List entities with optional filtering",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: { type: "string", description: "Filter by entity type (optional)" },
+        projectId: { type: "string", description: "Filter by project ID (optional)" }
+      },
+    },
+  },
+  {
+    name: "find_related_entities",
+    description: "Find entities related to a specific entity",
+    inputSchema: {
+      type: "object",
+      properties: {
+        entityId: { type: "string", description: "ID of the entity to find relationships for" },
+        direction: { type: "string", description: "Direction: incoming, outgoing, or both (optional)" },
+        relationshipType: { type: "string", description: "Filter by relationship type (optional)" },
+        depth: { type: "number", description: "Depth of traversal (optional, default: 1)" },
+        projectId: { type: "string", description: "Filter by project ID (optional)" }
+      },
+      required: ["entityId"],
+    },
+  },
+  {
+    name: "list_relationships",
+    description: "List relationships with optional filtering",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string", description: "Filter by project ID (optional)" },
+        relationshipType: { type: "string", description: "Filter by relationship type (optional)" },
+        entityId: { type: "string", description: "Filter by entity ID (optional)" }
+      },
+    },
+  },
+  {
+    name: "search_observations",
+    description: "Search observations with various filters",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query" },
+        limit: { type: "number", description: "Maximum number of results (default: 10)" },
+        projectId: { type: "string", description: "Filter by project ID (optional)" },
+        entityId: { type: "string", description: "Filter by entity ID (optional)" },
+        addedBy: { type: "string", description: "Filter by contributor (optional)" }
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "update_entity",
+    description: "Update an existing entity",
+    inputSchema: {
+      type: "object",
+      properties: {
+        entityId: { type: "string", description: "ID of the entity to update" },
+        name: { type: "string", description: "New name (optional)" },
+        type: { type: "string", description: "New type (optional)" },
+        description: { type: "string", description: "New description (optional)" },
+        projectId: { type: "string", description: "New project ID (optional)" }
+      },
+      required: ["entityId"],
+    },
+  },
+  {
+    name: "get_analytics",
+    description: "Get analytics and statistics about the knowledge graph",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string", description: "Filter by project ID (optional)" },
+        includeDetails: { type: "boolean", description: "Include detailed statistics (optional)" }
+      },
+    },
+  },
+  {
+    name: "add_observation",
+    description: "Add an observation to an entity",
+    inputSchema: {
+      type: "object",
+      properties: {
+        entityId: { type: "string", description: "ID of the entity to add observation to" },
+        text: { type: "string", description: "Observation text" }
+      },
+      required: ["entityId", "text"],
+    },
+  },
+];
+
 // Tools list handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  // Example parameter payloads for each tool – used to populate JSON Schema "examples" fields
-  const EXAMPLES: Record<string, any> = {
-    create_entity: {
-      name: "Acme Corp",
-      type: "Company",
-      description: "A fictional corporation used for examples"
-    },
-    search_entities: {
-      query: "Acme",
-      limit: 5
-    },
-    get_entity: {
-      entityId: "entity_123"
-    },
-    create_relationship: {
-      sourceId: "entity_source",
-      targetId: "entity_target",
-      type: "acquired",
-      description: "Source entity acquired the target entity"
-    },
-    list_projects: {},
-    create_project: {
-      name: "New Research",
-      description: "Project for R&D initiatives"
-    },
-    list_entities: {
-      type: "Company",
-      projectId: "default"
-    },
-    find_related_entities: {
-      entityId: "entity_123",
-      direction: "both",
-      relationshipType: "acquired",
-      depth: 2
-    },
-    list_relationships: {
-      relationshipType: "acquired",
-      projectId: "default"
-    },
-    search_observations: {
-      query: "market share",
-      limit: 10
-    },
-    update_entity: {
-      entityId: "entity_123",
-      name: "Acme International"
-    },
-    get_analytics: {
-      includeDetails: true
-    },
-    add_observation: {
-      entityId: "entity_123",
-      text: "Acme Corp increased its market cap by 10% in 2024"
-    }
-  };
-
   return {
-    tools: [
-      {
-        name: "create_entity",
-        description: "Create a new entity in the knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {
-            name: { type: "string", description: "Name of the entity" },
-            type: { type: "string", description: "Type/category of the entity" },
-            description: { type: "string", description: "Description of the entity" },
-            projectId: { type: "string", description: "Project ID (optional, defaults to 'default')" }
-          },
-          required: ["name", "type", "description"],
-          examples: [EXAMPLES.create_entity]
-        }
-      },
-      {
-        name: "search_entities",
-        description: "Search for entities in the knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: { type: "string", description: "Search query" },
-            limit: { type: "number", description: "Maximum number of results (default: 10)" },
-            projectId: { type: "string", description: "Project ID to search within (optional)" }
-          },
-          required: ["query"],
-          examples: [EXAMPLES.search_entities]
-        }
-      },
-      {
-        name: "get_entity",
-        description: "Get a specific entity by ID",
-        inputSchema: {
-          type: "object",
-          properties: {
-            entityId: { type: "string", description: "ID of the entity to retrieve" }
-          },
-          required: ["entityId"],
-          examples: [EXAMPLES.get_entity]
-        }
-      },
-      {
-        name: "create_relationship",
-        description: "Create a relationship between two entities",
-        inputSchema: {
-          type: "object",
-          properties: {
-            sourceId: { type: "string", description: "ID of the source entity" },
-            targetId: { type: "string", description: "ID of the target entity" },
-            type: { type: "string", description: "Type of relationship" },
-            description: { type: "string", description: "Description of the relationship" },
-            projectId: { type: "string", description: "Project ID (optional)" }
-          },
-          required: ["sourceId", "targetId", "type"],
-          examples: [EXAMPLES.create_relationship]
-        }
-      },
-      {
-        name: "list_projects",
-        description: "List all available projects",
-        inputSchema: {
-          type: "object",
-          properties: {},
-          required: [],
-          examples: [EXAMPLES.list_projects]
-        }
-      },
-      {
-        name: "create_project",
-        description: "Create a new project",
-        inputSchema: {
-          type: "object",
-          properties: {
-            name: { type: "string", description: "Name of the project" },
-            description: { type: "string", description: "Description of the project" }
-          },
-          required: ["name", "description"],
-          examples: [EXAMPLES.create_project]
-        }
-      },
-      {
-        name: "list_entities",
-        description: "List all entities, optionally filtered by type or project",
-        inputSchema: {
-          type: "object",
-          properties: {
-            type: { type: "string", description: "Filter by entity type (optional)" },
-            projectId: { type: "string", description: "Filter by project ID (optional)" }
-          },
-          required: [],
-          examples: [EXAMPLES.list_entities]
-        }
-      },
-      {
-        name: "find_related_entities",
-        description: "Find entities related to a specific entity through relationships",
-        inputSchema: {
-          type: "object",
-          properties: {
-            entityId: { type: "string", description: "ID of the entity to find relationships for" },
-            direction: { type: "string", enum: ["outgoing", "incoming", "both"], description: "Direction of relationships to follow (default: both)" },
-            relationshipType: { type: "string", description: "Filter by specific relationship type (optional)" },
-            depth: { type: "number", description: "Depth of traversal (1-3, default: 1)" },
-            projectId: { type: "string", description: "Filter by project ID (optional)" }
-          },
-          required: ["entityId"],
-          examples: [EXAMPLES.find_related_entities]
-        }
-      },
-      {
-        name: "list_relationships",
-        description: "List relationships with optional filtering",
-        inputSchema: {
-          type: "object",
-          properties: {
-            projectId: { type: "string", description: "Filter by project ID (optional)" },
-            relationshipType: { type: "string", description: "Filter by relationship type (optional)" },
-            entityId: { type: "string", description: "Filter relationships involving specific entity (optional)" }
-          },
-          required: [],
-          examples: [EXAMPLES.list_relationships]
-        }
-      },
-      {
-        name: "search_observations",
-        description: "Search for observations across all entities",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: { type: "string", description: "Search query for observation content" },
-            limit: { type: "number", description: "Maximum number of results (default: 10)" },
-            projectId: { type: "string", description: "Filter by project ID (optional)" },
-            entityId: { type: "string", description: "Filter by specific entity ID (optional)" },
-            addedBy: { type: "string", description: "Filter by who added the observation (optional)" }
-          },
-          required: ["query"],
-          examples: [EXAMPLES.search_observations]
-        }
-      },
-      {
-        name: "update_entity",
-        description: "Update an existing entity's properties",
-        inputSchema: {
-          type: "object",
-          properties: {
-            entityId: { type: "string", description: "ID of the entity to update" },
-            name: { type: "string", description: "New name for the entity (optional)" },
-            type: { type: "string", description: "New type for the entity (optional)" },
-            description: { type: "string", description: "New description for the entity (optional)" },
-            projectId: { type: "string", description: "Move entity to different project (optional)" }
-          },
-          required: ["entityId"],
-          examples: [EXAMPLES.update_entity]
-        }
-      },
-      {
-        name: "get_analytics",
-        description: "Get comprehensive analytics and statistics for the knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {
-            projectId: { type: "string", description: "Get analytics for specific project (optional)" },
-            includeDetails: { type: "boolean", description: "Include detailed breakdowns (default: false)" }
-          },
-          required: [],
-          examples: [EXAMPLES.get_analytics]
-        }
-      },
-      {
-        name: "add_observation",
-        description: "Add an observation to an entity",
-        inputSchema: {
-          type: "object",
-          properties: {
-            entityId: { type: "string", description: "ID of the entity to add observation to" },
-            text: { type: "string", description: "The observation text" },
-            projectId: { type: "string", description: "Project ID (optional)" }
-          },
-          required: ["entityId", "text"],
-          examples: [EXAMPLES.add_observation]
-        }
-      }
-    ]
+    tools: TOOL_DESCRIPTORS,
   };
 });
 
 // Utility to emit streaming chunks for long-running tool calls (M2)
 async function emitToolStreamChunk(text: string, isFinal: boolean = false) {
-  await server.notification({
-    method: "notifications/toolStream",
-    params: {
-      content: [{ type: "text", text }],
-      isFinal
+  // Skip streaming for compatibility - just log for now
+  console.error(`📡 Stream chunk: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`);
+}
+
+// Helper function to check if session is required
+function requiresSession(toolName: string): boolean {
+  const sessionRequiredTools = [
+    'create_entity', 'search_entities', 'get_entity', 'create_relationship',
+    'list_entities', 'find_related_entities', 'list_relationships', 
+    'search_observations', 'update_entity', 'add_observation'
+  ];
+  return sessionRequiredTools.includes(toolName);
+}
+
+// Helper function to get current session or create error response
+function getCurrentSession(): { session: any, error?: any } {
+  if (!currentSessionId || !sessionManager.isValidSession(currentSessionId)) {
+    return {
+      session: null,
+      error: {
+        content: [{ 
+          type: "text", 
+          text: "❌ Session initialization required. Please call 'init_session' first to establish project context."
+        }],
+        isError: true
+      }
+    };
+  }
+  
+  const session = sessionManager.getSession(currentSessionId);
+  return { session };
+}
+
+// Helper function to create tool responses with session context
+function createToolResponse(content: string, sessionId?: string, isError = false) {
+  const sessionToUse = sessionId || currentSessionId;
+  const baseResponse = {
+    content: [{ type: "text", text: content }],
+    isError
+  };
+  
+  if (sessionToUse) {
+    const session = sessionManager.getSession(sessionToUse);
+    if (session) {
+      (baseResponse as any).sessionContext = {
+        sessionId: session.id,
+        projectId: session.projectId,
+        entityCount: session.contextEntities.length,
+        lastAccessed: session.lastAccessed.toISOString()
+      };
     }
-  } as any);
+  }
+  
+  return baseResponse;
 }
 
 // Tool call handler
@@ -385,71 +524,150 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     throw new Error("Missing arguments in tool call");
   }
   
+  // Check if session is required but not available
+  if (requiresSession(name)) {
+    const { session, error } = getCurrentSession();
+    if (error) {
+      return error;
+    }
+  }
+  
   try {
     switch (name) {
+      case "init_session":
+        const initProjectId = (args as any).projectId || 'default';
+        const codebaseIdentifier = (args as any).codebaseIdentifier;
+        
+        // Check if project exists in backend
+        let projectExists = false;
+        try {
+          const projects = await backend.request('/api/projects');
+          projectExists = projects.some((p: any) => p.id === initProjectId);
+        } catch (error) {
+          console.error('Failed to check existing projects:', error);
+        }
+        
+        // Create project if it doesn't exist and get the actual project ID
+        let actualProjectId = initProjectId;
+        if (!projectExists && initProjectId !== 'default') {
+          try {
+            const createdProject = await backend.request('/api/projects', {
+              method: 'POST',
+              body: JSON.stringify({
+                name: initProjectId,
+                description: `Auto-created project for ${codebaseIdentifier || 'MCP session'}`
+              })
+            });
+            actualProjectId = createdProject.id; // Use the UUID returned by backend
+            console.error(`📁 Auto-created project: ${initProjectId} with ID: ${actualProjectId}`);
+          } catch (error) {
+            console.error('Failed to create project:', error);
+            // If creation fails, try to find existing project by name
+            try {
+              const projects = await backend.request('/api/projects');
+              const existingProject = projects.find((p: any) => p.name === initProjectId);
+              if (existingProject) {
+                actualProjectId = existingProject.id;
+                console.error(`📁 Found existing project: ${initProjectId} with ID: ${actualProjectId}`);
+              }
+            } catch (findError) {
+              console.error('Failed to find existing project:', findError);
+            }
+          }
+        } else if (projectExists) {
+          // Find the actual project ID for existing projects
+          try {
+            const projects = await backend.request('/api/projects');
+            const existingProject = projects.find((p: any) => p.id === initProjectId || p.name === initProjectId);
+            if (existingProject) {
+              actualProjectId = existingProject.id;
+            }
+          } catch (findError) {
+            console.error('Failed to find project ID:', findError);
+          }
+        }
+        
+        // Create session and set as current with the actual project ID
+        const sessionId = sessionManager.createSession(actualProjectId, clientInfo);
+        currentSessionId = sessionId;
+        
+        // Get project stats for context
+        let projectStats = { entities: 0, relationships: 0 };
+        try {
+          const analytics = await backend.request('/api/analytics?project_id=' + actualProjectId);
+          projectStats.entities = analytics.total_entities || 0;
+          projectStats.relationships = analytics.total_relationships || 0;
+        } catch (error) {
+          console.error('Failed to get project stats:', error);
+        }
+        
+        return createToolResponse(
+          `✅ Session initialized successfully!\n\n` +
+          `📋 **Session Details:**\n` +
+          `   • Session ID: ${sessionId}\n` +
+          `   • Project: ${initProjectId} (ID: ${actualProjectId})\n` +
+          `   • Current Entities: ${projectStats.entities}\n` +
+          `   • Current Relationships: ${projectStats.relationships}\n\n` +
+          `🔧 **Ready for Operations:**\n` +
+          `   • Session is now active for all subsequent tool calls\n` +
+          `   • Use search_entities to explore existing knowledge\n` +
+          `   • Use create_entity to add new information\n` +
+          `   • All operations will automatically use this session context`,
+          sessionId
+        );
+
       case "create_entity":
+        const { session: createSession } = getCurrentSession();
+        
         const entityResponse = await backend.request('/api/entities', {
           method: 'POST',
           body: JSON.stringify({
             ...args,
-            addedBy: clientInfo.name,
-            projectId: args.projectId || 'default'
+            addedBy: createSession?.clientInfo.name || clientInfo.name,
+            projectId: createSession?.projectId || 'default'
           })
         });
         
-        return {
-          content: [
-            {
-              type: "text",
-              text: `✅ Created entity: ${entityResponse.name} (${entityResponse.type})\nID: ${entityResponse.id}\nProject: ${entityResponse.projectId}`
-            }
-          ]
-        };
+        // Add entity to session context
+        if (currentSessionId) {
+          sessionManager.addEntityToContext(currentSessionId, entityResponse.id);
+        }
+        
+        return createToolResponse(
+          `✅ Created entity: ${entityResponse.name} (${entityResponse.type})\nID: ${entityResponse.id}\nProject: ${entityResponse.projectId}`
+        );
 
       case "search_entities":
+        const { session: searchSession } = getCurrentSession();
+        
         const searchParams = new URLSearchParams({
-          q: String(args.query || ''),
-          limit: String(args.limit || 10)
+          q: String((args as any).query || ''),
+          limit: String((args as any).limit || 10)
         });
         
-        if (args.projectId) {
-          searchParams.set('project_id', String(args.projectId));
+        // Use session project if not specified
+        const searchProjectId = (args as any).projectId || searchSession?.projectId;
+        if (searchProjectId) {
+          searchParams.set('project_id', String(searchProjectId));
         }
         
         const searchResponse = await backend.request(`/api/search?${searchParams}`);
         const searchResults = searchResponse.entities || searchResponse || [];
         
         if (searchResults.length === 0) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `🔍 No entities found for query: "${args.query}"`
-              }
-            ]
-          };
+          return createToolResponse(
+            `🔍 No entities found for query: "${(args as any).query}" in project: ${searchProjectId}`
+          );
         }
         
-        // Stream results in chunks (M2)
-        const CHUNK_SIZE = 5;
-        for (let i = 0; i < searchResults.length; i += CHUNK_SIZE) {
-          const slice = searchResults.slice(i, i + CHUNK_SIZE);
-          const chunkText = slice.map((entity: any, index: number) =>
-            `${i + index + 1}. **${entity.name}** (${entity.type})\n   ${entity.description}\n   ID: ${entity.id}`
-          ).join('\n\n');
-          await emitToolStreamChunk(chunkText, false);
-        }
-        // Send final marker
-        await emitToolStreamChunk('🔚 End of results', true);
+        // Format results
+        const formattedResults = searchResults.slice(0, 10).map((entity: any, index: number) =>
+          `${index + 1}. **${entity.name}** (${entity.type})\n   ${entity.description}\n   ID: ${entity.id}`
+        ).join('\n\n');
         
-        return {
-          content: [
-            {
-              type: "text",
-              text: `🔍 Streaming ${searchResults.length} entities finished.`
-            }
-          ]
-        };
+        return createToolResponse(
+          `🔍 Found ${searchResults.length} entities for "${(args as any).query}":\n\n${formattedResults}`
+        );
 
       case "get_entity":
         const entity = await backend.request(`/api/entities/${args.entityId}`);
@@ -649,14 +867,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const relationships = await backend.request(`/api/relationships?${relationshipParams}`);
         
         if (relationships.length === 0) {
-          const filterText = args.projectId || args.relationshipType || args.entityId ? 
+          const relFilter = args.projectId || args.relationshipType || args.entityId ? 
             ' (with current filters)' : '';
           
           return {
             content: [
               {
                 type: "text",
-                text: `🔗 No relationships found${filterText}`
+                text: `🔗 No relationships found${relFilter}`
               }
             ]
           };
@@ -721,8 +939,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "update_entity":
         const updateData: any = {};
-        
-        // Only include fields that are provided
         if (args.name !== undefined) updateData.name = args.name;
         if (args.type !== undefined) updateData.type = args.type;
         if (args.description !== undefined) updateData.description = args.description;
@@ -757,24 +973,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "get_analytics":
         const analyticsParams = new URLSearchParams();
-        
-        if (args.projectId) {
-          analyticsParams.set('project_id', String(args.projectId));
-        }
-        
-        if (args.includeDetails) {
-          analyticsParams.set('include_details', String(args.includeDetails));
-        }
+        if (args.projectId) analyticsParams.set('project_id', String(args.projectId));
+        if (args.includeDetails) analyticsParams.set('include_details', String(args.includeDetails));
         
         const analytics = await backend.request(`/api/analytics?${analyticsParams}`);
-        
         let analyticsText = `📊 **Knowledge Graph Analytics**\n\n`;
         analyticsText += `📈 **Summary Statistics:**\n`;
         analyticsText += `   • Total Entities: ${analytics.total_entities}\n`;
         analyticsText += `   • Total Relationships: ${analytics.total_relationships}\n`;
         analyticsText += `   • Total Observations: ${analytics.total_observations}\n`;
         analyticsText += `   • Total Projects: ${analytics.total_projects}\n\n`;
-        
         if (analytics.entity_types && Object.keys(analytics.entity_types).length > 0) {
           analyticsText += `🏷️ **Entity Types:**\n`;
           for (const [type, count] of Object.entries(analytics.entity_types)) {
@@ -782,7 +990,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
           analyticsText += `\n`;
         }
-        
         if (analytics.relationship_types && Object.keys(analytics.relationship_types).length > 0) {
           analyticsText += `🔗 **Relationship Types:**\n`;
           for (const [type, count] of Object.entries(analytics.relationship_types)) {
@@ -790,7 +997,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
           analyticsText += `\n`;
         }
-        
         if (analytics.project_stats && analytics.project_stats.length > 0) {
           analyticsText += `📁 **Project Statistics:**\n`;
           for (const project of analytics.project_stats) {
@@ -798,14 +1004,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
           analyticsText += `\n`;
         }
-        
         if (analytics.top_contributors && analytics.top_contributors.length > 0) {
           analyticsText += `👥 **Top Contributors:**\n`;
           for (const contributor of analytics.top_contributors) {
             analyticsText += `   • ${contributor.name}: ${contributor.entities} entities, ${contributor.observations} observations\n`;
           }
         }
-        
         return {
           content: [
             {
@@ -858,9 +1062,10 @@ async function main() {
   await server.connect(transport);
   
   console.error('🚀 MCP Knowledge Graph server started');
+  console.error('📡 Ready for MCP client connections...');
 }
 
 main().catch((error) => {
-  console.error('Failed to start server:', error);
+  console.error('❌ Failed to start server:', error);
   process.exit(1);
 });
