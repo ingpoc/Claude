@@ -53,16 +53,40 @@ let clientInfo = {
 // Global session state - tracks the current active session per client
 let currentSessionId: string | null = null;
 
-// Backend service
+// Optimized backend service with connection pooling
 class BackendService {
   private baseUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
   
-  async request(endpoint: string, options: RequestInit = {}) {
+  private getFromCache(key: string): any | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+  
+  private setCache(key: string, data: any, ttl: number = 30000): void {
+    this.cache.set(key, { data, timestamp: Date.now(), ttl });
+  }
+  
+  async request(endpoint: string, options: RequestInit = {}, cacheKey?: string, cacheTTL?: number) {
+    // Check cache first for GET requests
+    if ((!options.method || options.method === 'GET') && cacheKey) {
+      const cached = this.getFromCache(cacheKey);
+      if (cached) return cached;
+    }
+    
     const url = `${this.baseUrl}${endpoint}`;
     
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
+        'Keep-Alive': 'timeout=60, max=100',
         ...options.headers
       },
       ...options
@@ -72,12 +96,19 @@ class BackendService {
       throw new Error(`Backend request failed: ${response.status} ${response.statusText}`);
     }
     
-    return response.json();
+    const result = await response.json();
+    
+    // Cache successful GET responses
+    if ((!options.method || options.method === 'GET') && cacheKey) {
+      this.setCache(cacheKey, result, cacheTTL);
+    }
+    
+    return result;
   }
   
   async checkHealth() {
     try {
-      await this.request('/');
+      await this.request('/', {}, 'health_check', 10000);
       return true;
     } catch {
       return false;
@@ -541,7 +572,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Check if project exists in backend
         let projectExists = false;
         try {
-          const projects = await backend.request('/api/projects');
+          const projects = await backend.request('/api/projects', {}, 'projects_list', 30000);
           projectExists = projects.some((p: any) => p.id === initProjectId);
         } catch (error) {
           console.error('Failed to check existing projects:', error);

@@ -5,6 +5,7 @@ Core KnowledgeGraph class with memvid integration.
 import json
 import uuid
 import logging
+import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -39,6 +40,14 @@ class MemvidKnowledgeGraph:
         # Load existing data
         self._load_metadata()
         self._ensure_default_project()
+        
+        # Performance optimization: batch video rebuilding  
+        self._rebuild_scheduled = False
+        self._rebuild_task = None
+        
+        # Model caching for performance
+        self._encoder_cache = None
+        self._retriever_cache = None
         
         # Initialize retriever if video exists
         self.retriever = None
@@ -103,6 +112,30 @@ class MemvidKnowledgeGraph:
         except Exception as e:
             logger.warning(f"⚠️ Error saving metadata: {e}")
 
+    def _schedule_video_rebuild(self):
+        """Schedule a video rebuild with debouncing to avoid excessive rebuilds."""
+        if self._rebuild_scheduled:
+            return
+            
+        self._rebuild_scheduled = True
+        
+        async def delayed_rebuild():
+            await asyncio.sleep(5)  # 5-second debounce
+            self._rebuild_scheduled = False
+            await self._rebuild_video()
+            
+        # Cancel existing task if any
+        if self._rebuild_task and not self._rebuild_task.done():
+            self._rebuild_task.cancel()
+            
+        self._rebuild_task = asyncio.create_task(delayed_rebuild())
+
+    def _get_cached_encoder(self):
+        """Get cached encoder or create new one."""
+        if self._encoder_cache is None and MEMVID_AVAILABLE:
+            self._encoder_cache = MemvidEncoder()
+        return self._encoder_cache
+
     async def _rebuild_video(self):
         """Rebuild the memvid video with current data."""
         if not MEMVID_AVAILABLE:
@@ -110,7 +143,7 @@ class MemvidKnowledgeGraph:
             return
             
         try:
-            encoder = MemvidEncoder()
+            encoder = self._get_cached_encoder()
             
             # Collect all text chunks
             chunks = []
@@ -147,8 +180,9 @@ Created: {relationship.createdAt}
             # Build the video (not async)
             encoder.build_video(str(self.video_path), str(self.index_path))
             
-            # Reload retriever
-            self.retriever = MemvidRetriever(str(self.video_path), str(self.index_path))
+            # Update cached retriever
+            self._retriever_cache = MemvidRetriever(str(self.video_path), str(self.index_path))
+            self.retriever = self._retriever_cache
             
             logger.info(f"✅ Rebuilt memvid: {len(self.entities)} entities, {len(self.relationships)} relationships")
             
@@ -167,8 +201,8 @@ Created: {relationship.createdAt}
         self.entities[entity.id] = entity
         self._save_metadata()
         
-        # Rebuild the video so the new entity is searchable
-        await self._rebuild_video()
+        # Schedule video rebuild for batch processing
+        self._schedule_video_rebuild()
         
         return entity
 
@@ -202,7 +236,7 @@ Created: {relationship.createdAt}
         self.entities[entity_id] = entity
         self._save_metadata()
         
-        await self._rebuild_video()
+        self._schedule_video_rebuild()
         return entity
 
     async def delete_entity(self, entity_id: str) -> bool:
@@ -222,7 +256,7 @@ Created: {relationship.createdAt}
             del self.relationships[rel_id]
             
         self._save_metadata()
-        await self._rebuild_video()
+        self._schedule_video_rebuild()
         return True
 
     # Relationship Operations
@@ -234,7 +268,7 @@ Created: {relationship.createdAt}
         self.relationships[relationship.id] = relationship
         self._save_metadata()
         
-        await self._rebuild_video()
+        self._schedule_video_rebuild()
         return relationship
 
     async def delete_relationship(self, relationship_id: str) -> bool:
@@ -242,7 +276,7 @@ Created: {relationship.createdAt}
         if relationship_id in self.relationships:
             del self.relationships[relationship_id]
             self._save_metadata()
-            await self._rebuild_video()
+            self._schedule_video_rebuild()
             return True
         return False
 
@@ -269,7 +303,7 @@ Created: {relationship.createdAt}
         entity.updatedAt = datetime.now().isoformat()
         self.entities[entity_id] = entity
         self._save_metadata()
-        await self._rebuild_video()
+        self._schedule_video_rebuild()
         return observation_id
 
     # Search Operations

@@ -41,6 +41,12 @@ class Settings:
     MAX_AI_TOKENS: int = 2048
     DEFAULT_AI_TEMPERATURE: float = 0.7
     
+    # Performance optimization settings
+    BATCH_REBUILD_DELAY: int = 5  # seconds
+    AUTO_REBUILD_ENABLED: bool = True
+    CACHE_MODELS: bool = True
+    FORCE_REBUILD_THRESHOLD: int = 10  # operations before forced rebuild
+    
     def __init__(self):
         """Initialize settings from environment variables."""
         self.HOST = os.getenv("HOST", self.HOST)

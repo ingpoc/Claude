@@ -81,4 +81,21 @@ def setup_search_routes(kg):
         analytics = await kg.get_analytics(project_id=project_id, include_details=include_details)
         return analytics
 
+    @router.post("/rebuild-video")
+    async def force_video_rebuild():
+        """Manually trigger video rebuild for debugging/optimization."""
+        try:
+            await kg._rebuild_video()
+            return {
+                "status": "success", 
+                "message": "Video rebuilt successfully",
+                "entities": len(kg.entities),
+                "relationships": len(kg.relationships)
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Failed to rebuild video: {str(e)}"
+            }
+
     return router
