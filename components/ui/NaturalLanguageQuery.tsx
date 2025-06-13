@@ -25,6 +25,7 @@ import Link from 'next/link';
 import { useSettings } from '../../lib/hooks/useSettings';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 import { Label } from './label';
+import { apiFetch } from "../../lib/api";
 
 interface QueryResult {
   id: string;
@@ -155,7 +156,7 @@ export function NaturalLanguageQuery({
     try {
       // Try Python backend AI endpoint first (if available)
       try {
-        const backendResponse = await fetch('http://localhost:8000/api/ai-query', {
+        const backendResponse = await apiFetch('/api/ai-query', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

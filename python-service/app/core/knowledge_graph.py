@@ -10,26 +10,11 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 
 from ..models.schema import Entity, Relationship, Project
-from ..config.settings import settings, get_memvid_availability
+from ..config.settings import settings
+from ..plugins.memvid_plugin import MEMVID_AVAILABLE, MemvidEncoder, MemvidRetriever
 
 # Set up logging
 logger = logging.getLogger(__name__)
-
-# Import memvid with fallback
-MEMVID_AVAILABLE = get_memvid_availability()
-
-if MEMVID_AVAILABLE:
-    from memvid import MemvidEncoder, MemvidRetriever
-else:
-    # Mock classes for development
-    class MemvidEncoder:
-        def add_chunks(self, chunks): pass
-        def build_video(self, video_path, index_path): pass
-    
-    class MemvidRetriever:
-        def __init__(self, video_path, index_path): pass
-        def search(self, query, limit=10): return []
-
 
 class MemvidKnowledgeGraph:
     """

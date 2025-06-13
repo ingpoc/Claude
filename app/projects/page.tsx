@@ -10,6 +10,7 @@ import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Card, CardContent } from "../../components/ui/card";
 import { cn } from '../../lib/utils';
+import { apiFetch, API_BASE_URL } from "../../lib/api";
 
 interface Project {
   id: string;
@@ -53,12 +54,12 @@ export default function ProjectsPage() {
     active: projects.filter(p => p.lastAccessed).length
   };
 
-  // Python service URL
-  const PYTHON_SERVICE_URL = 'http://localhost:8000';
+  // Base URL of the Python service (configurable via NEXT_PUBLIC_API_URL)
+  const PYTHON_SERVICE_URL = API_BASE_URL;
 
   const checkPythonService = async () => {
     try {
-      const response = await fetch(`${PYTHON_SERVICE_URL}/health`);
+      const response = await apiFetch('/health');
       setPythonServiceRunning(response.ok);
       return response.ok;
     } catch (error) {
@@ -77,8 +78,8 @@ export default function ProjectsPage() {
         return;
       }
 
-      const url = `${PYTHON_SERVICE_URL}/api/projects${bustCache ? `?t=${Date.now()}` : ''}`;
-      const response = await fetch(url, {
+      const url = `/api/projects${bustCache ? `?t=${Date.now()}` : ''}`;
+      const response = await apiFetch(url, {
         headers: { 'Content-Type': 'application/json' },
       });
       
@@ -119,7 +120,7 @@ export default function ProjectsPage() {
 
   const handleCreateProject = async (name: string, description: string) => {
     try {
-      const response = await fetch(`${PYTHON_SERVICE_URL}/api/projects`, {
+      const response = await apiFetch('/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -153,7 +154,7 @@ export default function ProjectsPage() {
       setProjects(projects.filter(p => p.id !== projectIdToDelete));
       
       try {
-        const deleteResponse = await fetch(`${PYTHON_SERVICE_URL}/api/projects/${projectIdToDelete}`, {
+        const deleteResponse = await apiFetch(`/api/projects/${projectIdToDelete}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' }
         });

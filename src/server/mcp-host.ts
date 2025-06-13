@@ -42,7 +42,7 @@ let clientInfo = {
 
 // Backend service
 class BackendService {
-  private baseUrl = 'http://localhost:8000';
+  private baseUrl = process.env.BACKEND_URL || 'http://localhost:8000';
   
   async request(endpoint: string, options: RequestInit = {}) {
     const url = `${this.baseUrl}${endpoint}`;
@@ -122,6 +122,62 @@ server.setRequestHandler(InitializeRequestSchema, async (request) => {
 
 // Tools list handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  // Example parameter payloads for each tool – used to populate JSON Schema "examples" fields
+  const EXAMPLES: Record<string, any> = {
+    create_entity: {
+      name: "Acme Corp",
+      type: "Company",
+      description: "A fictional corporation used for examples"
+    },
+    search_entities: {
+      query: "Acme",
+      limit: 5
+    },
+    get_entity: {
+      entityId: "entity_123"
+    },
+    create_relationship: {
+      sourceId: "entity_source",
+      targetId: "entity_target",
+      type: "acquired",
+      description: "Source entity acquired the target entity"
+    },
+    list_projects: {},
+    create_project: {
+      name: "New Research",
+      description: "Project for R&D initiatives"
+    },
+    list_entities: {
+      type: "Company",
+      projectId: "default"
+    },
+    find_related_entities: {
+      entityId: "entity_123",
+      direction: "both",
+      relationshipType: "acquired",
+      depth: 2
+    },
+    list_relationships: {
+      relationshipType: "acquired",
+      projectId: "default"
+    },
+    search_observations: {
+      query: "market share",
+      limit: 10
+    },
+    update_entity: {
+      entityId: "entity_123",
+      name: "Acme International"
+    },
+    get_analytics: {
+      includeDetails: true
+    },
+    add_observation: {
+      entityId: "entity_123",
+      text: "Acme Corp increased its market cap by 10% in 2024"
+    }
+  };
+
   return {
     tools: [
       {
@@ -135,7 +191,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             description: { type: "string", description: "Description of the entity" },
             projectId: { type: "string", description: "Project ID (optional, defaults to 'default')" }
           },
-          required: ["name", "type", "description"]
+          required: ["name", "type", "description"],
+          examples: [EXAMPLES.create_entity]
         }
       },
       {
@@ -148,7 +205,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             limit: { type: "number", description: "Maximum number of results (default: 10)" },
             projectId: { type: "string", description: "Project ID to search within (optional)" }
           },
-          required: ["query"]
+          required: ["query"],
+          examples: [EXAMPLES.search_entities]
         }
       },
       {
@@ -159,7 +217,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             entityId: { type: "string", description: "ID of the entity to retrieve" }
           },
-          required: ["entityId"]
+          required: ["entityId"],
+          examples: [EXAMPLES.get_entity]
         }
       },
       {
@@ -174,7 +233,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             description: { type: "string", description: "Description of the relationship" },
             projectId: { type: "string", description: "Project ID (optional)" }
           },
-          required: ["sourceId", "targetId", "type"]
+          required: ["sourceId", "targetId", "type"],
+          examples: [EXAMPLES.create_relationship]
         }
       },
       {
@@ -183,7 +243,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {},
-          required: []
+          required: [],
+          examples: [EXAMPLES.list_projects]
         }
       },
       {
@@ -195,7 +256,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             name: { type: "string", description: "Name of the project" },
             description: { type: "string", description: "Description of the project" }
           },
-          required: ["name", "description"]
+          required: ["name", "description"],
+          examples: [EXAMPLES.create_project]
         }
       },
       {
@@ -207,7 +269,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             type: { type: "string", description: "Filter by entity type (optional)" },
             projectId: { type: "string", description: "Filter by project ID (optional)" }
           },
-          required: []
+          required: [],
+          examples: [EXAMPLES.list_entities]
         }
       },
       {
@@ -222,7 +285,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             depth: { type: "number", description: "Depth of traversal (1-3, default: 1)" },
             projectId: { type: "string", description: "Filter by project ID (optional)" }
           },
-          required: ["entityId"]
+          required: ["entityId"],
+          examples: [EXAMPLES.find_related_entities]
         }
       },
       {
@@ -235,7 +299,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             relationshipType: { type: "string", description: "Filter by relationship type (optional)" },
             entityId: { type: "string", description: "Filter relationships involving specific entity (optional)" }
           },
-          required: []
+          required: [],
+          examples: [EXAMPLES.list_relationships]
         }
       },
       {
@@ -250,7 +315,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             entityId: { type: "string", description: "Filter by specific entity ID (optional)" },
             addedBy: { type: "string", description: "Filter by who added the observation (optional)" }
           },
-          required: ["query"]
+          required: ["query"],
+          examples: [EXAMPLES.search_observations]
         }
       },
       {
@@ -265,7 +331,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             description: { type: "string", description: "New description for the entity (optional)" },
             projectId: { type: "string", description: "Move entity to different project (optional)" }
           },
-          required: ["entityId"]
+          required: ["entityId"],
+          examples: [EXAMPLES.update_entity]
         }
       },
       {
@@ -277,7 +344,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             projectId: { type: "string", description: "Get analytics for specific project (optional)" },
             includeDetails: { type: "boolean", description: "Include detailed breakdowns (default: false)" }
           },
-          required: []
+          required: [],
+          examples: [EXAMPLES.get_analytics]
         }
       },
       {
@@ -290,12 +358,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             text: { type: "string", description: "The observation text" },
             projectId: { type: "string", description: "Project ID (optional)" }
           },
-          required: ["entityId", "text"]
+          required: ["entityId", "text"],
+          examples: [EXAMPLES.add_observation]
         }
       }
     ]
   };
 });
+
+// Utility to emit streaming chunks for long-running tool calls (M2)
+async function emitToolStreamChunk(text: string, isFinal: boolean = false) {
+  await server.notification({
+    method: "notifications/toolStream",
+    params: {
+      content: [{ type: "text", text }],
+      isFinal
+    }
+  } as any);
+}
 
 // Tool call handler
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -350,15 +430,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
         
-        const formattedResults = searchResults.map((entity: any, index: number) => 
-          `${index + 1}. **${entity.name}** (${entity.type})\n   ${entity.description}\n   ID: ${entity.id}`
-        ).join('\n\n');
+        // Stream results in chunks (M2)
+        const CHUNK_SIZE = 5;
+        for (let i = 0; i < searchResults.length; i += CHUNK_SIZE) {
+          const slice = searchResults.slice(i, i + CHUNK_SIZE);
+          const chunkText = slice.map((entity: any, index: number) =>
+            `${i + index + 1}. **${entity.name}** (${entity.type})\n   ${entity.description}\n   ID: ${entity.id}`
+          ).join('\n\n');
+          await emitToolStreamChunk(chunkText, false);
+        }
+        // Send final marker
+        await emitToolStreamChunk('🔚 End of results', true);
         
         return {
           content: [
             {
               type: "text",
-              text: `🔍 Found ${searchResults.length} entities:\n\n${formattedResults}`
+              text: `🔍 Streaming ${searchResults.length} entities finished.`
             }
           ]
         };
@@ -471,9 +559,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
         
-        const formattedEntities = entitiesList.map((entity: any, index: number) => 
-          `${index + 1}. **${entity.name}** (${entity.type})\n   ${entity.description}\n   ID: ${entity.id}\n   Project: ${entity.projectId}`
-        ).join('\n\n');
+        // Stream entities in chunks
+        const ENT_CHUNK_SIZE = 5;
+        for (let i = 0; i < entitiesList.length; i += ENT_CHUNK_SIZE) {
+          const slice = entitiesList.slice(i, i + ENT_CHUNK_SIZE);
+          const chunkText = slice.map((entity: any, index: number) =>
+            `${i + index + 1}. **${entity.name}** (${entity.type})\n   ${entity.description}\n   ID: ${entity.id}\n   Project: ${entity.projectId}`
+          ).join('\n\n');
+          await emitToolStreamChunk(chunkText, false);
+        }
+        await emitToolStreamChunk('🔚 End of results', true);
         
         const filterText = args.type || args.projectId ? 
           ` (filtered by ${args.type ? `type: ${args.type}` : ''}${args.type && args.projectId ? ', ' : ''}${args.projectId ? `project: ${args.projectId}` : ''})` : '';
@@ -482,7 +577,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: "text",
-              text: `📋 Found ${entitiesList.length} entities${filterText}:\n\n${formattedEntities}`
+              text: `📋 Streaming ${entitiesList.length} entities${filterText} finished.`
             }
           ]
         };

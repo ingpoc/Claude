@@ -1,0 +1,1 @@
+# Plugin namespace for optional integrations such as memvid 

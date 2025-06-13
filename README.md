@@ -281,3 +281,34 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Built with ❤️ for the MCP ecosystem**
+
+## Environment configuration
+
+Create a `.env` file or export the variables in your shell. A template is shown below:
+
+```bash
+# Claude – example environment settings
+NEXT_PUBLIC_API_URL=http://localhost:8000   # Front-end & React hooks
+BACKEND_URL=http://localhost:8000           # Node MCP host → FastAPI
+CORS_ORIGIN=http://localhost:3000           # Allowed origin for FastAPI CORS
+```
+
+The **front-end** uses `NEXT_PUBLIC_API_URL` via the new helper in `lib/api.ts`. The **Node CLI** host reads `BACKEND_URL` to forward MCP calls. FastAPI's `settings` object can consume `CORS_ORIGIN` to tighten CORS in production.
+
+---
+
+## Quick start
+
+```bash
+# 1. Install deps
+npm install
+python -m pip install -r python-service/requirements.txt
+
+# 2. Copy env template
+cp .env.example .env  # adjust if needed
+
+# 3. Start all services (Next.js + FastAPI + MCP host)
+npm run start:all
+```
+
+See `start-simple.sh` for a minimal script if you only need the Python backend.

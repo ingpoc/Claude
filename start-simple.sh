@@ -11,7 +11,7 @@ check_port() {
 # Start Python service in background
 echo "📊 Starting Python Backend Service..."
 cd python-service
-python python_memvid_service.py &
+python main.py &
 PYTHON_PID=$!
 cd ..
 

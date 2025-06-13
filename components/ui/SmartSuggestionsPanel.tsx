@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSettings } from '../../lib/hooks/useSettings';
+import { apiFetch } from "../../lib/api";
 
 interface Suggestion {
   id: string;
@@ -63,8 +64,8 @@ export const SmartSuggestionsPanel: React.FC<SmartSuggestionsPanelProps> = ({
       try {
         // Fetch project data to analyze
         const [entitiesResponse, relationshipsResponse] = await Promise.all([
-          fetch(`http://localhost:8000/api/entities?project_id=${projectId}`),
-          fetch(`http://localhost:8000/api/relationships?project_id=${projectId}`)
+          apiFetch(`/api/entities?project_id=${projectId}`),
+          apiFetch(`/api/relationships?project_id=${projectId}`)
         ]);
 
         if (entitiesResponse.ok && relationshipsResponse.ok) {

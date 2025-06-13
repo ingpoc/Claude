@@ -143,3 +143,18 @@ venv.bak/
 .python-version
 
 /scripts
+
+# === Added by AI: Hygiene improvements ===
+# macOS Finder metadata
+.DS_Store
+
+# Next.js build output
+.next/
+
+# Compiled TypeScript build info
+*.tsbuildinfo
+
+# Large binary artefacts
+*.mp4
+
+.env.local.example

@@ -578,13 +578,6 @@
       "lastAccessed": "2025-06-08T18:04:13.360524"
     },
     {
-      "id": "64350d38-4bd9-4945-8431-28fc81b4a3ac",
-      "name": "Test project",
-      "description": "test description",
-      "createdAt": "2025-06-09T18:34:38.485439",
-      "lastAccessed": "2025-06-09T18:34:38.485439"
-    },
-    {
       "id": "8bf1433b-66c7-47ab-9335-3e20c966ec99",
       "name": "Atom to Quark Migration",
       "description": "TIAA's migration project from legacy Atom framework to modern Quark framework, including automation tools and implementation guides",
@@ -592,5 +585,5 @@
       "lastAccessed": "2025-06-10T01:35:06.144670"
     }
   ],
-  "updated_at": "2025-06-10T02:47:53.816136"
+  "updated_at": "2025-06-10T02:53:13.130601"
 }

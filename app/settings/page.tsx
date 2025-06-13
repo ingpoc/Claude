@@ -26,6 +26,7 @@ import {
   RotateCcw,
   ExternalLink
 } from 'lucide-react';
+import { apiFetch } from "../../lib/api";
 
 interface Settings {
   aiConfiguration: {
@@ -145,7 +146,7 @@ export default function SettingsPage() {
 
   const checkPythonService = async () => {
     try {
-      const response = await fetch('http://localhost:8000/health');
+      const response = await apiFetch('/health');
       setPythonServiceRunning(response.ok);
     } catch (error) {
       setPythonServiceRunning(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { gsap } from 'gsap';
 import { 
@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "../../../components/ui/label";
 import { Textarea } from "../../../components/ui/textarea";
 import { GraphVisualization, NaturalLanguageQuery, SmartSuggestionsPanel } from "../../../components/ui";
+import { apiFetch } from "../../../lib/api";
 
 interface Project {
   id: string;
@@ -119,21 +120,21 @@ export default function EnhancedProjectDetailPage() {
     setIsLoading(true);
     try {
       // Load project details
-      const projectResponse = await fetch(`http://localhost:8000/api/projects/${projectId}`);
+      const projectResponse = await apiFetch(`/api/projects/${projectId}`);
       if (projectResponse.ok) {
         const projectData = await projectResponse.json();
         setProject(projectData);
       }
 
       // Load entities for this project
-      const entitiesResponse = await fetch(`http://localhost:8000/api/entities?project_id=${projectId}`);
+      const entitiesResponse = await apiFetch(`/api/entities?project_id=${projectId}`);
       if (entitiesResponse.ok) {
         const entitiesData = await entitiesResponse.json();
         setEntities(entitiesData || []);
       }
 
       // Load relationships for this project
-      const relationshipsResponse = await fetch(`http://localhost:8000/api/relationships?project_id=${projectId}`);
+      const relationshipsResponse = await apiFetch(`/api/relationships?project_id=${projectId}`);
       if (relationshipsResponse.ok) {
         const relationshipsData = await relationshipsResponse.json();
         setRelationships(relationshipsData || []);
@@ -223,7 +224,7 @@ export default function EnhancedProjectDetailPage() {
     
     setIsSubmitting(true);
     try {
-      const response = await fetch('http://localhost:8000/api/entities', {
+      const response = await apiFetch('/api/entities', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -255,7 +256,7 @@ export default function EnhancedProjectDetailPage() {
     
     setIsSubmitting(true);
     try {
-      const response = await fetch('http://localhost:8000/api/relationships', {
+      const response = await apiFetch('/api/relationships', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -35,6 +35,7 @@ import { Progress } from "../components/ui/progress";
 import { cn } from "../lib/utils";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { useSettings } from "../lib/hooks/useSettings";
+import { apiFetch } from "../lib/api";
 
 interface DashboardStats {
   entities: number;
@@ -125,7 +126,7 @@ export default function Dashboard() {
 
   const checkPythonService = async () => {
     try {
-      const response = await fetch('http://localhost:8000/health');
+      const response = await apiFetch('/health');
       if (response.ok) {
         setPythonServiceStatus('running');
         return true;
@@ -141,7 +142,7 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:8000/health');
+      const response = await apiFetch('/health');
       if (response.ok) {
         const data = await response.json();
         setStats({
@@ -158,7 +159,7 @@ export default function Dashboard() {
 
   const fetchProjects = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/projects');
+      const response = await apiFetch('/api/projects');
       if (response.ok) {
         const data = await response.json();
         setProjects(data || []);
@@ -175,7 +176,7 @@ export default function Dashboard() {
 
   const fetchRecentEntities = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/entities');
+      const response = await apiFetch('/api/entities');
       if (response.ok) {
         const data = await response.json();
         // Get the 5 most recent entities
@@ -192,7 +193,7 @@ export default function Dashboard() {
 
   const fetchRecentRelationships = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/relationships');
+      const response = await apiFetch('/api/relationships');
       if (response.ok) {
         const data = await response.json();
         // Get the 5 most recent relationships
@@ -237,7 +238,7 @@ export default function Dashboard() {
     try {
       // Try Python backend AI endpoint first (if available)
       try {
-        const backendResponse = await fetch('http://localhost:8000/api/ai-query', {
+        const backendResponse = await apiFetch('/api/ai-query', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -360,9 +361,9 @@ Provide a helpful, conversational response about the search results and knowledg
     try {
       // Fetch project entities and relationships for context
       const [entitiesResponse, relationshipsResponse, searchResponse] = await Promise.all([
-        fetch(`http://localhost:8000/api/entities?project_id=${selectedProject}`),
-        fetch(`http://localhost:8000/api/relationships?project_id=${selectedProject}`),
-        fetch(`http://localhost:8000/api/search?q=${encodeURIComponent(userQuery)}&project_id=${selectedProject}&limit=10`)
+        apiFetch(`/api/entities?project_id=${selectedProject}`),
+        apiFetch(`/api/relationships?project_id=${selectedProject}`),
+        apiFetch(`/api/search?q=${encodeURIComponent(userQuery)}&project_id=${selectedProject}&limit=10`)
       ]);
       
       if (searchResponse.ok) {
@@ -393,7 +394,7 @@ Provide a helpful, conversational response about the search results and knowledg
         const errorMessage = {
           id: (Date.now() + 1).toString(),
           type: 'assistant' as const,
-          message: 'I\'m having trouble accessing the knowledge graph. Please make sure the Python service is running at http://localhost:8000.',
+          message: "I'm having trouble accessing the knowledge graph. Please make sure the Python service is running.",
           timestamp: new Date(),
           confidence: 0.1
         };
